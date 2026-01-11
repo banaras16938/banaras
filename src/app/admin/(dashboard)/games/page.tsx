@@ -1,62 +1,218 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardHeader } from '@/components/ui'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { PAYOUT_MULTIPLIERS } from '@/types/types'
+import { Modal } from '@/components/ui/Modal'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { Clock, DollarSign, Save, RefreshCw, Calendar, Trash2, Plus } from 'lucide-react'
+import { toast } from 'sonner'
 
-// Default schedule for display (should be fetched from API in future)
-const GAME_SCHEDULE = [
-    {
-        slot: 'Morning',
-        bettingStart: '09:00',
-        openStopWindow: { start: '12:45', end: '13:00' },
-        openResult: '1:00 PM',
-        closeStopWindow: { start: '14:45', end: '15:00' },
-        closeResult: '3:00 PM'
-    },
-    {
-        slot: 'Night',
-        bettingStart: '16:00',
-        openStopWindow: { start: '17:45', end: '18:00' },
-        openResult: '6:00 PM',
-        closeStopWindow: { start: '19:45', end: '20:00' },
-        closeResult: '8:00 PM'
-    }
-]
-import { Clock, DollarSign, Save, RefreshCw } from 'lucide-react'
+interface GameSchedule {
+    session_name: 'morning' | 'night'
+    start_time: string
+    open_bet_freeze_time: string
+    open_result_time: string
+    close_bet_resume_time: string | null
+    close_bet_freeze_time: string
+    close_result_time: string
+}
+
+interface GameConfig {
+    payout_single: number
+    payout_jodi: number
+    payout_triple: number
+}
+
+interface Holiday {
+    holiday_date: string
+    description: string | null
+    created_at: string
+}
 
 export default function GameSettingsPage() {
-    const [singlePayout, setSinglePayout] = useState<number>(PAYOUT_MULTIPLIERS.single)
-    const [jodiPayout, setJodiPayout] = useState<number>(PAYOUT_MULTIPLIERS.jodi)
-    const [triplePayout, setTriplePayout] = useState<number>(PAYOUT_MULTIPLIERS.triple)
-    const [isSaving, setIsSaving] = useState(false)
-    const [saved, setSaved] = useState(false)
+    const [loading, setLoading] = useState(true)
+    const [schedules, setSchedules] = useState<GameSchedule[]>([])
+    const [config, setConfig] = useState<GameConfig>({
+        payout_single: 9,
+        payout_jodi: 90,
+        payout_triple: 800
+    })
+    const [holidays, setHolidays] = useState<Holiday[]>([])
 
-    const handleSave = async () => {
+    // Edit states
+    const [editingSingle, setEditingSingle] = useState(90)
+    const [editingJodi, setEditingJodi] = useState(900)
+    const [editingTriple, setEditingTriple] = useState(8000)
+    const [isSaving, setIsSaving] = useState(false)
+
+    // Holiday modal
+    const [showHolidayModal, setShowHolidayModal] = useState(false)
+    const [newHolidayDate, setNewHolidayDate] = useState('')
+    const [newHolidayDesc, setNewHolidayDesc] = useState('')
+
+    const fetchData = useCallback(async () => {
+        setLoading(true)
+        try {
+            const [schedulesRes, configRes, holidaysRes] = await Promise.all([
+                fetch('/api/analytics?type=schedules'),
+                fetch('/api/game-config'),
+                fetch('/api/analytics?type=holidays')
+            ])
+
+            if (schedulesRes.ok) {
+                const { schedules: data } = await schedulesRes.json()
+                setSchedules(data || [])
+            }
+
+            if (configRes.ok) {
+                const { config: data } = await configRes.json()
+                if (data) {
+                    setConfig(data)
+                    setEditingSingle(data.payout_single * 10)
+                    setEditingJodi(data.payout_jodi * 10)
+                    setEditingTriple(data.payout_triple * 10)
+                }
+            }
+
+            if (holidaysRes.ok) {
+                const { holidays: data } = await holidaysRes.json()
+                setHolidays(data || [])
+            }
+        } catch (error) {
+            console.error('Failed to fetch settings:', error)
+            toast.error('Failed to load settings')
+        } finally {
+            setLoading(false)
+        }
+    }, [])
+
+    useEffect(() => {
+        fetchData()
+    }, [fetchData])
+
+    const handleSavePayouts = async () => {
         setIsSaving(true)
-        // TODO: Save to Supabase
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        setIsSaving(false)
-        setSaved(true)
-        setTimeout(() => setSaved(false), 3000)
+        try {
+            const response = await fetch('/api/game-config', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    payout_single: editingSingle / 10,
+                    payout_jodi: editingJodi / 10,
+                    payout_triple: editingTriple / 10
+                })
+            })
+
+            if (!response.ok) {
+                throw new Error('Failed to save')
+            }
+
+            toast.success('Payout settings saved!')
+            await fetchData()
+        } catch (error) {
+            toast.error('Failed to save payout settings')
+        } finally {
+            setIsSaving(false)
+        }
     }
 
-    const handleReset = () => {
-        setSinglePayout(PAYOUT_MULTIPLIERS.single)
-        setJodiPayout(PAYOUT_MULTIPLIERS.jodi)
-        setTriplePayout(PAYOUT_MULTIPLIERS.triple)
+    const handleResetPayouts = () => {
+        setEditingSingle(config.payout_single * 10)
+        setEditingJodi(config.payout_jodi * 10)
+        setEditingTriple(config.payout_triple * 10)
+    }
+
+    const handleAddHoliday = async () => {
+        if (!newHolidayDate) {
+            toast.error('Please select a date')
+            return
+        }
+
+        try {
+            const response = await fetch('/api/analytics', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'add_holiday',
+                    holidayDate: newHolidayDate,
+                    description: newHolidayDesc || null
+                })
+            })
+
+            if (!response.ok) {
+                throw new Error('Failed to add holiday')
+            }
+
+            toast.success('Holiday added!')
+            setShowHolidayModal(false)
+            setNewHolidayDate('')
+            setNewHolidayDesc('')
+            await fetchData()
+        } catch (error) {
+            toast.error('Failed to add holiday')
+        }
+    }
+
+    const handleRemoveHoliday = async (date: string) => {
+        if (!confirm('Remove this holiday?')) return
+
+        try {
+            const response = await fetch('/api/analytics', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'remove_holiday',
+                    holidayDate: date
+                })
+            })
+
+            if (!response.ok) {
+                throw new Error('Failed to remove holiday')
+            }
+
+            toast.success('Holiday removed!')
+            await fetchData()
+        } catch (error) {
+            toast.error('Failed to remove holiday')
+        }
+    }
+
+    const formatTime = (timeStr: string) => {
+        if (!timeStr) return '-'
+        const [hours, minutes] = timeStr.split(':')
+        const hour = parseInt(hours)
+        const ampm = hour >= 12 ? 'PM' : 'AM'
+        const displayHour = hour % 12 || 12
+        return `${displayHour}:${minutes} ${ampm}`
+    }
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <LoadingSpinner size="lg" />
+            </div>
+        )
     }
 
     return (
         <div className="space-y-6 animate-fade-in max-w-4xl">
-            <div>
-                <h1 className="text-2xl font-bold">Game Settings</h1>
-                <p className="text-[var(--text-secondary)]">
-                    Configure game timings and payout multipliers
-                </p>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold">Game Settings</h1>
+                    <p className="text-[var(--text-secondary)]">
+                        Configure game timings, payouts, and holidays
+                    </p>
+                </div>
+                <button
+                    onClick={fetchData}
+                    className="btn btn-secondary flex items-center gap-2"
+                >
+                    <RefreshCw size={16} />
+                    Refresh
+                </button>
             </div>
 
             {/* Game Schedule */}
@@ -68,40 +224,40 @@ export default function GameSettingsPage() {
                 />
 
                 <div className="space-y-6">
-                    {GAME_SCHEDULE.map((schedule) => (
-                        <div key={schedule.slot} className="p-4 rounded-lg bg-[var(--bg-surface)]">
+                    {schedules.map((schedule) => (
+                        <div key={schedule.session_name} className="p-4 rounded-lg bg-[var(--bg-surface)]">
                             <h3 className="font-semibold text-lg mb-4 capitalize">
-                                {schedule.slot} Game
+                                {schedule.session_name} Game
                             </h3>
 
-                            <div className="grid md:grid-cols-2 gap-4">
+                            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <div>
                                     <p className="text-xs text-[var(--text-muted)] mb-1">Betting Starts</p>
-                                    <p className="font-mono text-lg">{schedule.bettingStart} AM</p>
+                                    <p className="font-mono text-lg">{formatTime(schedule.start_time)}</p>
                                 </div>
 
                                 <div>
-                                    <p className="text-xs text-[var(--text-muted)] mb-1">Open Lock Window</p>
+                                    <p className="text-xs text-[var(--text-muted)] mb-1">Open Lock Time</p>
                                     <p className="font-mono">
-                                        {schedule.openStopWindow.start} - {schedule.openStopWindow.end}
+                                        {formatTime(schedule.open_bet_freeze_time)}
                                     </p>
                                 </div>
 
                                 <div>
                                     <p className="text-xs text-[var(--text-muted)] mb-1">Open Result Time</p>
-                                    <Badge variant="info">{schedule.openResult}</Badge>
+                                    <Badge variant="info">{formatTime(schedule.open_result_time)}</Badge>
                                 </div>
 
                                 <div>
-                                    <p className="text-xs text-[var(--text-muted)] mb-1">Close Lock Window</p>
+                                    <p className="text-xs text-[var(--text-muted)] mb-1">Close Lock Time</p>
                                     <p className="font-mono">
-                                        {schedule.closeStopWindow.start} - {schedule.closeStopWindow.end}
+                                        {formatTime(schedule.close_bet_freeze_time)}
                                     </p>
                                 </div>
 
                                 <div>
                                     <p className="text-xs text-[var(--text-muted)] mb-1">Close Result Time</p>
-                                    <Badge variant="success">{schedule.closeResult}</Badge>
+                                    <Badge variant="success">{formatTime(schedule.close_result_time)}</Badge>
                                 </div>
                             </div>
                         </div>
@@ -110,7 +266,7 @@ export default function GameSettingsPage() {
 
                 <div className="mt-4 p-3 rounded-lg bg-[var(--status-info)]/10 border border-[var(--status-info)]/30">
                     <p className="text-sm text-[var(--status-info)]">
-                        ℹ️ Game schedules are system-controlled and cannot be modified from this interface.
+                        ℹ️ Game schedules are configured in the database. Contact system admin for schedule changes.
                     </p>
                 </div>
             </Card>
@@ -131,13 +287,13 @@ export default function GameSettingsPage() {
                                 <span className="text-[var(--text-muted)]">₹10 →</span>
                                 <Input
                                     type="number"
-                                    value={singlePayout * 10}
-                                    onChange={(e) => setSinglePayout(Number(e.target.value) / 10)}
+                                    value={editingSingle}
+                                    onChange={(e) => setEditingSingle(Number(e.target.value))}
                                     className="w-24 text-center font-bold text-lg"
                                 />
                             </div>
                             <p className="text-xs text-[var(--text-muted)] mt-2">
-                                Multiplier: {singlePayout}x
+                                Multiplier: {(editingSingle / 10).toFixed(1)}x
                             </p>
                         </div>
 
@@ -147,13 +303,13 @@ export default function GameSettingsPage() {
                                 <span className="text-[var(--text-muted)]">₹10 →</span>
                                 <Input
                                     type="number"
-                                    value={jodiPayout * 10}
-                                    onChange={(e) => setJodiPayout(Number(e.target.value) / 10)}
+                                    value={editingJodi}
+                                    onChange={(e) => setEditingJodi(Number(e.target.value))}
                                     className="w-24 text-center font-bold text-lg"
                                 />
                             </div>
                             <p className="text-xs text-[var(--text-muted)] mt-2">
-                                Multiplier: {jodiPayout}x
+                                Multiplier: {(editingJodi / 10).toFixed(1)}x
                             </p>
                         </div>
 
@@ -163,13 +319,13 @@ export default function GameSettingsPage() {
                                 <span className="text-[var(--text-muted)]">₹10 →</span>
                                 <Input
                                     type="number"
-                                    value={triplePayout * 10}
-                                    onChange={(e) => setTriplePayout(Number(e.target.value) / 10)}
+                                    value={editingTriple}
+                                    onChange={(e) => setEditingTriple(Number(e.target.value))}
                                     className="w-24 text-center font-bold text-lg"
                                 />
                             </div>
                             <p className="text-xs text-[var(--text-muted)] mt-2">
-                                Multiplier: {triplePayout}x
+                                Multiplier: {(editingTriple / 10).toFixed(1)}x
                             </p>
                         </div>
                     </div>
@@ -177,19 +333,67 @@ export default function GameSettingsPage() {
                     <div className="flex gap-3">
                         <Button
                             variant="secondary"
-                            onClick={handleReset}
+                            onClick={handleResetPayouts}
                             icon={<RefreshCw size={18} />}
                         >
-                            Reset to Defaults
+                            Reset
                         </Button>
                         <Button
-                            onClick={handleSave}
+                            onClick={handleSavePayouts}
                             isLoading={isSaving}
-                            icon={saved ? <Badge variant="success">Saved!</Badge> : <Save size={18} />}
+                            icon={<Save size={18} />}
                         >
-                            {saved ? 'Saved!' : 'Save Changes'}
+                            Save Changes
                         </Button>
                     </div>
+                </div>
+            </Card>
+
+            {/* Holiday Management */}
+            <Card>
+                <CardHeader
+                    title="Holiday Management"
+                    subtitle="Days when betting is disabled"
+                    action={
+                        <Button
+                            size="sm"
+                            onClick={() => setShowHolidayModal(true)}
+                            icon={<Plus size={16} />}
+                        >
+                            Add Holiday
+                        </Button>
+                    }
+                />
+
+                <div className="space-y-2">
+                    {holidays.length === 0 ? (
+                        <p className="text-center py-8 text-[var(--text-muted)]">
+                            No holidays configured
+                        </p>
+                    ) : (
+                        holidays.map((holiday) => (
+                            <div
+                                key={holiday.holiday_date}
+                                className="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-surface)]"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <Calendar size={18} className="text-[var(--accent-pink)]" />
+                                    <div>
+                                        <p className="font-medium">{holiday.holiday_date}</p>
+                                        {holiday.description && (
+                                            <p className="text-xs text-[var(--text-muted)]">{holiday.description}</p>
+                                        )}
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => handleRemoveHoliday(holiday.holiday_date)}
+                                    className="p-2 rounded-lg hover:bg-[var(--status-error)]/10 text-[var(--status-error)] transition-colors"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            </div>
+                        ))
+                    )}
                 </div>
             </Card>
 
@@ -211,21 +415,58 @@ export default function GameSettingsPage() {
 
                     <div className="p-4 rounded-lg bg-[var(--bg-surface)] flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-[var(--text-muted)]">Active Sessions</p>
-                            <p className="font-medium">12 Staff Online</p>
+                            <p className="text-sm text-[var(--text-muted)]">Schedules</p>
+                            <p className="font-medium">{schedules.length} Sessions</p>
                         </div>
                         <Badge variant="info">Active</Badge>
                     </div>
 
                     <div className="p-4 rounded-lg bg-[var(--bg-surface)] flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-[var(--text-muted)]">Betting Status</p>
-                            <p className="font-medium">Open</p>
+                            <p className="text-sm text-[var(--text-muted)]">Holidays</p>
+                            <p className="font-medium">{holidays.length} Configured</p>
                         </div>
-                        <Badge variant="success" dot>Live</Badge>
+                        <Badge variant="default">{holidays.length > 0 ? 'Set' : 'None'}</Badge>
                     </div>
                 </div>
             </Card>
+
+            {/* Add Holiday Modal */}
+            <Modal
+                isOpen={showHolidayModal}
+                onClose={() => setShowHolidayModal(false)}
+                title="Add Holiday"
+            >
+                <div className="space-y-4">
+                    <Input
+                        label="Date"
+                        type="date"
+                        value={newHolidayDate}
+                        onChange={(e) => setNewHolidayDate(e.target.value)}
+                    />
+                    <Input
+                        label="Description (optional)"
+                        value={newHolidayDesc}
+                        onChange={(e) => setNewHolidayDesc(e.target.value)}
+                        placeholder="e.g., Diwali, Christmas..."
+                    />
+                    <div className="flex gap-3">
+                        <Button
+                            variant="secondary"
+                            className="flex-1"
+                            onClick={() => setShowHolidayModal(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            className="flex-1"
+                            onClick={handleAddHoliday}
+                        >
+                            Add Holiday
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     )
 }

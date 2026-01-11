@@ -1,104 +1,164 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardHeader } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Slider } from '@/components/ui/Slider'
 import { Modal } from '@/components/ui/Modal'
-import { Select } from '@/components/ui/Input'
-import { ResultOption } from '@/types/types'
+import { Input, Select } from '@/components/ui/Input'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { ResultOption, SessionType, BetTarget } from '@/types/types'
 import {
     Target,
     Zap,
     TrendingDown,
     Ghost,
-    Check,
     AlertTriangle,
-    Trophy
+    Trophy,
+    RefreshCw
 } from 'lucide-react'
+import { toast } from 'sonner'
 
-// Mock data generator
-function generateResultOptions(): {
+interface RecommendationsData {
+    totalCollection: number
     targetMatch: ResultOption[]
     systemRecommendations: ResultOption[]
     lowBets: ResultOption[]
     noBets: ResultOption[]
-} {
-    const generateOption = (triple: string): ResultOption => {
-        const digits = triple.split('').map(Number)
-        const sum = digits.reduce((a, b) => a + b, 0)
-        const single = sum % 10
-        const totalBets = Math.floor(Math.random() * 50000)
-        const totalLiability = totalBets * (Math.random() * 100 + 10)
-        const collection = 452300 // Fixed total collection for demo
-        const payoutPercentage = (totalLiability / collection) * 100
-
-        return {
-            triple,
-            single,
-            totalBets,
-            totalLiability,
-            payoutPercentage: Math.min(payoutPercentage, 100),
-            profitPercentage: 100 - Math.min(payoutPercentage, 100),
-        }
-    }
-
-    // Generate all 1000 triples
-    const allOptions: ResultOption[] = []
-    for (let i = 0; i < 1000; i++) {
-        const triple = i.toString().padStart(3, '0')
-        allOptions.push(generateOption(triple))
-    }
-
-    // Sort and filter for different lists
-    const sorted = [...allOptions].sort((a, b) => a.payoutPercentage - b.payoutPercentage)
-
-    return {
-        targetMatch: sorted.filter(o => o.payoutPercentage >= 8 && o.payoutPercentage <= 15).slice(0, 10),
-        systemRecommendations: sorted.slice(0, 5),
-        lowBets: allOptions.filter(o => o.totalBets > 0 && o.totalBets < 5000).slice(0, 10),
-        noBets: allOptions.filter(o => o.totalBets === 0).slice(0, 10),
-    }
 }
 
 export default function ResultSelectorPage() {
     const [payoutSlider, setPayoutSlider] = useState(10)
-    const [selectedGame, setSelectedGame] = useState<'morning-open' | 'morning-close' | 'night-open' | 'night-close'>('night-open')
+    const [selectedSession, setSelectedSession] = useState<SessionType>('morning')
+    const [selectedTarget, setSelectedTarget] = useState<BetTarget>('open')
+    const [gameDate, setGameDate] = useState(() => new Date().toISOString().split('T')[0])
     const [selectedResult, setSelectedResult] = useState<ResultOption | null>(null)
     const [showConfirmModal, setShowConfirmModal] = useState(false)
     const [showSuccessModal, setShowSuccessModal] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [loading, setLoading] = useState(true)
+    const [data, setData] = useState<RecommendationsData>({
+        totalCollection: 0,
+        targetMatch: [],
+        systemRecommendations: [],
+        lowBets: [],
+        noBets: []
+    })
+    const [existingSession, setExistingSession] = useState<{
+        open_triple?: string | null
+        close_triple?: string | null
+    } | null>(null)
 
-    const resultLists = generateResultOptions()
+    const fetchRecommendations = useCallback(async () => {
+        setLoading(true)
+        try {
+            // Fetch recommendations
+            const response = await fetch(
+                `/api/analytics?type=recommendations&date=${gameDate}&session=${selectedSession}&target=${selectedTarget}&targetPayout=${payoutSlider}`
+            )
 
-    // Filter target match based on slider
-    const targetMatchFiltered = resultLists.targetMatch.filter(
-        o => Math.abs(o.payoutPercentage - payoutSlider) < 5
-    )
+            if (!response.ok) {
+                throw new Error('Failed to fetch recommendations')
+            }
+
+            const { recommendations } = await response.json()
+            setData(recommendations || {
+                totalCollection: 0,
+                targetMatch: [],
+                systemRecommendations: [],
+                lowBets: [],
+                noBets: []
+            })
+
+            // Check existing session
+            const sessionsRes = await fetch(`/api/results?date=${gameDate}&session=${selectedSession}`)
+            if (sessionsRes.ok) {
+                const { sessions } = await sessionsRes.json()
+                const session = sessions?.find((s: { session_name: string }) => s.session_name === selectedSession)
+                setExistingSession(session || null)
+            }
+        } catch (error) {
+            console.error('Error fetching recommendations:', error)
+            toast.error('Failed to load recommendations')
+        } finally {
+            setLoading(false)
+        }
+    }, [gameDate, selectedSession, selectedTarget, payoutSlider])
+
+    useEffect(() => {
+        fetchRecommendations()
+    }, [fetchRecommendations])
 
     const handleSelectResult = (option: ResultOption) => {
+        // Check if result already declared
+        if (selectedTarget === 'open' && existingSession?.open_triple) {
+            toast.error('Open result already declared for this session')
+            return
+        }
+        if (selectedTarget === 'close' && existingSession?.close_triple) {
+            toast.error('Close result already declared for this session')
+            return
+        }
+        if (selectedTarget === 'open' && !existingSession?.open_triple === false) {
+            // Can declare open
+        }
+        if (selectedTarget === 'close' && !existingSession?.open_triple) {
+            toast.error('Open result must be declared first')
+            return
+        }
+
         setSelectedResult(option)
         setShowConfirmModal(true)
     }
 
     const handleDeclareResult = async () => {
+        if (!selectedResult) return
+
         setIsSubmitting(true)
 
-        // TODO: Submit to Supabase
-        await new Promise(resolve => setTimeout(resolve, 1500))
+        try {
+            const response = await fetch('/api/results', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    gameDate,
+                    sessionName: selectedSession,
+                    target: selectedTarget,
+                    triple: selectedResult.triple
+                })
+            })
 
-        setShowConfirmModal(false)
-        setShowSuccessModal(true)
-        setIsSubmitting(false)
+            const result = await response.json()
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Failed to declare result')
+            }
+
+            setShowConfirmModal(false)
+            setShowSuccessModal(true)
+
+            // Refresh data
+            await fetchRecommendations()
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Failed to declare result')
+        } finally {
+            setIsSubmitting(false)
+        }
     }
 
-    const gameOptions = [
-        { value: 'morning-open', label: 'Morning - Open (1:00 PM)' },
-        { value: 'morning-close', label: 'Morning - Close (3:00 PM)' },
-        { value: 'night-open', label: 'Night - Open (6:00 PM)' },
-        { value: 'night-close', label: 'Night - Close (8:00 PM)' },
+    const sessionOptions = [
+        { value: 'morning', label: 'Morning Game' },
+        { value: 'night', label: 'Night Game' },
     ]
+
+    const targetOptions = [
+        { value: 'open', label: 'Open Result' },
+        { value: 'close', label: 'Close Result' },
+    ]
+
+    const estimatedPayout = Math.round(data.totalCollection * payoutSlider / 100)
+    const estimatedProfit = data.totalCollection - estimatedPayout
 
     return (
         <div className="space-y-6 animate-fade-in">
@@ -109,32 +169,69 @@ export default function ResultSelectorPage() {
                         Select optimal result for maximum profit control
                     </p>
                 </div>
-                <div className="w-full md:w-64">
-                    <Select
-                        value={selectedGame}
-                        onChange={(e) => setSelectedGame(e.target.value as typeof selectedGame)}
-                        options={gameOptions}
-                    />
+                <div className="flex gap-3">
+                    <button
+                        onClick={fetchRecommendations}
+                        className="btn btn-secondary flex items-center gap-2"
+                        disabled={loading}
+                    >
+                        <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                        Refresh
+                    </button>
                 </div>
             </div>
+
+            {/* Filters */}
+            <Card>
+                <div className="grid md:grid-cols-4 gap-4">
+                    <Input
+                        label="Game Date"
+                        type="date"
+                        value={gameDate}
+                        onChange={(e) => setGameDate(e.target.value)}
+                    />
+                    <Select
+                        label="Session"
+                        value={selectedSession}
+                        onChange={(e) => setSelectedSession(e.target.value as SessionType)}
+                        options={sessionOptions}
+                    />
+                    <Select
+                        label="Target"
+                        value={selectedTarget}
+                        onChange={(e) => setSelectedTarget(e.target.value as BetTarget)}
+                        options={targetOptions}
+                    />
+                    <div className="flex items-end">
+                        {existingSession?.open_triple && selectedTarget === 'open' && (
+                            <Badge variant="success">Open Declared: {existingSession.open_triple}</Badge>
+                        )}
+                        {existingSession?.close_triple && selectedTarget === 'close' && (
+                            <Badge variant="success">Close Declared: {existingSession.close_triple}</Badge>
+                        )}
+                    </div>
+                </div>
+            </Card>
 
             {/* Current Stats */}
             <div className="grid md:grid-cols-4 gap-4">
                 <Card className="text-center">
                     <p className="text-sm text-[var(--text-muted)]">Total Collection</p>
-                    <p className="text-2xl font-bold text-[var(--accent-cyan)]">₹4,52,300</p>
+                    <p className="text-2xl font-bold text-[var(--accent-cyan)]">
+                        ₹{data.totalCollection.toLocaleString()}
+                    </p>
                 </Card>
                 <Card className="text-center">
-                    <p className="text-sm text-[var(--text-muted)]">Single Bets</p>
-                    <p className="text-2xl font-bold">₹1,23,500</p>
+                    <p className="text-sm text-[var(--text-muted)]">Target Match Options</p>
+                    <p className="text-2xl font-bold">{data.targetMatch.length}</p>
                 </Card>
                 <Card className="text-center">
-                    <p className="text-sm text-[var(--text-muted)]">Jodi Bets</p>
-                    <p className="text-2xl font-bold">₹2,15,800</p>
+                    <p className="text-sm text-[var(--text-muted)]">High Profit Options</p>
+                    <p className="text-2xl font-bold">{data.systemRecommendations.length}</p>
                 </Card>
                 <Card className="text-center">
-                    <p className="text-sm text-[var(--text-muted)]">Triple Bets</p>
-                    <p className="text-2xl font-bold">₹1,13,000</p>
+                    <p className="text-sm text-[var(--text-muted)]">Zero Liability</p>
+                    <p className="text-2xl font-bold text-[var(--status-success)]">{data.noBets.length}</p>
                 </Card>
             </div>
 
@@ -157,76 +254,88 @@ export default function ResultSelectorPage() {
                         <div>
                             <p className="text-sm text-[var(--text-muted)]">Estimated Payout</p>
                             <p className="text-xl font-bold text-[var(--status-error)]">
-                                ₹{Math.round(452300 * payoutSlider / 100).toLocaleString()}
+                                ₹{estimatedPayout.toLocaleString()}
                             </p>
                         </div>
                         <div className="text-right">
                             <p className="text-sm text-[var(--text-muted)]">Estimated Profit</p>
                             <p className="text-xl font-bold text-[var(--status-success)]">
-                                ₹{Math.round(452300 * (100 - payoutSlider) / 100).toLocaleString()} ({100 - payoutSlider}%)
+                                ₹{estimatedProfit.toLocaleString()} ({100 - payoutSlider}%)
                             </p>
                         </div>
                     </div>
                 </div>
             </Card>
 
-            {/* Result Lists */}
-            <div className="grid lg:grid-cols-2 gap-6">
-                {/* List A: Target Match */}
-                <Card>
-                    <CardHeader
-                        title="Target Match"
-                        subtitle={`Results with ~${payoutSlider}% payout`}
-                        action={<Target className="text-[var(--accent-cyan)]" size={20} />}
-                    />
-                    <ResultListTable
-                        results={targetMatchFiltered.length > 0 ? targetMatchFiltered : resultLists.targetMatch}
-                        onSelect={handleSelectResult}
-                        emptyMessage="No exact matches. Showing closest options."
-                    />
-                </Card>
+            {loading ? (
+                <div className="py-12 flex justify-center">
+                    <LoadingSpinner size="lg" />
+                </div>
+            ) : (
+                <>
+                    {/* Result Lists */}
+                    <div className="grid lg:grid-cols-2 gap-6">
+                        {/* List A: Target Match */}
+                        <Card>
+                            <CardHeader
+                                title="Target Match"
+                                subtitle={`Results with ~${payoutSlider}% payout`}
+                                action={<Target className="text-[var(--accent-cyan)]" size={20} />}
+                            />
+                            <ResultListTable
+                                results={data.targetMatch}
+                                onSelect={handleSelectResult}
+                                totalCollection={data.totalCollection}
+                                emptyMessage="No matches at this payout level"
+                            />
+                        </Card>
 
-                {/* List B: System Recommendations */}
-                <Card>
-                    <CardHeader
-                        title="System Recommendations"
-                        subtitle="Highest profit options"
-                        action={<Zap className="text-[var(--accent-yellow)]" size={20} />}
-                    />
-                    <ResultListTable
-                        results={resultLists.systemRecommendations}
-                        onSelect={handleSelectResult}
-                        highlight="profit"
-                    />
-                </Card>
+                        {/* List B: System Recommendations */}
+                        <Card>
+                            <CardHeader
+                                title="System Recommendations"
+                                subtitle="Highest profit options"
+                                action={<Zap className="text-[var(--accent-yellow)]" size={20} />}
+                            />
+                            <ResultListTable
+                                results={data.systemRecommendations}
+                                onSelect={handleSelectResult}
+                                totalCollection={data.totalCollection}
+                                highlight="profit"
+                            />
+                        </Card>
 
-                {/* List C: Low Bets */}
-                <Card>
-                    <CardHeader
-                        title="Numbers with Low Bets"
-                        subtitle="Minimal bet volume"
-                        action={<TrendingDown className="text-[var(--accent-pink)]" size={20} />}
-                    />
-                    <ResultListTable
-                        results={resultLists.lowBets}
-                        onSelect={handleSelectResult}
-                    />
-                </Card>
+                        {/* List C: Low Bets */}
+                        <Card>
+                            <CardHeader
+                                title="Numbers with Low Bets"
+                                subtitle="Minimal bet volume"
+                                action={<TrendingDown className="text-[var(--accent-pink)]" size={20} />}
+                            />
+                            <ResultListTable
+                                results={data.lowBets}
+                                onSelect={handleSelectResult}
+                                totalCollection={data.totalCollection}
+                            />
+                        </Card>
 
-                {/* List D: No Bets (Ghost Numbers) */}
-                <Card>
-                    <CardHeader
-                        title="Ghost Numbers (No Bets)"
-                        subtitle="100% profit - zero payout"
-                        action={<Ghost className="text-[var(--accent-green)]" size={20} />}
-                    />
-                    <ResultListTable
-                        results={resultLists.noBets}
-                        onSelect={handleSelectResult}
-                        highlight="ghost"
-                    />
-                </Card>
-            </div>
+                        {/* List D: No Bets (Ghost Numbers) */}
+                        <Card>
+                            <CardHeader
+                                title="Ghost Numbers (No Bets)"
+                                subtitle="100% profit - zero payout"
+                                action={<Ghost className="text-[var(--accent-green)]" size={20} />}
+                            />
+                            <ResultListTable
+                                results={data.noBets}
+                                onSelect={handleSelectResult}
+                                totalCollection={data.totalCollection}
+                                highlight="ghost"
+                            />
+                        </Card>
+                    </div>
+                </>
+            )}
 
             {/* Confirmation Modal */}
             <Modal
@@ -245,7 +354,9 @@ export default function ResultSelectorPage() {
                         </div>
 
                         <div className="p-6 rounded-lg bg-[var(--bg-surface)] text-center">
-                            <p className="text-xs text-[var(--text-muted)] mb-2">DECLARING RESULT</p>
+                            <p className="text-xs text-[var(--text-muted)] mb-2">
+                                DECLARING {selectedSession.toUpperCase()} {selectedTarget.toUpperCase()} RESULT
+                            </p>
                             <p className="text-5xl font-mono font-bold text-[var(--accent-cyan)] mb-2">
                                 {selectedResult.triple}
                             </p>
@@ -267,7 +378,7 @@ export default function ResultSelectorPage() {
                             <div className="text-right">
                                 <p className="text-xs text-[var(--text-muted)]">Estimated Profit</p>
                                 <p className="text-lg font-bold text-[var(--status-success)]">
-                                    ₹{Math.round(452300 - selectedResult.totalLiability).toLocaleString()}
+                                    ₹{Math.round(data.totalCollection - selectedResult.totalLiability).toLocaleString()}
                                 </p>
                                 <p className="text-xs text-[var(--text-muted)]">
                                     {selectedResult.profitPercentage.toFixed(1)}% margin
@@ -333,11 +444,12 @@ export default function ResultSelectorPage() {
 interface ResultListTableProps {
     results: ResultOption[]
     onSelect: (option: ResultOption) => void
+    totalCollection: number
     highlight?: 'profit' | 'ghost'
     emptyMessage?: string
 }
 
-function ResultListTable({ results, onSelect, highlight, emptyMessage }: ResultListTableProps) {
+function ResultListTable({ results, onSelect, totalCollection, highlight, emptyMessage }: ResultListTableProps) {
     if (results.length === 0) {
         return (
             <div className="py-8 text-center text-[var(--text-muted)]">
@@ -372,8 +484,8 @@ function ResultListTable({ results, onSelect, highlight, emptyMessage }: ResultL
                     <div className="text-right flex items-center gap-3">
                         <div>
                             <p className={`text-sm font-medium ${highlight === 'ghost' || result.profitPercentage > 90
-                                    ? 'text-[var(--status-success)]'
-                                    : 'text-[var(--text-primary)]'
+                                ? 'text-[var(--status-success)]'
+                                : 'text-[var(--text-primary)]'
                                 }`}>
                                 {result.profitPercentage.toFixed(1)}% profit
                             </p>

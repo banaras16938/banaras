@@ -1,78 +1,190 @@
 'use client'
 
+import { useEffect, useState, useCallback } from 'react'
 import { Card, CardHeader } from '@/components/ui'
 import { Badge } from '@/components/ui/Badge'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import {
     Users,
     TrendingUp,
     Trophy,
-    Ticket,
     Clock,
     ArrowUpRight,
-    DollarSign
+    DollarSign,
+    RefreshCw
 } from 'lucide-react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 
-// Mock data
-const systemStats = [
-    {
-        label: "Today's Collection",
-        value: '₹4,52,300',
-        change: '+18%',
-        trending: 'up',
-        icon: DollarSign
-    },
-    {
-        label: 'Active Staff',
-        value: '12',
-        change: '2 online',
-        trending: 'neutral',
-        icon: Users
-    },
-    {
-        label: 'Today\'s Payouts',
-        value: '₹3,67,800',
-        change: '81.3% of collection',
-        trending: 'neutral',
-        icon: TrendingUp
-    },
-    {
-        label: 'Net Profit',
-        value: '₹84,500',
-        change: '18.7%',
-        trending: 'up',
-        icon: Trophy
-    },
-]
-
-const gameStatus = {
-    morning: {
-        status: 'completed',
-        openResult: '578',
-        closeResult: '478',
-        jodi: '09',
-        collection: 225000,
-        payout: 185000,
-    },
-    night: {
-        status: 'betting',
-        openResult: null,
-        closeResult: null,
-        jodi: null,
-        collection: 227300,
-        payout: 0,
-    },
+interface DashboardStats {
+    todayCollection: number
+    todayPayout: number
+    netProfit: number
+    profitMargin: number
+    activeStaff: number
+    totalBetsToday: number
 }
 
-const staffActivity = [
-    { name: 'Staff #1', bets: 45, amount: 52300, status: 'online' },
-    { name: 'Staff #2', bets: 38, amount: 41200, status: 'online' },
-    { name: 'Staff #3', bets: 29, amount: 33800, status: 'offline' },
-    { name: 'Staff #4', bets: 52, amount: 61500, status: 'online' },
-    { name: 'Staff #5', bets: 31, amount: 38200, status: 'offline' },
-]
+interface GameSession {
+    id: string
+    game_date: string
+    session_name: 'morning' | 'night'
+    open_triple: string | null
+    open_single: string | null
+    close_triple: string | null
+    close_single: string | null
+    jodi_result: string | null
+}
+
+interface StaffActivity {
+    id: string
+    email: string
+    name: string | null
+    bets_count: number
+    total_amount: number
+    is_active: boolean
+}
 
 export default function AdminDashboard() {
+    const [loading, setLoading] = useState(true)
+    const [stats, setStats] = useState<DashboardStats>({
+        todayCollection: 0,
+        todayPayout: 0,
+        netProfit: 0,
+        profitMargin: 0,
+        activeStaff: 0,
+        totalBetsToday: 0
+    })
+    const [morningSession, setMorningSession] = useState<GameSession | null>(null)
+    const [nightSession, setNightSession] = useState<GameSession | null>(null)
+    const [staffActivity, setStaffActivity] = useState<StaffActivity[]>([])
+
+    const fetchDashboardData = useCallback(async () => {
+        setLoading(true)
+        try {
+            const today = new Date().toISOString().split('T')[0]
+
+            // Fetch analytics summary
+            const [analyticsRes, sessionsRes, staffRes] = await Promise.all([
+                fetch(`/api/analytics?type=summary&date=${today}`),
+                fetch(`/api/results?date=${today}`),
+                fetch('/api/staff')
+            ])
+
+            // Process analytics
+            if (analyticsRes.ok) {
+                const { analytics } = await analyticsRes.json()
+                if (analytics && analytics.length > 0) {
+                    const todayData = analytics.filter((a: { game_date: string }) => a.game_date === today)
+                    const collection = todayData.reduce((sum: number, a: { total_collection: number }) => sum + Number(a.total_collection || 0), 0)
+                    const payout = todayData.reduce((sum: number, a: { total_payouts_given: number }) => sum + Number(a.total_payouts_given || 0), 0)
+                    const profit = collection - payout
+                    const betsCount = todayData.reduce((sum: number, a: { total_bets_placed: number }) => sum + Number(a.total_bets_placed || 0), 0)
+
+                    setStats(prev => ({
+                        ...prev,
+                        todayCollection: collection,
+                        todayPayout: payout,
+                        netProfit: profit,
+                        profitMargin: collection > 0 ? (profit / collection) * 100 : 0,
+                        totalBetsToday: betsCount
+                    }))
+                }
+            }
+
+            // Process sessions
+            if (sessionsRes.ok) {
+                const { sessions } = await sessionsRes.json()
+                if (sessions) {
+                    const morning = sessions.find((s: GameSession) => s.session_name === 'morning')
+                    const night = sessions.find((s: GameSession) => s.session_name === 'night')
+                    setMorningSession(morning || null)
+                    setNightSession(night || null)
+                }
+            }
+
+            // Process staff
+            if (staffRes.ok) {
+                const { staff } = await staffRes.json()
+                if (staff) {
+                    // Get today's bets per staff
+                    const betsRes = await fetch(`/api/bets?date=${today}`)
+                    const { bets } = betsRes.ok ? await betsRes.json() : { bets: [] }
+
+                    const staffWithActivity = staff.map((s: { id: string; email: string; name: string | null; is_active: boolean }) => {
+                        const staffBets = bets?.filter((b: { staff_id: string }) => b.staff_id === s.id) || []
+                        return {
+                            ...s,
+                            bets_count: staffBets.length,
+                            total_amount: staffBets.reduce((sum: number, b: { amount: number }) => sum + Number(b.amount || 0), 0)
+                        }
+                    }).sort((a: StaffActivity, b: StaffActivity) => b.total_amount - a.total_amount)
+
+                    setStaffActivity(staffWithActivity.slice(0, 5))
+                    setStats(prev => ({
+                        ...prev,
+                        activeStaff: staff.filter((s: { is_active: boolean }) => s.is_active).length
+                    }))
+                }
+            }
+        } catch (error) {
+            console.error('Failed to fetch dashboard data:', error)
+            toast.error('Failed to load dashboard data')
+        } finally {
+            setLoading(false)
+        }
+    }, [])
+
+    useEffect(() => {
+        fetchDashboardData()
+    }, [fetchDashboardData])
+
+    const getGameStatus = (session: GameSession | null): 'completed' | 'betting' | 'pending' => {
+        if (!session) return 'pending'
+        if (session.close_triple) return 'completed'
+        if (session.open_triple) return 'betting' // Open done, close pending
+        return 'betting'
+    }
+
+    const systemStats = [
+        {
+            label: "Today's Collection",
+            value: `₹${stats.todayCollection.toLocaleString()}`,
+            change: stats.totalBetsToday > 0 ? `${stats.totalBetsToday} bets` : 'No bets yet',
+            trending: stats.todayCollection > 0 ? 'up' : 'neutral',
+            icon: DollarSign
+        },
+        {
+            label: 'Active Staff',
+            value: stats.activeStaff.toString(),
+            change: `${staffActivity.filter(s => s.bets_count > 0).length} with bets`,
+            trending: 'neutral',
+            icon: Users
+        },
+        {
+            label: "Today's Payouts",
+            value: `₹${stats.todayPayout.toLocaleString()}`,
+            change: stats.todayCollection > 0 ? `${((stats.todayPayout / stats.todayCollection) * 100).toFixed(1)}% of collection` : '-',
+            trending: 'neutral',
+            icon: TrendingUp
+        },
+        {
+            label: 'Net Profit',
+            value: `₹${stats.netProfit.toLocaleString()}`,
+            change: `${stats.profitMargin.toFixed(1)}%`,
+            trending: stats.netProfit > 0 ? 'up' : 'down',
+            icon: Trophy
+        },
+    ]
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <LoadingSpinner size="lg" />
+            </div>
+        )
+    }
+
     return (
         <div className="space-y-6 animate-fade-in">
             {/* Header */}
@@ -84,6 +196,13 @@ export default function AdminDashboard() {
                     </p>
                 </div>
                 <div className="flex gap-3">
+                    <button
+                        onClick={fetchDashboardData}
+                        className="btn btn-secondary flex items-center gap-2"
+                    >
+                        <RefreshCw size={16} />
+                        Refresh
+                    </button>
                     <Link href="/admin/results" className="btn btn-primary">
                         <Trophy size={18} />
                         Declare Result
@@ -102,6 +221,7 @@ export default function AdminDashboard() {
                                     <p className="text-sm text-[var(--text-muted)]">{stat.label}</p>
                                     <p className="text-2xl font-bold mt-1">{stat.value}</p>
                                     <p className={`text-xs mt-2 ${stat.trending === 'up' ? 'text-[var(--status-success)]' :
+                                        stat.trending === 'down' ? 'text-[var(--status-error)]' :
                                             'text-[var(--text-muted)]'
                                         }`}>
                                         {stat.change}
@@ -123,8 +243,10 @@ export default function AdminDashboard() {
                     <CardHeader
                         title="Morning Game"
                         action={
-                            <Badge variant={gameStatus.morning.status === 'completed' ? 'success' : 'warning'}>
-                                {gameStatus.morning.status === 'completed' ? 'Completed' : 'In Progress'}
+                            <Badge variant={getGameStatus(morningSession) === 'completed' ? 'success' :
+                                getGameStatus(morningSession) === 'betting' ? 'warning' : 'default'}>
+                                {getGameStatus(morningSession) === 'completed' ? 'Completed' :
+                                    getGameStatus(morningSession) === 'betting' ? 'In Progress' : 'Not Started'}
                             </Badge>
                         }
                     />
@@ -132,32 +254,20 @@ export default function AdminDashboard() {
                         <div className="flex justify-center gap-6 py-4">
                             <div className="text-center">
                                 <p className="text-xs text-[var(--text-muted)]">OPEN</p>
-                                <p className="text-3xl font-mono font-bold text-[var(--accent-cyan)]">
-                                    {gameStatus.morning.openResult || '***'}
+                                <p className={`text-3xl font-mono font-bold ${morningSession?.open_triple ? 'text-[var(--accent-cyan)]' : 'text-[var(--text-muted)] animate-pulse'}`}>
+                                    {morningSession?.open_triple || '***'}
                                 </p>
                             </div>
                             <div className="text-center px-6 border-x border-[var(--glass-border)]">
                                 <p className="text-xs text-[var(--text-muted)]">JODI</p>
-                                <p className="text-3xl font-mono font-bold text-[var(--accent-pink)]">
-                                    {gameStatus.morning.jodi || '**'}
+                                <p className={`text-3xl font-mono font-bold ${morningSession?.jodi_result ? 'text-[var(--accent-pink)]' : 'text-[var(--text-muted)] animate-pulse'}`}>
+                                    {morningSession?.jodi_result || '**'}
                                 </p>
                             </div>
                             <div className="text-center">
                                 <p className="text-xs text-[var(--text-muted)]">CLOSE</p>
-                                <p className="text-3xl font-mono font-bold text-[var(--accent-green)]">
-                                    {gameStatus.morning.closeResult || '***'}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-[var(--glass-border)]">
-                            <div className="text-center">
-                                <p className="text-xs text-[var(--text-muted)]">Collection</p>
-                                <p className="text-lg font-bold">₹{gameStatus.morning.collection.toLocaleString()}</p>
-                            </div>
-                            <div className="text-center">
-                                <p className="text-xs text-[var(--text-muted)]">Payout</p>
-                                <p className="text-lg font-bold text-[var(--status-error)]">
-                                    ₹{gameStatus.morning.payout.toLocaleString()}
+                                <p className={`text-3xl font-mono font-bold ${morningSession?.close_triple ? 'text-[var(--accent-green)]' : 'text-[var(--text-muted)] animate-pulse'}`}>
+                                    {morningSession?.close_triple || '***'}
                                 </p>
                             </div>
                         </div>
@@ -169,8 +279,10 @@ export default function AdminDashboard() {
                     <CardHeader
                         title="Night Game"
                         action={
-                            <Badge variant="warning" dot>
-                                Betting Open
+                            <Badge variant={getGameStatus(nightSession) === 'completed' ? 'success' :
+                                getGameStatus(nightSession) === 'betting' ? 'warning' : 'default'} dot>
+                                {getGameStatus(nightSession) === 'completed' ? 'Completed' :
+                                    getGameStatus(nightSession) === 'betting' ? 'In Progress' : 'Betting Open'}
                             </Badge>
                         }
                     />
@@ -178,33 +290,21 @@ export default function AdminDashboard() {
                         <div className="flex justify-center gap-6 py-4">
                             <div className="text-center">
                                 <p className="text-xs text-[var(--text-muted)]">OPEN</p>
-                                <p className="text-3xl font-mono font-bold text-[var(--text-muted)] animate-pulse">
-                                    ***
+                                <p className={`text-3xl font-mono font-bold ${nightSession?.open_triple ? 'text-[var(--accent-cyan)]' : 'text-[var(--text-muted)] animate-pulse'}`}>
+                                    {nightSession?.open_triple || '***'}
                                 </p>
                             </div>
                             <div className="text-center px-6 border-x border-[var(--glass-border)]">
                                 <p className="text-xs text-[var(--text-muted)]">JODI</p>
-                                <p className="text-3xl font-mono font-bold text-[var(--text-muted)] animate-pulse">
-                                    **
+                                <p className={`text-3xl font-mono font-bold ${nightSession?.jodi_result ? 'text-[var(--accent-pink)]' : 'text-[var(--text-muted)] animate-pulse'}`}>
+                                    {nightSession?.jodi_result || '**'}
                                 </p>
                             </div>
                             <div className="text-center">
                                 <p className="text-xs text-[var(--text-muted)]">CLOSE</p>
-                                <p className="text-3xl font-mono font-bold text-[var(--text-muted)] animate-pulse">
-                                    ***
+                                <p className={`text-3xl font-mono font-bold ${nightSession?.close_triple ? 'text-[var(--accent-green)]' : 'text-[var(--text-muted)] animate-pulse'}`}>
+                                    {nightSession?.close_triple || '***'}
                                 </p>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-[var(--glass-border)]">
-                            <div className="text-center">
-                                <p className="text-xs text-[var(--text-muted)]">Collection (Live)</p>
-                                <p className="text-lg font-bold text-[var(--accent-cyan)]">
-                                    ₹{gameStatus.night.collection.toLocaleString()}
-                                </p>
-                            </div>
-                            <div className="text-center">
-                                <p className="text-xs text-[var(--text-muted)]">Payout</p>
-                                <p className="text-lg font-bold">-</p>
                             </div>
                         </div>
                     </div>
@@ -227,21 +327,25 @@ export default function AdminDashboard() {
                         }
                     />
                     <div className="space-y-3">
-                        {staffActivity.map((staff) => (
-                            <div
-                                key={staff.name}
-                                className="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-surface)]"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className={`status-dot ${staff.status === 'online' ? 'online' : 'offline'}`} />
-                                    <div>
-                                        <p className="font-medium">{staff.name}</p>
-                                        <p className="text-xs text-[var(--text-muted)]">{staff.bets} bets today</p>
+                        {staffActivity.length === 0 ? (
+                            <p className="text-center py-4 text-[var(--text-muted)]">No staff activity today</p>
+                        ) : (
+                            staffActivity.map((staff) => (
+                                <div
+                                    key={staff.id}
+                                    className="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-surface)]"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className={`status-dot ${staff.is_active ? 'online' : 'offline'}`} />
+                                        <div>
+                                            <p className="font-medium">{staff.name || staff.email}</p>
+                                            <p className="text-xs text-[var(--text-muted)]">{staff.bets_count} bets today</p>
+                                        </div>
                                     </div>
+                                    <p className="font-medium">₹{staff.total_amount.toLocaleString()}</p>
                                 </div>
-                                <p className="font-medium">₹{staff.amount.toLocaleString()}</p>
-                            </div>
-                        ))}
+                            ))
+                        )}
                     </div>
                 </Card>
 
