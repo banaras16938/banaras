@@ -1,66 +1,142 @@
-// User Roles
-export type UserRole = 'user' | 'staff' | 'admin'
+// ==========================================
+// MATKA GAME - TYPE DEFINITIONS
+// ==========================================
+// These types match the Supabase database schema
 
-// Game Types
-export type GameType = 'single' | 'double' | 'triple'
-export type GameSlot = 'morning' | 'night'
-export type BetType = 'open' | 'close' | 'jodi'
+// Database Enums
+export type UserRole = 'admin' | 'staff'
+export type SessionType = 'morning' | 'night'
+export type BetCategory = 'single' | 'jodi' | 'triple'
+export type BetTarget = 'open' | 'close' | 'jodi_full'
+export type BetStatus = 'pending' | 'won' | 'lost' | 'refunded'
 
-// Payout Multipliers
+// Payout Multipliers (from game_config)
 export const PAYOUT_MULTIPLIERS = {
     single: 9,    // 10 ka 90
-    double: 90,   // 10 ka 900
+    jodi: 90,     // 10 ka 900
     triple: 800,  // 10 ka 8000
 } as const
 
-// Staff interface
-export interface Staff {
+// ==========================================
+// DATABASE TABLE TYPES
+// ==========================================
+
+// Profile (Staff/Admin)
+export interface Profile {
     id: string
-    user_id: string
-    name: string
-    email?: string
-    phone?: string
+    email: string | null
+    role: UserRole
     is_active: boolean
     created_at: string
-    created_by: string
-    last_login?: string
 }
 
-// Bet interface
+// Extended Staff Profile (includes additional fields from profiles table)
+export interface Staff extends Profile {
+    name: string | null
+    phone: string | null
+    last_login: string | null
+}
+
+// Game Schedule (Dynamic Timing Control)
+export interface GameSchedule {
+    session_name: SessionType
+    start_time: string          // TIME format: "09:00:00"
+    open_bet_freeze_time: string
+    open_result_time: string
+    close_bet_resume_time: string | null
+    close_bet_freeze_time: string
+    close_result_time: string
+}
+
+// Holiday
+export interface Holiday {
+    holiday_date: string        // DATE format: "2026-01-01"
+    description: string | null
+    created_at: string
+}
+
+// Player (End user placing bets through staff)
+export interface Player {
+    id: string
+    name: string
+    phone: string | null
+    created_by: string          // Profile ID
+    created_at: string
+}
+
+// Game Config (Payout settings)
+export interface GameConfig {
+    id: number
+    payout_single: number
+    payout_jodi: number
+    payout_triple: number
+}
+
+// Game Session (Daily game instance)
+export interface GameSession {
+    id: string
+    game_date: string           // DATE format: "2026-01-11"
+    session_name: SessionType
+    open_triple: string | null  // VARCHAR(3)
+    open_single: string | null  // VARCHAR(1)
+    close_triple: string | null // VARCHAR(3)
+    close_single: string | null // VARCHAR(1)
+    jodi_result: string | null  // VARCHAR(2)
+    created_at: string
+}
+
+// Bet
 export interface Bet {
     id: string
+    game_session_id: string
+    player_id: string
     staff_id: string
-    user_identifier: string
-    game_date: string
-    game_slot: GameSlot
-    bet_type: BetType
-    game_type: GameType
-    number: string
+    category: BetCategory
+    target: BetTarget
+    selected_number: string
     amount: number
-    potential_payout: number
-    is_winner?: boolean
-    payout_amount?: number
+    status: BetStatus
+    winning_amount: number
     created_at: string
 }
 
-// Game Result interface
-export interface GameResult {
-    id: string
+// ==========================================
+// VIEW TYPES
+// ==========================================
+
+// Staff Performance (from view_staff_performance)
+export interface StaffPerformance {
+    staff_email: string
+    staff_id: string
     game_date: string
-    slot: GameSlot
-    open_triple: string | null
-    open_single: number | null
-    close_triple: string | null
-    close_single: number | null
-    jodi: string | null
-    is_open_declared: boolean
-    is_close_declared: boolean
-    declared_by?: string
-    created_at: string
-    updated_at: string
+    session_name: SessionType
+    total_bets_placed: number
+    total_collection: number
+    total_payouts_given: number
+    profit: number
 }
 
-// Result Option for Admin Selection
+// Liability Report (from view_liability_report)
+export interface LiabilityReport {
+    game_session_id: string
+    game_date: string
+    session_name: SessionType
+    category: BetCategory
+    target: BetTarget
+    selected_number: string
+    bet_count: number
+    total_bet_amount: number
+    payout_single: number
+    payout_jodi: number
+    payout_triple: number
+    potential_liability: number
+}
+
+// ==========================================
+// FRONTEND HELPER TYPES
+// ==========================================
+
+// Result Option for Admin Selection (computed from liability)
 export interface ResultOption {
     triple: string
     single: number
@@ -70,57 +146,84 @@ export interface ResultOption {
     profitPercentage: number
 }
 
-// Lists for Admin Result Selector
-export interface ResultLists {
-    targetMatch: ResultOption[]      // List A: Match slider percentage
-    systemRecommendations: ResultOption[]  // List B: Highest profit
-    lowBets: ResultOption[]          // List C: Low bet volume
-    noBets: ResultOption[]           // List D: Zero bets (100% profit)
+// Result Recommendations (4 Lists per SRS)
+export interface ResultRecommendations {
+    targetMatch: ResultOption[]          // List A: Match slider percentage
+    systemRecommendations: ResultOption[] // List B: Highest profit
+    lowBets: ResultOption[]              // List C: Low bet volume  
+    noBets: ResultOption[]               // List D: Zero bets (100% profit)
 }
 
-// Profit Analytics
-export interface ProfitAnalytics {
-    totalCollection: number
-    totalPayout: number
-    netProfit: number
-    profitPercentage: number
-    date: string
-    slot?: GameSlot
-}
-
-// Game Schedule
-export interface GameSchedule {
-    slot: GameSlot
-    bettingStart: string
-    openStopWindow: { start: string; end: string }
-    openResult: string
-    closeStopWindow: { start: string; end: string }
-    closeResult: string
-}
-
-export const GAME_SCHEDULE: GameSchedule[] = [
-    {
-        slot: 'morning',
-        bettingStart: '09:00',
-        openStopWindow: { start: '12:30', end: '13:00' },
-        openResult: '13:00',
-        closeStopWindow: { start: '14:30', end: '15:00' },
-        closeResult: '15:00',
-    },
-    {
-        slot: 'night',
-        bettingStart: '09:00',
-        openStopWindow: { start: '17:30', end: '18:00' },
-        openResult: '18:00',
-        closeStopWindow: { start: '19:30', end: '20:00' },
-        closeResult: '20:00',
-    },
+// UI Schedule Format
+export const GAME_SCHEDULE_UI: { session: SessionType; label: string; times: string }[] = [
+    { session: 'morning', label: 'Morning Game', times: '1:00 PM & 3:00 PM' },
+    { session: 'night', label: 'Night Game', times: '6:00 PM & 8:00 PM' },
 ]
 
-// Auth User
+// Bet Form Data
+export interface BetFormData {
+    gameDate: string
+    sessionName: SessionType
+    category: BetCategory
+    target: BetTarget
+    selectedNumber: string
+    amount: number
+    playerId: string
+    playerName?: string
+    playerPhone?: string
+}
+
+// Auth User (for frontend context)
 export interface AuthUser {
     id: string
-    email?: string
+    email: string
     role: UserRole
-    staff?: Staff
+    isActive: boolean
+}
+
+// API Response Types
+export interface ApiResponse<T> {
+    data?: T
+    error?: string
+}
+
+// Game Result (Combined for display)
+export interface GameResult {
+    id: string
+    game_date: string
+    session_name: SessionType
+    open_triple: string | null
+    open_single: string | null
+    close_triple: string | null
+    close_single: string | null
+    jodi_result: string | null
+    is_open_declared: boolean
+    is_close_declared: boolean
+    created_at: string
+}
+
+// Helper to check if session is declared
+export function isOpenDeclared(session: GameSession): boolean {
+    return session.open_triple !== null && session.open_single !== null
+}
+
+export function isCloseDeclared(session: GameSession): boolean {
+    return session.close_triple !== null && session.close_single !== null
+}
+
+// Convert GameSession to GameResult for UI compatibility
+export function sessionToResult(session: GameSession): GameResult {
+    return {
+        id: session.id,
+        game_date: session.game_date,
+        session_name: session.session_name,
+        open_triple: session.open_triple,
+        open_single: session.open_single,
+        close_triple: session.close_triple,
+        close_single: session.close_single,
+        jodi_result: session.jodi_result,
+        is_open_declared: isOpenDeclared(session),
+        is_close_declared: isCloseDeclared(session),
+        created_at: session.created_at,
+    }
 }

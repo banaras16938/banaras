@@ -1,102 +1,91 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { CurrentResult } from '@/components/results/CurrentResult'
 import { ResultHistory } from '@/components/results/ResultHistory'
 import { GameTimeline } from '@/components/results/GameTimeline'
 import { Card, CardHeader } from '@/components/ui'
-import { GameResult } from '@/types/types'
+import { GameResult, SessionType } from '@/types/types'
 import { Trophy, Clock, History, Sparkles } from 'lucide-react'
-
-// Mock data for demonstration
-const mockMorningResult: GameResult = {
-  id: '1',
-  game_date: '2026-01-11',
-  slot: 'morning',
-  open_triple: '578',
-  open_single: 0,
-  close_triple: '478',
-  close_single: 9,
-  jodi: '09',
-  is_open_declared: true,
-  is_close_declared: true,
-  declared_by: 'admin',
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-}
-
-const mockNightResult: GameResult = {
-  id: '2',
-  game_date: '2026-01-11',
-  slot: 'night',
-  open_triple: null,
-  open_single: null,
-  close_triple: null,
-  close_single: null,
-  jodi: null,
-  is_open_declared: false,
-  is_close_declared: false,
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-}
-
-const mockHistoricalResults: GameResult[] = [
-  mockMorningResult,
-  {
-    id: '3',
-    game_date: '2026-01-10',
-    slot: 'morning',
-    open_triple: '234',
-    open_single: 9,
-    close_triple: '567',
-    close_single: 8,
-    jodi: '98',
-    is_open_declared: true,
-    is_close_declared: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: '4',
-    game_date: '2026-01-10',
-    slot: 'night',
-    open_triple: '890',
-    open_single: 7,
-    close_triple: '123',
-    close_single: 6,
-    jodi: '76',
-    is_open_declared: true,
-    is_close_declared: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: '5',
-    game_date: '2026-01-09',
-    slot: 'morning',
-    open_triple: '456',
-    open_single: 5,
-    close_triple: '789',
-    close_single: 4,
-    jodi: '54',
-    is_open_declared: true,
-    is_close_declared: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-]
+import { createClient } from '@/utils/supabase/client'
 
 export default function Home() {
   const [currentTime, setCurrentTime] = useState(new Date())
   const [activeTab, setActiveTab] = useState<'results' | 'schedule' | 'history'>('results')
+  const [morningResult, setMorningResult] = useState<GameResult | null>(null)
+  const [nightResult, setNightResult] = useState<GameResult | null>(null)
+  const [historicalResults, setHistoricalResults] = useState<GameResult[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  const fetchResults = useCallback(async () => {
+    try {
+      const response = await fetch('/api/results?limit=30')
+      const data = await response.json()
+
+      if (data.results) {
+        const today = new Date().toISOString().split('T')[0]
+
+        // Find today's results (using session_name field from new schema)
+        const todayMorning = data.results.find(
+          (r: GameResult) => r.game_date === today && r.session_name === 'morning'
+        )
+        const todayNight = data.results.find(
+          (r: GameResult) => r.game_date === today && r.session_name === 'night'
+        )
+
+        setMorningResult(todayMorning || createEmptyResult(today, 'morning'))
+        setNightResult(todayNight || createEmptyResult(today, 'night'))
+        setHistoricalResults(data.results)
+      }
+    } catch (error) {
+      console.error('Failed to fetch results:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  // Create empty result placeholder
+  const createEmptyResult = (date: string, session: SessionType): GameResult => ({
+    id: `empty-${session}`,
+    game_date: date,
+    session_name: session,
+    open_triple: null,
+    open_single: null,
+    close_triple: null,
+    close_single: null,
+    jodi_result: null,
+    is_open_declared: false,
+    is_close_declared: false,
+    created_at: new Date().toISOString(),
+  })
 
   useEffect(() => {
+    fetchResults()
+
+    // Update time every minute
     const interval = setInterval(() => {
       setCurrentTime(new Date())
-    }, 60000) // Update every minute
+    }, 60000)
 
-    return () => clearInterval(interval)
-  }, [])
+    // Set up real-time subscription (new table name: game_sessions)
+    const supabase = createClient()
+    const channel = supabase
+      .channel('results-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'game_sessions' },
+        () => {
+          fetchResults() // Refresh when results change
+        }
+      )
+      .subscribe()
+
+    return () => {
+      clearInterval(interval)
+      supabase.removeChannel(channel)
+    }
+  }, [fetchResults])
+
 
   return (
     <div className="min-h-screen bg-[var(--bg-dark)]">
@@ -177,7 +166,11 @@ export default function Home() {
                   <h3 className="text-sm text-[var(--text-muted)] mb-3 uppercase tracking-wide">
                     Morning Game • 1:00 PM & 3:00 PM
                   </h3>
-                  <CurrentResult result={mockMorningResult} slot="morning" />
+                  {isLoading ? (
+                    <Card className="animate-pulse h-48"><div /></Card>
+                  ) : morningResult && (
+                    <CurrentResult result={morningResult} slot="morning" />
+                  )}
                 </div>
 
                 {/* Night Game */}
@@ -185,7 +178,11 @@ export default function Home() {
                   <h3 className="text-sm text-[var(--text-muted)] mb-3 uppercase tracking-wide">
                     Night Game • 6:00 PM & 8:00 PM
                   </h3>
-                  <CurrentResult result={mockNightResult} slot="night" isLive />
+                  {isLoading ? (
+                    <Card className="animate-pulse h-48"><div /></Card>
+                  ) : nightResult && (
+                    <CurrentResult result={nightResult} slot="night" isLive={!nightResult.is_close_declared} />
+                  )}
                 </div>
               </div>
             </section>
@@ -228,7 +225,7 @@ export default function Home() {
                 title="Result History"
                 subtitle="View all previous game results"
               />
-              <ResultHistory results={mockHistoricalResults} />
+              <ResultHistory results={historicalResults} />
             </Card>
           </div>
         )}
@@ -258,8 +255,8 @@ function TabButton({ active, onClick, icon, children }: TabButtonProps) {
     <button
       onClick={onClick}
       className={`flex items-center gap-2 px-5 py-4 font-medium transition-all border-b-2 ${active
-          ? 'text-[var(--primary-400)] border-[var(--primary-400)]'
-          : 'text-[var(--text-secondary)] border-transparent hover:text-white'
+        ? 'text-[var(--primary-400)] border-[var(--primary-400)]'
+        : 'text-[var(--text-secondary)] border-transparent hover:text-white'
         }`}
     >
       {icon}

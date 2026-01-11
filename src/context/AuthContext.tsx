@@ -30,8 +30,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     // TODO: Fetch user role from profiles table
                     const authUser: AuthUser = {
                         id: supabaseUser.id,
-                        email: supabaseUser.email,
+                        email: supabaseUser.email || '',
                         role: 'staff' as UserRole, // Default role, should be fetched from DB
+                        isActive: true
                     }
                     setUser(authUser)
                 }
@@ -50,8 +51,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 if (session?.user) {
                     const authUser: AuthUser = {
                         id: session.user.id,
-                        email: session.user.email,
+                        email: session.user.email || '',
                         role: 'staff' as UserRole,
+                        isActive: true
                     }
                     setUser(authUser)
                 } else {

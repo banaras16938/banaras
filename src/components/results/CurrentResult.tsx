@@ -1,12 +1,12 @@
 'use client'
 
-import { GameResult, GameSlot } from '@/types/types'
+import { GameResult, SessionType } from '@/types/types'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 
 interface CurrentResultProps {
     result: GameResult | null
-    slot: GameSlot
+    slot: SessionType
     isLive?: boolean
 }
 
@@ -54,7 +54,7 @@ export function CurrentResult({ result, slot, isLive = false }: CurrentResultPro
                 <div className="text-center px-4 md:px-8 border-x border-[var(--glass-border)]">
                     <p className="text-xs text-[var(--text-muted)] mb-2">JODI</p>
                     <div className="result-number text-[var(--accent-pink)] animate-number-reveal">
-                        {result.is_close_declared ? result.jodi : '**'}
+                        {result.is_close_declared ? result.jodi_result : '**'}
                     </div>
                 </div>
 
@@ -83,3 +83,4 @@ function ResultPlaceholder({ label }: { label: string }) {
         </div>
     )
 }
+

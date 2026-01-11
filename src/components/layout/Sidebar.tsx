@@ -10,7 +10,8 @@ import {
     Trophy,
     TrendingUp,
     LogOut,
-    LucideIcon
+    LucideIcon,
+    Users
 } from 'lucide-react'
 
 interface SidebarLink {
@@ -75,6 +76,7 @@ export const staffSidebarLinks: SidebarLink[] = [
     { href: '/staff', icon: Home, label: 'Dashboard' },
     { href: '/staff/bets', icon: Ticket, label: 'Place Bet' },
     { href: '/staff/bets/history', icon: History, label: 'Bet History' },
+    { href: '/staff/players', icon: Users, label: 'Players' },
     { href: '/staff/results', icon: Trophy, label: 'Results' },
     { href: '/staff/profit-loss', icon: TrendingUp, label: 'Profit & Loss' },
 ]

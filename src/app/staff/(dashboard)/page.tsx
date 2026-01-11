@@ -1,7 +1,9 @@
 'use client'
 
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardHeader } from '@/components/ui'
 import { Badge } from '@/components/ui/Badge'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import {
     TrendingUp,
     TrendingDown,
@@ -11,48 +13,111 @@ import {
     ArrowUpRight
 } from 'lucide-react'
 import Link from 'next/link'
+import { BetCategory, SessionType, PAYOUT_MULTIPLIERS } from '@/types/types'
 
-// Mock data
-const stats = [
-    {
-        label: "Today's Bets",
-        value: '₹45,230',
-        change: '+12%',
-        trending: 'up',
-        icon: Ticket
-    },
-    {
-        label: 'Pending Bets',
-        value: '23',
-        change: '5 new',
-        trending: 'neutral',
-        icon: Clock
-    },
-    {
-        label: 'Today\'s Profit',
-        value: '₹8,450',
-        change: '+8.5%',
-        trending: 'up',
-        icon: TrendingUp
-    },
-    {
-        label: 'Win Rate',
-        value: '18.2%',
-        change: '-2.1%',
-        trending: 'down',
-        icon: Trophy
-    },
-]
-
-const recentBets = [
-    { id: '1', user: 'User #4521', type: 'Triple', number: '578', amount: 500, time: '2 min ago' },
-    { id: '2', user: 'User #3892', type: 'Jodi', number: '45', amount: 1000, time: '5 min ago' },
-    { id: '3', user: 'User #2103', type: 'Single', number: '7', amount: 200, time: '8 min ago' },
-    { id: '4', user: 'User #7845', type: 'Triple', number: '234', amount: 300, time: '12 min ago' },
-    { id: '5', user: 'User #1234', type: 'Jodi', number: '89', amount: 500, time: '15 min ago' },
-]
+interface DashboardStats {
+    today: {
+        totalBets: number
+        totalCollection: number
+        totalPayout: number
+        profit: number
+        profitPercent: number
+        pendingBets: number
+        wonBets: number
+        lostBets: number
+    }
+    recentBets: Array<{
+        id: string
+        amount: number
+        status: string
+        winning_amount: number
+        created_at: string
+        category?: BetCategory
+        selected_number?: string
+        player?: { name: string }
+    }>
+}
 
 export default function StaffDashboard() {
+    const [loading, setLoading] = useState(true)
+    const [stats, setStats] = useState<DashboardStats | null>(null)
+
+    const fetchDashboardData = useCallback(async () => {
+        try {
+            const response = await fetch('/api/staff/stats')
+            const data = await response.json()
+
+            if (response.ok) {
+                setStats(data)
+            }
+        } catch (error) {
+            console.error('Failed to fetch dashboard data:', error)
+        } finally {
+            setLoading(false)
+        }
+    }, [])
+
+    useEffect(() => {
+        fetchDashboardData()
+        // Refresh every 60 seconds
+        const interval = setInterval(fetchDashboardData, 60000)
+        return () => clearInterval(interval)
+    }, [fetchDashboardData])
+
+    const formatTimeAgo = (dateStr: string) => {
+        const date = new Date(dateStr)
+        const now = new Date()
+        const diffMs = now.getTime() - date.getTime()
+        const diffMins = Math.floor(diffMs / (1000 * 60))
+
+        if (diffMins < 1) return 'Just now'
+        if (diffMins < 60) return `${diffMins} min ago`
+        const diffHours = Math.floor(diffMins / 60)
+        if (diffHours < 24) return `${diffHours}h ago`
+        return date.toLocaleDateString()
+    }
+
+    const statCards = [
+        {
+            label: "Today's Collection",
+            value: `₹${(stats?.today.totalCollection || 0).toLocaleString()}`,
+            change: `${stats?.today.totalBets || 0} bets`,
+            trending: 'neutral',
+            icon: Ticket
+        },
+        {
+            label: 'Pending Bets',
+            value: stats?.today.pendingBets?.toString() || '0',
+            change: 'awaiting result',
+            trending: 'neutral',
+            icon: Clock
+        },
+        {
+            label: "Today's Profit",
+            value: `₹${(stats?.today.profit || 0).toLocaleString()}`,
+            change: `${stats?.today.profitPercent || 0}%`,
+            trending: (stats?.today.profit || 0) >= 0 ? 'up' : 'down',
+            icon: TrendingUp
+        },
+        {
+            label: 'Win Rate',
+            value: stats?.today.totalBets
+                ? `${((stats.today.wonBets / stats.today.totalBets) * 100).toFixed(1)}%`
+                : '0%',
+            change: `${stats?.today.wonBets || 0} winners`,
+            trending: 'neutral',
+            icon: Trophy
+        },
+    ]
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-[400px]">
+                <LoadingSpinner size="lg" />
+            </div>
+        )
+    }
+
     return (
         <div className="space-y-6 animate-fade-in">
             {/* Welcome Header */}
@@ -74,7 +139,7 @@ export default function StaffDashboard() {
 
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {stats.map((stat) => {
+                {statCards.map((stat) => {
                     const Icon = stat.icon
                     return (
                         <Card key={stat.label} className="relative overflow-hidden">
@@ -90,8 +155,8 @@ export default function StaffDashboard() {
                                             <TrendingDown size={14} className="text-[var(--status-error)]" />
                                         )}
                                         <span className={`text-xs ${stat.trending === 'up' ? 'text-[var(--status-success)]' :
-                                                stat.trending === 'down' ? 'text-[var(--status-error)]' :
-                                                    'text-[var(--text-muted)]'
+                                            stat.trending === 'down' ? 'text-[var(--status-error)]' :
+                                                'text-[var(--text-muted)]'
                                             }`}>
                                             {stat.change}
                                         </span>
@@ -122,30 +187,46 @@ export default function StaffDashboard() {
                         }
                     />
                     <div className="space-y-3">
-                        {recentBets.map((bet) => (
-                            <div
-                                key={bet.id}
-                                className="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-surface)] hover:bg-[var(--bg-card-hover)] transition-colors"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-lg bg-[var(--primary-500)]/10 flex items-center justify-center">
-                                        <span className="font-mono text-[var(--primary-400)]">{bet.number}</span>
-                                    </div>
-                                    <div>
-                                        <p className="font-medium">{bet.user}</p>
-                                        <p className="text-xs text-[var(--text-muted)]">{bet.time}</p>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <p className="font-medium">₹{bet.amount}</p>
-                                    <Badge
-                                        variant={bet.type === 'Triple' ? 'success' : bet.type === 'Jodi' ? 'warning' : 'info'}
-                                    >
-                                        {bet.type}
-                                    </Badge>
-                                </div>
+                        {!stats?.recentBets || stats.recentBets.length === 0 ? (
+                            <div className="py-8 text-center text-[var(--text-muted)]">
+                                No bets placed today yet
                             </div>
-                        ))}
+                        ) : (
+                            stats.recentBets.slice(0, 5).map((bet) => (
+                                <div
+                                    key={bet.id}
+                                    className="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-surface)] hover:bg-[var(--bg-card-hover)] transition-colors"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-lg bg-[var(--primary-500)]/10 flex items-center justify-center">
+                                            <span className="font-mono text-[var(--primary-400)]">
+                                                {bet.selected_number || '-'}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <p className="font-medium">
+                                                {bet.player?.name || 'Player'}
+                                            </p>
+                                            <p className="text-xs text-[var(--text-muted)]">
+                                                {formatTimeAgo(bet.created_at)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-medium">₹{Number(bet.amount).toLocaleString()}</p>
+                                        <Badge
+                                            variant={
+                                                bet.status === 'won' ? 'success' :
+                                                    bet.status === 'lost' ? 'error' :
+                                                        bet.status === 'pending' ? 'warning' : 'info'
+                                            }
+                                        >
+                                            {bet.status}
+                                        </Badge>
+                                    </div>
+                                </div>
+                            ))
+                        )}
                     </div>
                 </Card>
 

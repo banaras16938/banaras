@@ -1,106 +1,154 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Lock, User, Shield } from 'lucide-react'
 import Link from 'next/link'
+import { createClient } from '@/utils/supabase/client'
+import { toast } from 'sonner'
+import { AuthPageContainer } from '@/components/auth/AuthPageContainer'
 
 export default function AdminLogin() {
+    const router = useRouter()
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [isLoading, setIsLoading] = useState(false)
-    const [error, setError] = useState('')
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setIsLoading(true)
-        setError('')
 
         try {
-            // TODO: Implement Supabase authentication
-            await new Promise(resolve => setTimeout(resolve, 1000))
-            window.location.href = '/admin'
-        } catch {
-            setError('Invalid credentials. Please try again.')
+            const supabase = createClient()
+
+            // Sign in with Supabase
+            const { error: signInError } = await supabase.auth.signInWithPassword({
+                email,
+                password
+            })
+
+            if (signInError) {
+                toast.error(signInError.message)
+                return
+            }
+
+            // Verify admin role
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) {
+                toast.error('Authentication failed')
+                return
+            }
+
+            // Fetch profile - handle case where profile doesn't exist
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('role, is_active')
+                .eq('id', user.id)
+                .single()
+
+            if (profileError) {
+                console.error('Profile fetch error:', profileError)
+                await supabase.auth.signOut()
+
+                // Specific error messages based on error type
+                if (profileError.code === 'PGRST116') {
+                    toast.error('Profile not found. Please ask an admin to manually create your profile or re-run the database schema.')
+                } else {
+                    toast.error(`Profile error: ${profileError.message}`)
+                }
+                return
+            }
+
+            if (!profile) {
+                await supabase.auth.signOut()
+                toast.error('No profile found for this account')
+                return
+            }
+
+            if (!profile.is_active) {
+                await supabase.auth.signOut()
+                toast.error('Your account has been disabled')
+                return
+            }
+
+            if (profile.role !== 'admin') {
+                await supabase.auth.signOut()
+                toast.error('Access denied. Admin privileges required.')
+                return
+            }
+
+            // Update last_login timestamp
+            await supabase
+                .from('profiles')
+                .update({ last_login: new Date().toISOString() })
+                .eq('id', user.id)
+
+            // Success - redirect to admin dashboard
+            toast.success('Login successful!')
+            router.push('/admin')
+            router.refresh()
+        } catch (err) {
+            console.error('Login error:', err)
+            toast.error('An unexpected error occurred')
         } finally {
             setIsLoading(false)
         }
     }
 
     return (
-        <div className="min-h-screen bg-[var(--bg-dark)] flex items-center justify-center p-4">
-            {/* Background Effects */}
-            <div className="fixed inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute top-1/4 right-1/4 w-[400px] h-[400px] bg-[var(--accent-pink)] rounded-full blur-[150px] opacity-15" />
-                <div className="absolute bottom-1/4 left-1/4 w-[300px] h-[300px] bg-[var(--primary-600)] rounded-full blur-[150px] opacity-20" />
-            </div>
-
-            <div className="w-full max-w-md relative z-10">
-                {/* Logo */}
-                <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--accent-pink)] to-[var(--primary-600)] mb-4">
-                        <Shield size={32} className="text-white" />
+        <AuthPageContainer
+            title="Admin Portal"
+            subtitle="System Control Center"
+            icon={<Shield size={40} className="text-[var(--primary-400)]" />}
+        >
+            <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-4">
+                    <div className="relative group">
+                        <User className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--primary-400)] transition-colors" size={18} />
+                        <Input
+                            type="email"
+                            placeholder="Email Address"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="!pl-14 h-12 bg-[var(--bg-surface)]/50 border-[var(--glass-border)] focus:bg-[var(--bg-surface)] transition-all"
+                            required
+                        />
                     </div>
-                    <h1 className="text-2xl font-bold gradient-text">Admin Login</h1>
-                    <p className="text-[var(--text-muted)] mt-2">
-                        Secure access to system controls
-                    </p>
+
+                    <div className="relative group">
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--primary-400)] transition-colors" size={18} />
+                        <Input
+                            type="password"
+                            placeholder="Password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="!pl-14 h-12 bg-[var(--bg-surface)]/50 border-[var(--glass-border)] focus:bg-[var(--bg-surface)] transition-all"
+                            required
+                        />
+                    </div>
                 </div>
 
-                {/* Login Form */}
-                <div className="glass-card p-8">
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                        {error && (
-                            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-[var(--status-error)] text-sm text-center">
-                                {error}
-                            </div>
-                        )}
-
-                        <div className="relative">
-                            <User className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={18} />
-                            <Input
-                                type="email"
-                                placeholder="Email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                className="pl-12"
-                                required
-                            />
-                        </div>
-
-                        <div className="relative">
-                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={18} />
-                            <Input
-                                type="password"
-                                placeholder="Password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className="pl-12"
-                                required
-                            />
-                        </div>
-
-                        <Button
-                            type="submit"
-                            className="w-full"
-                            isLoading={isLoading}
-                        >
-                            {isLoading ? 'Signing in...' : 'Sign In'}
-                        </Button>
-                    </form>
+                <div className="pt-2">
+                    <Button
+                        type="submit"
+                        className="w-full h-12 text-base font-semibold shadow-lg shadow-[var(--primary-500)]/20 hover:shadow-[var(--primary-500)]/40 transition-all duration-300"
+                        isLoading={isLoading}
+                    >
+                        {isLoading ? 'Authenticating...' : 'Access Dashboard'}
+                    </Button>
                 </div>
 
-                {/* Back Link */}
-                <div className="text-center mt-6">
+                <div className="text-center">
                     <Link
                         href="/"
-                        className="text-sm text-[var(--text-secondary)] hover:text-white transition-colors"
+                        className="text-sm text-[var(--text-muted)] hover:text-white transition-colors border-b border-transparent hover:border-white/20 pb-0.5"
                     >
-                        ← Back to Results
+                        ← Return to Public Results
                     </Link>
                 </div>
-            </div>
-        </div>
+            </form>
+        </AuthPageContainer>
     )
 }

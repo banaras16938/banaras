@@ -45,6 +45,19 @@ export const updateSession = async (request: NextRequest) => {
             url.pathname = '/staff/login';
             return NextResponse.redirect(url);
         }
+
+        // Check if user is active staff or admin (profiles table uses id directly)
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role, is_active')
+            .eq('id', user.id)
+            .single();
+
+        if (!profile || !profile.is_active) {
+            const url = request.nextUrl.clone();
+            url.pathname = '/staff/login';
+            return NextResponse.redirect(url);
+        }
     }
 
     // Protect admin routes
@@ -54,7 +67,21 @@ export const updateSession = async (request: NextRequest) => {
             url.pathname = '/admin/login';
             return NextResponse.redirect(url);
         }
+
+        // Check if user is admin
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role, is_active')
+            .eq('id', user.id)
+            .single();
+
+        if (!profile || !profile.is_active || profile.role !== 'admin') {
+            const url = request.nextUrl.clone();
+            url.pathname = '/admin/login';
+            return NextResponse.redirect(url);
+        }
     }
 
     return supabaseResponse;
 };
+

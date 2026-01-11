@@ -25,7 +25,7 @@ export function ResultHistory({ results, limit }: ResultHistoryProps) {
                 <thead>
                     <tr>
                         <th>Date</th>
-                        <th>Slot</th>
+                        <th>Session</th>
                         <th>Open Triple</th>
                         <th>Open Single</th>
                         <th>Jodi</th>
@@ -39,8 +39,8 @@ export function ResultHistory({ results, limit }: ResultHistoryProps) {
                         <tr key={result.id} className="animate-fade-in">
                             <td className="font-medium">{result.game_date}</td>
                             <td>
-                                <Badge variant={result.slot === 'morning' ? 'info' : 'warning'}>
-                                    {result.slot === 'morning' ? 'Morning' : 'Night'}
+                                <Badge variant={result.session_name === 'morning' ? 'info' : 'warning'}>
+                                    {result.session_name === 'morning' ? 'Morning' : 'Night'}
                                 </Badge>
                             </td>
                             <td className="font-mono text-[var(--accent-cyan)]">
@@ -48,7 +48,7 @@ export function ResultHistory({ results, limit }: ResultHistoryProps) {
                             </td>
                             <td className="font-mono text-white">{result.open_single ?? '-'}</td>
                             <td className="font-mono text-[var(--accent-pink)] font-bold">
-                                {result.jodi || '-'}
+                                {result.jodi_result || '-'}
                             </td>
                             <td className="font-mono text-white">{result.close_single ?? '-'}</td>
                             <td className="font-mono text-[var(--accent-green)]">
@@ -70,3 +70,4 @@ export function ResultHistory({ results, limit }: ResultHistoryProps) {
         </div>
     )
 }
+

@@ -5,12 +5,32 @@ import { Card, CardHeader } from '@/components/ui'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { GAME_SCHEDULE, PAYOUT_MULTIPLIERS } from '@/types/types'
+import { PAYOUT_MULTIPLIERS } from '@/types/types'
+
+// Default schedule for display (should be fetched from API in future)
+const GAME_SCHEDULE = [
+    {
+        slot: 'Morning',
+        bettingStart: '09:00',
+        openStopWindow: { start: '12:45', end: '13:00' },
+        openResult: '1:00 PM',
+        closeStopWindow: { start: '14:45', end: '15:00' },
+        closeResult: '3:00 PM'
+    },
+    {
+        slot: 'Night',
+        bettingStart: '16:00',
+        openStopWindow: { start: '17:45', end: '18:00' },
+        openResult: '6:00 PM',
+        closeStopWindow: { start: '19:45', end: '20:00' },
+        closeResult: '8:00 PM'
+    }
+]
 import { Clock, DollarSign, Save, RefreshCw } from 'lucide-react'
 
 export default function GameSettingsPage() {
     const [singlePayout, setSinglePayout] = useState<number>(PAYOUT_MULTIPLIERS.single)
-    const [jodiPayout, setJodiPayout] = useState<number>(PAYOUT_MULTIPLIERS.double)
+    const [jodiPayout, setJodiPayout] = useState<number>(PAYOUT_MULTIPLIERS.jodi)
     const [triplePayout, setTriplePayout] = useState<number>(PAYOUT_MULTIPLIERS.triple)
     const [isSaving, setIsSaving] = useState(false)
     const [saved, setSaved] = useState(false)
@@ -26,7 +46,7 @@ export default function GameSettingsPage() {
 
     const handleReset = () => {
         setSinglePayout(PAYOUT_MULTIPLIERS.single)
-        setJodiPayout(PAYOUT_MULTIPLIERS.double)
+        setJodiPayout(PAYOUT_MULTIPLIERS.jodi)
         setTriplePayout(PAYOUT_MULTIPLIERS.triple)
     }
 
