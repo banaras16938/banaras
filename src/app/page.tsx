@@ -1,65 +1,269 @@
-import Image from "next/image";
+'use client'
+
+import { useState, useEffect } from 'react'
+import { CurrentResult } from '@/components/results/CurrentResult'
+import { ResultHistory } from '@/components/results/ResultHistory'
+import { GameTimeline } from '@/components/results/GameTimeline'
+import { Card, CardHeader } from '@/components/ui'
+import { GameResult } from '@/types/types'
+import { Trophy, Clock, History, Sparkles } from 'lucide-react'
+
+// Mock data for demonstration
+const mockMorningResult: GameResult = {
+  id: '1',
+  game_date: '2026-01-11',
+  slot: 'morning',
+  open_triple: '578',
+  open_single: 0,
+  close_triple: '478',
+  close_single: 9,
+  jodi: '09',
+  is_open_declared: true,
+  is_close_declared: true,
+  declared_by: 'admin',
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+}
+
+const mockNightResult: GameResult = {
+  id: '2',
+  game_date: '2026-01-11',
+  slot: 'night',
+  open_triple: null,
+  open_single: null,
+  close_triple: null,
+  close_single: null,
+  jodi: null,
+  is_open_declared: false,
+  is_close_declared: false,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+}
+
+const mockHistoricalResults: GameResult[] = [
+  mockMorningResult,
+  {
+    id: '3',
+    game_date: '2026-01-10',
+    slot: 'morning',
+    open_triple: '234',
+    open_single: 9,
+    close_triple: '567',
+    close_single: 8,
+    jodi: '98',
+    is_open_declared: true,
+    is_close_declared: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: '4',
+    game_date: '2026-01-10',
+    slot: 'night',
+    open_triple: '890',
+    open_single: 7,
+    close_triple: '123',
+    close_single: 6,
+    jodi: '76',
+    is_open_declared: true,
+    is_close_declared: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: '5',
+    game_date: '2026-01-09',
+    slot: 'morning',
+    open_triple: '456',
+    open_single: 5,
+    close_triple: '789',
+    close_single: 4,
+    jodi: '54',
+    is_open_declared: true,
+    is_close_declared: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+]
 
 export default function Home() {
+  const [currentTime, setCurrentTime] = useState(new Date())
+  const [activeTab, setActiveTab] = useState<'results' | 'schedule' | 'history'>('results')
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date())
+    }, 60000) // Update every minute
+
+    return () => clearInterval(interval)
+  }, [])
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <div className="min-h-screen bg-[var(--bg-dark)]">
+      {/* Hero Header */}
+      <header className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-[var(--primary-600)]/20 to-transparent" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-[var(--primary-500)] rounded-full blur-[200px] opacity-20" />
+
+        <div className="relative z-10 max-w-6xl mx-auto px-4 py-12 text-center">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <Sparkles className="text-[var(--accent-yellow)] animate-pulse" size={32} />
+            <h1 className="text-4xl md:text-5xl font-bold gradient-text">
+              Game Results
+            </h1>
+            <Sparkles className="text-[var(--accent-yellow)] animate-pulse" size={32} />
+          </div>
+          <p className="text-[var(--text-secondary)] text-lg max-w-xl mx-auto">
+            View live game results, historical data, and betting schedules
+          </p>
+
+          {/* Current Time Display */}
+          <div className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--bg-card)] border border-[var(--glass-border)]">
+            <Clock size={18} className="text-[var(--primary-400)]" />
+            <span className="font-mono text-lg">
+              {currentTime.toLocaleTimeString('en-IN', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+              })}
+            </span>
+          </div>
+        </div>
+      </header>
+
+      {/* Tab Navigation */}
+      <nav className="sticky top-0 z-50 bg-[var(--bg-dark)]/80 backdrop-blur-lg border-b border-[var(--glass-border)]">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="flex gap-1">
+            <TabButton
+              active={activeTab === 'results'}
+              onClick={() => setActiveTab('results')}
+              icon={<Trophy size={18} />}
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              Live Results
+            </TabButton>
+            <TabButton
+              active={activeTab === 'schedule'}
+              onClick={() => setActiveTab('schedule')}
+              icon={<Clock size={18} />}
             >
-              Learning
-            </a>{" "}
-            center.
+              Schedule
+            </TabButton>
+            <TabButton
+              active={activeTab === 'history'}
+              onClick={() => setActiveTab('history')}
+              icon={<History size={18} />}
+            >
+              History
+            </TabButton>
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <main className="max-w-6xl mx-auto px-4 py-8">
+        {activeTab === 'results' && (
+          <div className="space-y-8 animate-fade-in">
+            {/* Today's Results */}
+            <section>
+              <h2 className="text-2xl font-semibold mb-6 flex items-center gap-3">
+                <Trophy className="text-[var(--accent-yellow)]" />
+                Today&apos;s Results
+              </h2>
+
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Morning Game */}
+                <div>
+                  <h3 className="text-sm text-[var(--text-muted)] mb-3 uppercase tracking-wide">
+                    Morning Game • 1:00 PM & 3:00 PM
+                  </h3>
+                  <CurrentResult result={mockMorningResult} slot="morning" />
+                </div>
+
+                {/* Night Game */}
+                <div>
+                  <h3 className="text-sm text-[var(--text-muted)] mb-3 uppercase tracking-wide">
+                    Night Game • 6:00 PM & 8:00 PM
+                  </h3>
+                  <CurrentResult result={mockNightResult} slot="night" isLive />
+                </div>
+              </div>
+            </section>
+
+            {/* Game Info Cards */}
+            <section className="grid md:grid-cols-3 gap-4">
+              <Card className="text-center">
+                <div className="text-3xl font-bold text-[var(--accent-cyan)] mb-2">9x</div>
+                <p className="text-sm text-[var(--text-secondary)]">Single Payout</p>
+                <p className="text-xs text-[var(--text-muted)] mt-1">₹10 → ₹90</p>
+              </Card>
+              <Card className="text-center">
+                <div className="text-3xl font-bold text-[var(--accent-pink)] mb-2">90x</div>
+                <p className="text-sm text-[var(--text-secondary)]">Jodi Payout</p>
+                <p className="text-xs text-[var(--text-muted)] mt-1">₹10 → ₹900</p>
+              </Card>
+              <Card className="text-center">
+                <div className="text-3xl font-bold text-[var(--accent-green)] mb-2">800x</div>
+                <p className="text-sm text-[var(--text-secondary)]">Triple Payout</p>
+                <p className="text-xs text-[var(--text-muted)] mt-1">₹10 → ₹8000</p>
+              </Card>
+            </section>
+          </div>
+        )}
+
+        {activeTab === 'schedule' && (
+          <div className="animate-fade-in">
+            <h2 className="text-2xl font-semibold mb-6 flex items-center gap-3">
+              <Clock className="text-[var(--primary-400)]" />
+              Game Schedule
+            </h2>
+            <GameTimeline currentTime={currentTime} />
+          </div>
+        )}
+
+        {activeTab === 'history' && (
+          <div className="animate-fade-in">
+            <Card>
+              <CardHeader
+                title="Result History"
+                subtitle="View all previous game results"
+              />
+              <ResultHistory results={mockHistoricalResults} />
+            </Card>
+          </div>
+        )}
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t border-[var(--glass-border)] py-8 mt-12">
+        <div className="max-w-6xl mx-auto px-4 text-center">
+          <p className="text-[var(--text-muted)] text-sm">
+            Results are for viewing only. Contact authorized staff for betting.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      </footer>
     </div>
-  );
+  )
+}
+
+interface TabButtonProps {
+  active: boolean
+  onClick: () => void
+  icon: React.ReactNode
+  children: React.ReactNode
+}
+
+function TabButton({ active, onClick, icon, children }: TabButtonProps) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2 px-5 py-4 font-medium transition-all border-b-2 ${active
+          ? 'text-[var(--primary-400)] border-[var(--primary-400)]'
+          : 'text-[var(--text-secondary)] border-transparent hover:text-white'
+        }`}
+    >
+      {icon}
+      {children}
+    </button>
+  )
 }
