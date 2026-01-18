@@ -4,8 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
-import { Lock, User, Shield } from 'lucide-react'
-import Link from 'next/link'
+import { Lock, User } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { toast } from 'sonner'
 import { AuthPageContainer } from '@/components/auth/AuthPageContainer'
@@ -98,56 +97,41 @@ export default function AdminLogin() {
     }
 
     return (
-        <AuthPageContainer
-            title="Admin Portal"
-            subtitle="System Control Center"
-            icon={<Shield size={40} className="text-[var(--primary-400)]" />}
-        >
+        <AuthPageContainer>
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-4">
                     <div className="relative group">
-                        <User className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--primary-400)] transition-colors" size={18} />
+                        <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-indigo-400 transition-colors" size={18} />
                         <Input
                             type="email"
                             placeholder="Email Address"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="!pl-14 h-12 bg-[var(--bg-surface)]/50 border-[var(--glass-border)] focus:bg-[var(--bg-surface)] transition-all"
+                            className="!pl-12 h-12 bg-gray-800/50 border-gray-700 focus:border-indigo-500 text-white"
                             required
                         />
                     </div>
 
                     <div className="relative group">
-                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--primary-400)] transition-colors" size={18} />
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-indigo-400 transition-colors" size={18} />
                         <Input
                             type="password"
                             placeholder="Password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="!pl-14 h-12 bg-[var(--bg-surface)]/50 border-[var(--glass-border)] focus:bg-[var(--bg-surface)] transition-all"
+                            className="!pl-12 h-12 bg-gray-800/50 border-gray-700 focus:border-indigo-500 text-white"
                             required
                         />
                     </div>
                 </div>
 
-                <div className="pt-2">
-                    <Button
-                        type="submit"
-                        className="w-full h-12 text-base font-semibold shadow-lg shadow-[var(--primary-500)]/20 hover:shadow-[var(--primary-500)]/40 transition-all duration-300"
-                        isLoading={isLoading}
-                    >
-                        {isLoading ? 'Authenticating...' : 'Access Dashboard'}
-                    </Button>
-                </div>
-
-                <div className="text-center">
-                    <Link
-                        href="/"
-                        className="text-sm text-[var(--text-muted)] hover:text-white transition-colors border-b border-transparent hover:border-white/20 pb-0.5"
-                    >
-                        ← Return to Public Results
-                    </Link>
-                </div>
+                <Button
+                    type="submit"
+                    className="w-full h-12 text-base font-semibold bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600"
+                    isLoading={isLoading}
+                >
+                    {isLoading ? 'Authenticating...' : 'Login'}
+                </Button>
             </form>
         </AuthPageContainer>
     )

@@ -100,11 +100,11 @@ export function GameTimeline({ currentTime = new Date() }: GameTimelineProps) {
     if (isLoading) {
         return (
             <div className="space-y-6">
-                <div className="glass-card p-6 animate-pulse">
+                <div className="bg-white dark:bg-gray-800/80 rounded-2xl p-6 shadow-md border border-gray-200 dark:border-gray-700 animate-pulse">
                     <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-4"></div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {[1, 2, 3, 4].map(i => (
-                            <div key={i} className="p-3 rounded-lg border border-[var(--glass-border)]">
+                            <div key={i} className="p-3 rounded-lg border border-gray-200 dark:border-gray-700">
                                 <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
                                 <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
                             </div>
@@ -119,10 +119,10 @@ export function GameTimeline({ currentTime = new Date() }: GameTimelineProps) {
     if (error) {
         return (
             <div className="space-y-6">
-                <div className="glass-card p-6 text-center">
-                    <AlertCircle size={40} className="mx-auto text-[var(--status-error)] mb-2" />
-                    <h3 className="text-lg font-semibold mb-2">Unable to Load Schedules</h3>
-                    <p className="text-[var(--text-muted)]">{error}</p>
+                <div className="bg-white dark:bg-gray-800/80 rounded-2xl p-6 shadow-md border border-gray-200 dark:border-gray-700 text-center">
+                    <AlertCircle size={40} className="mx-auto text-red-500 mb-2" />
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Unable to Load Schedules</h3>
+                    <p className="text-gray-500 dark:text-gray-400">{error}</p>
                 </div>
             </div>
         )
@@ -132,10 +132,10 @@ export function GameTimeline({ currentTime = new Date() }: GameTimelineProps) {
     if (schedules.length === 0) {
         return (
             <div className="space-y-6">
-                <div className="glass-card p-6 text-center">
-                    <Clock size={40} className="mx-auto text-[var(--text-muted)] mb-2" />
-                    <h3 className="text-lg font-semibold mb-2">No Schedules Available</h3>
-                    <p className="text-[var(--text-muted)]">Game schedules have not been configured yet.</p>
+                <div className="bg-white dark:bg-gray-800/80 rounded-2xl p-6 shadow-md border border-gray-200 dark:border-gray-700 text-center">
+                    <Clock size={40} className="mx-auto text-gray-400 mb-2" />
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Schedules Available</h3>
+                    <p className="text-gray-500 dark:text-gray-400">Game schedules have not been configured yet.</p>
                 </div>
             </div>
         )
@@ -148,9 +148,9 @@ export function GameTimeline({ currentTime = new Date() }: GameTimelineProps) {
                 const slotLabel = schedule.session_name === 'morning' ? 'Morning Game' : 'Night Game'
 
                 return (
-                    <div key={schedule.session_name} className="glass-card p-6">
-                        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                            <Clock size={20} className="text-[var(--primary-400)]" />
+                    <div key={schedule.session_name} className="bg-white dark:bg-gray-800/80 rounded-2xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                            <Clock size={20} className="text-purple-500" />
                             {slotLabel}
                         </h3>
 
@@ -184,14 +184,14 @@ export function GameTimeline({ currentTime = new Date() }: GameTimelineProps) {
                             />
                         </div>
 
-                        <div className="flex gap-4 mt-4 pt-4 border-t border-[var(--glass-border)]">
+                        <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                             <div className="flex items-center gap-2 text-sm">
-                                <span className="text-[var(--accent-cyan)]">Open Result:</span>
-                                <span className="font-mono">{formatTimeDisplay(schedule.open_result_time)}</span>
+                                <span className="text-cyan-600 dark:text-cyan-400 font-medium">Open Result:</span>
+                                <span className="font-mono text-gray-700 dark:text-white">{formatTimeDisplay(schedule.open_result_time)}</span>
                             </div>
                             <div className="flex items-center gap-2 text-sm">
-                                <span className="text-[var(--accent-green)]">Close Result:</span>
-                                <span className="font-mono">{formatTimeDisplay(schedule.close_result_time)}</span>
+                                <span className="text-green-600 dark:text-green-400 font-medium">Close Result:</span>
+                                <span className="font-mono text-gray-700 dark:text-white">{formatTimeDisplay(schedule.close_result_time)}</span>
                             </div>
                         </div>
                     </div>
@@ -209,26 +209,26 @@ interface TimeSlotProps {
 
 function TimeSlot({ label, time, status }: TimeSlotProps) {
     const statusStyles = {
-        active: 'border-[var(--status-success)] bg-green-500/10',
-        locked: 'border-[var(--status-error)] bg-red-500/10',
-        upcoming: 'border-[var(--glass-border)]',
-        inactive: 'border-[var(--glass-border)] opacity-50',
+        active: 'border-green-500 bg-green-50 dark:bg-green-500/10',
+        locked: 'border-red-500 bg-red-50 dark:bg-red-500/10',
+        upcoming: 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30',
+        inactive: 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 opacity-60',
     }
 
     const statusIcons = {
-        active: <Unlock size={14} className="text-[var(--status-success)]" />,
-        locked: <Lock size={14} className="text-[var(--status-error)]" />,
-        upcoming: <Clock size={14} className="text-[var(--text-muted)]" />,
-        inactive: <Clock size={14} className="text-[var(--text-muted)]" />,
+        active: <Unlock size={14} className="text-green-500" />,
+        locked: <Lock size={14} className="text-red-500" />,
+        upcoming: <Clock size={14} className="text-gray-400" />,
+        inactive: <Clock size={14} className="text-gray-400" />,
     }
 
     return (
         <div className={`p-3 rounded-lg border ${statusStyles[status]}`}>
             <div className="flex items-center gap-2 mb-1">
                 {statusIcons[status]}
-                <span className="text-xs text-[var(--text-muted)]">{label}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-300">{label}</span>
             </div>
-            <p className="text-sm font-mono">{time}</p>
+            <p className="text-sm font-mono text-gray-700 dark:text-white">{time}</p>
         </div>
     )
 }

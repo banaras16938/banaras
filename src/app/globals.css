@@ -704,7 +704,7 @@ body {
   background: var(--bg-surface);
   border: 1px solid var(--glass-border);
   border-radius: 10px;
-  color: var(--text-primary);
+  color: #ffffff;
   font-size: 14px;
   transition: all 0.2s ease;
   outline: none;
