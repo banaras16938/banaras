@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Card, CardHeader } from '@/components/ui'
 import { Badge } from '@/components/ui/Badge'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import {
@@ -119,18 +118,18 @@ export default function StaffDashboard() {
     }
 
     return (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-6">
             {/* Welcome Header */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold">Welcome back, Staff!</h1>
-                    <p className="text-[var(--text-secondary)]">
+                    <h1 className="text-2xl font-bold text-white">Welcome back, Staff!</h1>
+                    <p className="text-gray-400">
                         Here&apos;s what&apos;s happening today
                     </p>
                 </div>
                 <Link
                     href="/staff/bets"
-                    className="btn btn-primary"
+                    className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold rounded-xl hover:from-indigo-600 hover:to-purple-600 transition-all"
                 >
                     <Ticket size={18} />
                     Place New Bet
@@ -142,31 +141,31 @@ export default function StaffDashboard() {
                 {statCards.map((stat) => {
                     const Icon = stat.icon
                     return (
-                        <Card key={stat.label} className="relative overflow-hidden">
+                        <div key={stat.label} className="bg-gray-800/80 backdrop-blur border border-gray-700 rounded-xl p-5">
                             <div className="flex items-start justify-between">
                                 <div>
-                                    <p className="text-sm text-[var(--text-muted)]">{stat.label}</p>
-                                    <p className="text-2xl font-bold mt-1">{stat.value}</p>
+                                    <p className="text-sm text-gray-400">{stat.label}</p>
+                                    <p className="text-2xl font-bold text-white mt-1">{stat.value}</p>
                                     <div className="flex items-center gap-1 mt-2">
                                         {stat.trending === 'up' && (
-                                            <TrendingUp size={14} className="text-[var(--status-success)]" />
+                                            <TrendingUp size={14} className="text-green-400" />
                                         )}
                                         {stat.trending === 'down' && (
-                                            <TrendingDown size={14} className="text-[var(--status-error)]" />
+                                            <TrendingDown size={14} className="text-red-400" />
                                         )}
-                                        <span className={`text-xs ${stat.trending === 'up' ? 'text-[var(--status-success)]' :
-                                            stat.trending === 'down' ? 'text-[var(--status-error)]' :
-                                                'text-[var(--text-muted)]'
+                                        <span className={`text-xs ${stat.trending === 'up' ? 'text-green-400' :
+                                            stat.trending === 'down' ? 'text-red-400' :
+                                                'text-gray-400'
                                             }`}>
                                             {stat.change}
                                         </span>
                                     </div>
                                 </div>
-                                <div className="p-3 rounded-lg bg-[var(--primary-500)]/10">
-                                    <Icon size={24} className="text-[var(--primary-400)]" />
+                                <div className="p-3 rounded-lg bg-indigo-500/10">
+                                    <Icon size={24} className="text-indigo-400" />
                                 </div>
                             </div>
-                        </Card>
+                        </div>
                     )
                 })}
             </div>
@@ -174,46 +173,44 @@ export default function StaffDashboard() {
             {/* Recent Activity */}
             <div className="grid lg:grid-cols-2 gap-6">
                 {/* Recent Bets */}
-                <Card>
-                    <CardHeader
-                        title="Recent Bets"
-                        action={
-                            <Link
-                                href="/staff/bets/history"
-                                className="text-sm text-[var(--primary-400)] hover:underline flex items-center gap-1"
-                            >
-                                View All <ArrowUpRight size={14} />
-                            </Link>
-                        }
-                    />
+                <div className="bg-gray-800/80 backdrop-blur border border-gray-700 rounded-xl p-5">
+                    <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-700">
+                        <h3 className="text-lg font-semibold text-white">Recent Bets</h3>
+                        <Link
+                            href="/staff/bets/history"
+                            className="text-sm text-indigo-400 hover:underline flex items-center gap-1"
+                        >
+                            View All <ArrowUpRight size={14} />
+                        </Link>
+                    </div>
                     <div className="space-y-3">
                         {!stats?.recentBets || stats.recentBets.length === 0 ? (
-                            <div className="py-8 text-center text-[var(--text-muted)]">
+                            <div className="py-8 text-center text-gray-400">
                                 No bets placed today yet
                             </div>
                         ) : (
                             stats.recentBets.slice(0, 5).map((bet) => (
                                 <div
                                     key={bet.id}
-                                    className="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-surface)] hover:bg-[var(--bg-card-hover)] transition-colors"
+                                    className="flex items-center justify-between p-3 rounded-lg bg-gray-900/50 hover:bg-gray-900 transition-colors"
                                 >
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-lg bg-[var(--primary-500)]/10 flex items-center justify-center">
-                                            <span className="font-mono text-[var(--primary-400)]">
+                                        <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+                                            <span className="font-mono text-indigo-400">
                                                 {bet.selected_number || '-'}
                                             </span>
                                         </div>
                                         <div>
-                                            <p className="font-medium">
+                                            <p className="font-medium text-white">
                                                 {bet.player?.name || 'Player'}
                                             </p>
-                                            <p className="text-xs text-[var(--text-muted)]">
+                                            <p className="text-xs text-gray-500">
                                                 {formatTimeAgo(bet.created_at)}
                                             </p>
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className="font-medium">₹{Number(bet.amount).toLocaleString()}</p>
+                                        <p className="font-medium text-white">₹{Number(bet.amount).toLocaleString()}</p>
                                         <Badge
                                             variant={
                                                 bet.status === 'won' ? 'success' :
@@ -228,42 +225,44 @@ export default function StaffDashboard() {
                             ))
                         )}
                     </div>
-                </Card>
+                </div>
 
                 {/* Quick Actions */}
-                <Card>
-                    <CardHeader title="Quick Actions" />
+                <div className="bg-gray-800/80 backdrop-blur border border-gray-700 rounded-xl p-5">
+                    <div className="mb-4 pb-4 border-b border-gray-700">
+                        <h3 className="text-lg font-semibold text-white">Quick Actions</h3>
+                    </div>
                     <div className="grid grid-cols-2 gap-4">
                         <Link href="/staff/bets" className="block">
-                            <div className="p-4 rounded-lg border border-[var(--glass-border)] hover:border-[var(--primary-500)] hover:bg-[var(--primary-500)]/5 transition-all text-center">
-                                <Ticket size={32} className="mx-auto text-[var(--accent-cyan)] mb-3" />
-                                <p className="font-medium">Place Bet</p>
-                                <p className="text-xs text-[var(--text-muted)]">Single, Jodi, Triple</p>
+                            <div className="p-4 rounded-lg border border-gray-700 hover:border-indigo-500 hover:bg-indigo-500/5 transition-all text-center">
+                                <Ticket size={32} className="mx-auto text-cyan-400 mb-3" />
+                                <p className="font-medium text-white">Place Bet</p>
+                                <p className="text-xs text-gray-400">Single, Jodi, Triple</p>
                             </div>
                         </Link>
                         <Link href="/staff/bets/history" className="block">
-                            <div className="p-4 rounded-lg border border-[var(--glass-border)] hover:border-[var(--primary-500)] hover:bg-[var(--primary-500)]/5 transition-all text-center">
-                                <Clock size={32} className="mx-auto text-[var(--accent-pink)] mb-3" />
-                                <p className="font-medium">Bet History</p>
-                                <p className="text-xs text-[var(--text-muted)]">View all bets</p>
+                            <div className="p-4 rounded-lg border border-gray-700 hover:border-indigo-500 hover:bg-indigo-500/5 transition-all text-center">
+                                <Clock size={32} className="mx-auto text-pink-400 mb-3" />
+                                <p className="font-medium text-white">Bet History</p>
+                                <p className="text-xs text-gray-400">View all bets</p>
                             </div>
                         </Link>
                         <Link href="/staff/results" className="block">
-                            <div className="p-4 rounded-lg border border-[var(--glass-border)] hover:border-[var(--primary-500)] hover:bg-[var(--primary-500)]/5 transition-all text-center">
-                                <Trophy size={32} className="mx-auto text-[var(--accent-green)] mb-3" />
-                                <p className="font-medium">Results</p>
-                                <p className="text-xs text-[var(--text-muted)]">View declared results</p>
+                            <div className="p-4 rounded-lg border border-gray-700 hover:border-indigo-500 hover:bg-indigo-500/5 transition-all text-center">
+                                <Trophy size={32} className="mx-auto text-green-400 mb-3" />
+                                <p className="font-medium text-white">Results</p>
+                                <p className="text-xs text-gray-400">View declared results</p>
                             </div>
                         </Link>
                         <Link href="/staff/profit-loss" className="block">
-                            <div className="p-4 rounded-lg border border-[var(--glass-border)] hover:border-[var(--primary-500)] hover:bg-[var(--primary-500)]/5 transition-all text-center">
-                                <TrendingUp size={32} className="mx-auto text-[var(--accent-orange)] mb-3" />
-                                <p className="font-medium">Profit & Loss</p>
-                                <p className="text-xs text-[var(--text-muted)]">Analytics dashboard</p>
+                            <div className="p-4 rounded-lg border border-gray-700 hover:border-indigo-500 hover:bg-indigo-500/5 transition-all text-center">
+                                <TrendingUp size={32} className="mx-auto text-orange-400 mb-3" />
+                                <p className="font-medium text-white">Profit & Loss</p>
+                                <p className="text-xs text-gray-400">Analytics dashboard</p>
                             </div>
                         </Link>
                     </div>
-                </Card>
+                </div>
             </div>
         </div>
     )

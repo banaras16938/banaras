@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Card, CardHeader } from '@/components/ui'
 import { Badge } from '@/components/ui/Badge'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import {
@@ -186,24 +185,27 @@ export default function AdminDashboard() {
     }
 
     return (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-6">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold">System Overview</h1>
-                    <p className="text-[var(--text-secondary)]">
+                    <h1 className="text-2xl font-bold text-white">System Overview</h1>
+                    <p className="text-gray-400">
                         Real-time monitoring and control
                     </p>
                 </div>
                 <div className="flex gap-3">
                     <button
                         onClick={fetchDashboardData}
-                        className="btn btn-secondary flex items-center gap-2"
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-gray-800 text-white border border-gray-700 rounded-lg hover:bg-gray-700 transition-all"
                     >
                         <RefreshCw size={16} />
                         Refresh
                     </button>
-                    <Link href="/admin/results" className="btn btn-primary">
+                    <Link
+                        href="/admin/results"
+                        className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all"
+                    >
                         <Trophy size={18} />
                         Declare Result
                     </Link>
@@ -215,23 +217,23 @@ export default function AdminDashboard() {
                 {systemStats.map((stat) => {
                     const Icon = stat.icon
                     return (
-                        <Card key={stat.label}>
+                        <div key={stat.label} className="bg-gray-800/80 backdrop-blur border border-gray-700 rounded-xl p-5">
                             <div className="flex items-start justify-between">
                                 <div>
-                                    <p className="text-sm text-[var(--text-muted)]">{stat.label}</p>
-                                    <p className="text-2xl font-bold mt-1">{stat.value}</p>
-                                    <p className={`text-xs mt-2 ${stat.trending === 'up' ? 'text-[var(--status-success)]' :
-                                        stat.trending === 'down' ? 'text-[var(--status-error)]' :
-                                            'text-[var(--text-muted)]'
+                                    <p className="text-sm text-gray-400">{stat.label}</p>
+                                    <p className="text-2xl font-bold text-white mt-1">{stat.value}</p>
+                                    <p className={`text-xs mt-2 ${stat.trending === 'up' ? 'text-green-400' :
+                                        stat.trending === 'down' ? 'text-red-400' :
+                                            'text-gray-400'
                                         }`}>
                                         {stat.change}
                                     </p>
                                 </div>
-                                <div className="p-3 rounded-lg bg-[var(--primary-500)]/10">
-                                    <Icon size={24} className="text-[var(--primary-400)]" />
+                                <div className="p-3 rounded-lg bg-indigo-500/10">
+                                    <Icon size={24} className="text-indigo-400" />
                                 </div>
                             </div>
-                        </Card>
+                        </div>
                     )
                 })}
             </div>
@@ -239,150 +241,142 @@ export default function AdminDashboard() {
             {/* Game Status Cards */}
             <div className="grid lg:grid-cols-2 gap-6">
                 {/* Morning Game */}
-                <Card>
-                    <CardHeader
-                        title="Morning Game"
-                        action={
-                            <Badge variant={getGameStatus(morningSession) === 'completed' ? 'success' :
-                                getGameStatus(morningSession) === 'betting' ? 'warning' : 'default'}>
-                                {getGameStatus(morningSession) === 'completed' ? 'Completed' :
-                                    getGameStatus(morningSession) === 'betting' ? 'In Progress' : 'Not Started'}
-                            </Badge>
-                        }
-                    />
-                    <div className="space-y-4">
-                        <div className="flex justify-center gap-6 py-4">
-                            <div className="text-center">
-                                <p className="text-xs text-[var(--text-muted)]">OPEN</p>
-                                <p className={`text-3xl font-mono font-bold ${morningSession?.open_triple ? 'text-[var(--accent-cyan)]' : 'text-[var(--text-muted)] animate-pulse'}`}>
-                                    {morningSession?.open_triple || '***'}
-                                </p>
-                            </div>
-                            <div className="text-center px-6 border-x border-[var(--glass-border)]">
-                                <p className="text-xs text-[var(--text-muted)]">JODI</p>
-                                <p className={`text-3xl font-mono font-bold ${morningSession?.jodi_result ? 'text-[var(--accent-pink)]' : 'text-[var(--text-muted)] animate-pulse'}`}>
-                                    {morningSession?.jodi_result || '**'}
-                                </p>
-                            </div>
-                            <div className="text-center">
-                                <p className="text-xs text-[var(--text-muted)]">CLOSE</p>
-                                <p className={`text-3xl font-mono font-bold ${morningSession?.close_triple ? 'text-[var(--accent-green)]' : 'text-[var(--text-muted)] animate-pulse'}`}>
-                                    {morningSession?.close_triple || '***'}
-                                </p>
-                            </div>
+                <div className="bg-gray-800/80 backdrop-blur border border-gray-700 rounded-xl p-5">
+                    <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-700">
+                        <h3 className="text-lg font-semibold text-white">Morning Game</h3>
+                        <Badge variant={getGameStatus(morningSession) === 'completed' ? 'success' :
+                            getGameStatus(morningSession) === 'betting' ? 'warning' : 'default'}>
+                            {getGameStatus(morningSession) === 'completed' ? 'Completed' :
+                                getGameStatus(morningSession) === 'betting' ? 'In Progress' : 'Not Started'}
+                        </Badge>
+                    </div>
+                    <div className="flex justify-center gap-6 py-4">
+                        <div className="text-center">
+                            <p className="text-xs text-gray-400 mb-1">OPEN</p>
+                            <p className={`text-3xl font-mono font-bold ${morningSession?.open_triple ? 'text-cyan-400' : 'text-gray-500 animate-pulse'}`}>
+                                {morningSession?.open_triple || '***'}
+                            </p>
+                        </div>
+                        <div className="text-center px-6 border-x border-gray-700">
+                            <p className="text-xs text-gray-400 mb-1">JODI</p>
+                            <p className={`text-3xl font-mono font-bold ${morningSession?.jodi_result ? 'text-pink-400' : 'text-gray-500 animate-pulse'}`}>
+                                {morningSession?.jodi_result || '**'}
+                            </p>
+                        </div>
+                        <div className="text-center">
+                            <p className="text-xs text-gray-400 mb-1">CLOSE</p>
+                            <p className={`text-3xl font-mono font-bold ${morningSession?.close_triple ? 'text-green-400' : 'text-gray-500 animate-pulse'}`}>
+                                {morningSession?.close_triple || '***'}
+                            </p>
                         </div>
                     </div>
-                </Card>
+                </div>
 
                 {/* Night Game */}
-                <Card>
-                    <CardHeader
-                        title="Night Game"
-                        action={
-                            <Badge variant={getGameStatus(nightSession) === 'completed' ? 'success' :
-                                getGameStatus(nightSession) === 'betting' ? 'warning' : 'default'} dot>
-                                {getGameStatus(nightSession) === 'completed' ? 'Completed' :
-                                    getGameStatus(nightSession) === 'betting' ? 'In Progress' : 'Betting Open'}
-                            </Badge>
-                        }
-                    />
-                    <div className="space-y-4">
-                        <div className="flex justify-center gap-6 py-4">
-                            <div className="text-center">
-                                <p className="text-xs text-[var(--text-muted)]">OPEN</p>
-                                <p className={`text-3xl font-mono font-bold ${nightSession?.open_triple ? 'text-[var(--accent-cyan)]' : 'text-[var(--text-muted)] animate-pulse'}`}>
-                                    {nightSession?.open_triple || '***'}
-                                </p>
-                            </div>
-                            <div className="text-center px-6 border-x border-[var(--glass-border)]">
-                                <p className="text-xs text-[var(--text-muted)]">JODI</p>
-                                <p className={`text-3xl font-mono font-bold ${nightSession?.jodi_result ? 'text-[var(--accent-pink)]' : 'text-[var(--text-muted)] animate-pulse'}`}>
-                                    {nightSession?.jodi_result || '**'}
-                                </p>
-                            </div>
-                            <div className="text-center">
-                                <p className="text-xs text-[var(--text-muted)]">CLOSE</p>
-                                <p className={`text-3xl font-mono font-bold ${nightSession?.close_triple ? 'text-[var(--accent-green)]' : 'text-[var(--text-muted)] animate-pulse'}`}>
-                                    {nightSession?.close_triple || '***'}
-                                </p>
-                            </div>
+                <div className="bg-gray-800/80 backdrop-blur border border-gray-700 rounded-xl p-5">
+                    <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-700">
+                        <h3 className="text-lg font-semibold text-white">Night Game</h3>
+                        <Badge variant={getGameStatus(nightSession) === 'completed' ? 'success' :
+                            getGameStatus(nightSession) === 'betting' ? 'warning' : 'default'} dot>
+                            {getGameStatus(nightSession) === 'completed' ? 'Completed' :
+                                getGameStatus(nightSession) === 'betting' ? 'In Progress' : 'Betting Open'}
+                        </Badge>
+                    </div>
+                    <div className="flex justify-center gap-6 py-4">
+                        <div className="text-center">
+                            <p className="text-xs text-gray-400 mb-1">OPEN</p>
+                            <p className={`text-3xl font-mono font-bold ${nightSession?.open_triple ? 'text-cyan-400' : 'text-gray-500 animate-pulse'}`}>
+                                {nightSession?.open_triple || '***'}
+                            </p>
+                        </div>
+                        <div className="text-center px-6 border-x border-gray-700">
+                            <p className="text-xs text-gray-400 mb-1">JODI</p>
+                            <p className={`text-3xl font-mono font-bold ${nightSession?.jodi_result ? 'text-pink-400' : 'text-gray-500 animate-pulse'}`}>
+                                {nightSession?.jodi_result || '**'}
+                            </p>
+                        </div>
+                        <div className="text-center">
+                            <p className="text-xs text-gray-400 mb-1">CLOSE</p>
+                            <p className={`text-3xl font-mono font-bold ${nightSession?.close_triple ? 'text-green-400' : 'text-gray-500 animate-pulse'}`}>
+                                {nightSession?.close_triple || '***'}
+                            </p>
                         </div>
                     </div>
-                </Card>
+                </div>
             </div>
 
             {/* Staff Activity & Quick Actions */}
             <div className="grid lg:grid-cols-2 gap-6">
                 {/* Staff Activity */}
-                <Card>
-                    <CardHeader
-                        title="Staff Activity"
-                        action={
-                            <Link
-                                href="/admin/staff"
-                                className="text-sm text-[var(--primary-400)] hover:underline flex items-center gap-1"
-                            >
-                                Manage <ArrowUpRight size={14} />
-                            </Link>
-                        }
-                    />
+                <div className="bg-gray-800/80 backdrop-blur border border-gray-700 rounded-xl p-5">
+                    <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-700">
+                        <h3 className="text-lg font-semibold text-white">Staff Activity</h3>
+                        <Link
+                            href="/admin/staff"
+                            className="text-sm text-indigo-400 hover:underline flex items-center gap-1"
+                        >
+                            Manage <ArrowUpRight size={14} />
+                        </Link>
+                    </div>
                     <div className="space-y-3">
                         {staffActivity.length === 0 ? (
-                            <p className="text-center py-4 text-[var(--text-muted)]">No staff activity today</p>
+                            <p className="text-center py-4 text-gray-400">No staff activity today</p>
                         ) : (
                             staffActivity.map((staff) => (
                                 <div
                                     key={staff.id}
-                                    className="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-surface)]"
+                                    className="flex items-center justify-between p-3 rounded-lg bg-gray-900/50"
                                 >
                                     <div className="flex items-center gap-3">
-                                        <div className={`status-dot ${staff.is_active ? 'online' : 'offline'}`} />
+                                        <div className={`w-2.5 h-2.5 rounded-full ${staff.is_active ? 'bg-green-400' : 'bg-gray-500'}`} />
                                         <div>
-                                            <p className="font-medium">{staff.name || staff.email}</p>
-                                            <p className="text-xs text-[var(--text-muted)]">{staff.bets_count} bets today</p>
+                                            <p className="font-medium text-white">{staff.name || staff.email}</p>
+                                            <p className="text-xs text-gray-500">{staff.bets_count} bets today</p>
                                         </div>
                                     </div>
-                                    <p className="font-medium">₹{staff.total_amount.toLocaleString()}</p>
+                                    <p className="font-medium text-white">₹{staff.total_amount.toLocaleString()}</p>
                                 </div>
                             ))
                         )}
                     </div>
-                </Card>
+                </div>
 
                 {/* Quick Actions */}
-                <Card>
-                    <CardHeader title="Quick Actions" />
+                <div className="bg-gray-800/80 backdrop-blur border border-gray-700 rounded-xl p-5">
+                    <div className="mb-4 pb-4 border-b border-gray-700">
+                        <h3 className="text-lg font-semibold text-white">Quick Actions</h3>
+                    </div>
                     <div className="grid grid-cols-2 gap-4">
                         <Link href="/admin/results" className="block">
-                            <div className="p-4 rounded-lg border border-[var(--glass-border)] hover:border-[var(--primary-500)] hover:bg-[var(--primary-500)]/5 transition-all text-center">
-                                <Trophy size={32} className="mx-auto text-[var(--accent-cyan)] mb-3" />
-                                <p className="font-medium">Result Selector</p>
-                                <p className="text-xs text-[var(--text-muted)]">Declare results</p>
+                            <div className="p-4 rounded-lg border border-gray-700 hover:border-indigo-500 hover:bg-indigo-500/5 transition-all text-center">
+                                <Trophy size={32} className="mx-auto text-cyan-400 mb-3" />
+                                <p className="font-medium text-white">Result Selector</p>
+                                <p className="text-xs text-gray-400">Declare results</p>
                             </div>
                         </Link>
                         <Link href="/admin/staff" className="block">
-                            <div className="p-4 rounded-lg border border-[var(--glass-border)] hover:border-[var(--primary-500)] hover:bg-[var(--primary-500)]/5 transition-all text-center">
-                                <Users size={32} className="mx-auto text-[var(--accent-pink)] mb-3" />
-                                <p className="font-medium">Staff Management</p>
-                                <p className="text-xs text-[var(--text-muted)]">Add/Remove staff</p>
+                            <div className="p-4 rounded-lg border border-gray-700 hover:border-indigo-500 hover:bg-indigo-500/5 transition-all text-center">
+                                <Users size={32} className="mx-auto text-pink-400 mb-3" />
+                                <p className="font-medium text-white">Staff Management</p>
+                                <p className="text-xs text-gray-400">Add/Remove staff</p>
                             </div>
                         </Link>
                         <Link href="/admin/analytics" className="block">
-                            <div className="p-4 rounded-lg border border-[var(--glass-border)] hover:border-[var(--primary-500)] hover:bg-[var(--primary-500)]/5 transition-all text-center">
-                                <TrendingUp size={32} className="mx-auto text-[var(--accent-green)] mb-3" />
-                                <p className="font-medium">Analytics</p>
-                                <p className="text-xs text-[var(--text-muted)]">Profit reports</p>
+                            <div className="p-4 rounded-lg border border-gray-700 hover:border-indigo-500 hover:bg-indigo-500/5 transition-all text-center">
+                                <TrendingUp size={32} className="mx-auto text-green-400 mb-3" />
+                                <p className="font-medium text-white">Analytics</p>
+                                <p className="text-xs text-gray-400">Profit reports</p>
                             </div>
                         </Link>
                         <Link href="/admin/games" className="block">
-                            <div className="p-4 rounded-lg border border-[var(--glass-border)] hover:border-[var(--primary-500)] hover:bg-[var(--primary-500)]/5 transition-all text-center">
-                                <Clock size={32} className="mx-auto text-[var(--accent-orange)] mb-3" />
-                                <p className="font-medium">Game Settings</p>
-                                <p className="text-xs text-[var(--text-muted)]">Configure games</p>
+                            <div className="p-4 rounded-lg border border-gray-700 hover:border-indigo-500 hover:bg-indigo-500/5 transition-all text-center">
+                                <Clock size={32} className="mx-auto text-orange-400 mb-3" />
+                                <p className="font-medium text-white">Game Settings</p>
+                                <p className="text-xs text-gray-400">Configure games</p>
                             </div>
                         </Link>
                     </div>
-                </Card>
+                </div>
             </div>
         </div>
     )
