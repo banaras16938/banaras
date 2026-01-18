@@ -87,19 +87,26 @@ export default function PlaceBetPage() {
             setHolidayLoading(true)
             try {
                 const supabase = createClient()
-                const today = new Date().toISOString().split('T')[0]
-                const { data } = await supabase
+                // Use local date (not UTC) to match database format
+                const now = new Date()
+                const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+                console.log('Checking holiday for date:', today)
+
+                const { data, error } = await supabase
                     .from('holidays')
                     .select('*')
                     .eq('holiday_date', today)
-                    .single()
+                    .maybeSingle()
 
-                if (data) {
+                console.log('Holiday check result:', { data, error })
+
+                if (data && !error) {
                     setIsHoliday(true)
                     setHolidayDesc(data.description || 'Holiday')
+                    console.log('Holiday detected:', data.description)
                 }
-            } catch {
-                // No holiday or error - betting allowed
+            } catch (err) {
+                console.error('Holiday check error:', err)
             } finally {
                 setHolidayLoading(false)
             }
@@ -439,8 +446,8 @@ export default function PlaceBetPage() {
                         type="button"
                         onClick={() => setShowPlayerModal(true)}
                         className={`flex-1 p-3 rounded-xl border transition-all text-left flex items-center gap-3 ${selectedPlayer
-                                ? 'border-indigo-500 bg-indigo-500/10'
-                                : 'border-gray-600 hover:border-indigo-500/50'
+                            ? 'border-indigo-500 bg-indigo-500/10'
+                            : 'border-gray-600 hover:border-indigo-500/50'
                             }`}
                     >
                         <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center">
@@ -466,8 +473,8 @@ export default function PlaceBetPage() {
                             type="button"
                             onClick={() => setSessionName('morning')}
                             className={`px-6 py-3 font-medium transition-all ${sessionName === 'morning'
-                                    ? 'bg-indigo-500 text-white'
-                                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                ? 'bg-indigo-500 text-white'
+                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                                 }`}
                         >
                             Morning
@@ -476,8 +483,8 @@ export default function PlaceBetPage() {
                             type="button"
                             onClick={() => setSessionName('night')}
                             className={`px-6 py-3 font-medium transition-all ${sessionName === 'night'
-                                    ? 'bg-indigo-500 text-white'
-                                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                ? 'bg-indigo-500 text-white'
+                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                                 }`}
                         >
                             Night
@@ -496,12 +503,12 @@ export default function PlaceBetPage() {
                             type="button"
                             onClick={() => !isDisabled && setActiveTab(cat)}
                             className={`flex-1 py-4 font-semibold text-center transition-all relative ${activeTab === cat
-                                    ? isDisabled
-                                        ? 'bg-gray-700 text-gray-400'
-                                        : 'bg-indigo-500 text-white'
-                                    : isDisabled
-                                        ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
-                                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                ? isDisabled
+                                    ? 'bg-gray-700 text-gray-400'
+                                    : 'bg-indigo-500 text-white'
+                                : isDisabled
+                                    ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
+                                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                                 }`}
                         >
                             {cat === 'single' ? 'Single' : cat === 'jodi' ? 'Jodi' : 'Triple'}
@@ -547,10 +554,10 @@ export default function PlaceBetPage() {
                                 onClick={() => bettingStatus.openBetting && setTarget('open')}
                                 disabled={!bettingStatus.openBetting}
                                 className={`flex-1 py-3 rounded-lg font-medium transition-all ${!bettingStatus.openBetting
-                                        ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                                        : target === 'open'
-                                            ? 'bg-cyan-500 text-white'
-                                            : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                                    : target === 'open'
+                                        ? 'bg-cyan-500 text-white'
+                                        : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
                                     }`}
                             >
                                 <div>Open</div>
@@ -561,10 +568,10 @@ export default function PlaceBetPage() {
                                 onClick={() => bettingStatus.closeBetting && setTarget('close')}
                                 disabled={!bettingStatus.closeBetting}
                                 className={`flex-1 py-3 rounded-lg font-medium transition-all ${!bettingStatus.closeBetting
-                                        ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                                        : target === 'close'
-                                            ? 'bg-pink-500 text-white'
-                                            : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                                    : target === 'close'
+                                        ? 'bg-pink-500 text-white'
+                                        : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
                                     }`}
                             >
                                 <div>Close</div>
@@ -611,10 +618,10 @@ export default function PlaceBetPage() {
                                 onClick={() => setAmount(amt.toString())}
                                 disabled={!canPlaceBet}
                                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${!canPlaceBet
-                                        ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                                        : amount === amt.toString()
-                                            ? 'bg-indigo-500 text-white'
-                                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                                    : amount === amt.toString()
+                                        ? 'bg-indigo-500 text-white'
+                                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                                     }`}
                             >
                                 {amt}
@@ -733,8 +740,8 @@ export default function PlaceBetPage() {
                                     type="button"
                                     onClick={() => handleSelectPlayer(player)}
                                     className={`w-full p-3 rounded-lg text-left flex items-center gap-3 transition-colors ${selectedPlayer?.id === player.id
-                                            ? 'bg-indigo-500/20 border border-indigo-500'
-                                            : 'bg-gray-800 hover:bg-gray-700 border border-transparent'
+                                        ? 'bg-indigo-500/20 border border-indigo-500'
+                                        : 'bg-gray-800 hover:bg-gray-700 border border-transparent'
                                         }`}
                                 >
                                     <User size={18} className="text-indigo-400" />

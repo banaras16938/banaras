@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Card, CardHeader } from '@/components/ui'
 import { Input, Select } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
@@ -22,6 +22,20 @@ interface BetWithDetails {
     game_session: { game_date: string; session_name: SessionType } | null
 }
 
+// Helper to get date strings for today and yesterday
+function getDateRange() {
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    return {
+        today: today.toISOString().split('T')[0],
+        yesterday: yesterday.toISOString().split('T')[0],
+        minDate: yesterday.toISOString().split('T')[0],
+        maxDate: today.toISOString().split('T')[0]
+    }
+}
+
 export default function BetHistoryPage() {
     const [bets, setBets] = useState<BetWithDetails[]>([])
     const [loading, setLoading] = useState(true)
@@ -29,6 +43,8 @@ export default function BetHistoryPage() {
     const [filterType, setFilterType] = useState<string>('all')
     const [filterSession, setFilterSession] = useState<string>('all')
     const [filterDate, setFilterDate] = useState<string>('')
+
+    const dateRange = useMemo(() => getDateRange(), [])
 
     const fetchBets = useCallback(async () => {
         setLoading(true)
@@ -57,7 +73,7 @@ export default function BetHistoryPage() {
         fetchBets()
     }, [fetchBets])
 
-    // Filter bets locally for search and type
+    // Filter bets locally for search, type, and date range (last 2 days only)
     const filteredBets = bets.filter((bet) => {
         const playerName = bet.player?.name || ''
         const matchesSearch =
@@ -66,7 +82,11 @@ export default function BetHistoryPage() {
 
         const matchesType = filterType === 'all' || bet.category === filterType
 
-        return matchesSearch && matchesType
+        // Only show bets from today and yesterday
+        const betDate = bet.game_session?.game_date || ''
+        const isWithinDateRange = betDate === dateRange.today || betDate === dateRange.yesterday
+
+        return matchesSearch && matchesType && isWithinDateRange
     })
 
     // Calculate summary stats
@@ -148,6 +168,8 @@ export default function BetHistoryPage() {
                             value={filterDate}
                             onChange={(e) => setFilterDate(e.target.value)}
                             className="!pl-12"
+                            min={dateRange.minDate}
+                            max={dateRange.maxDate}
                         />
                     </div>
                 </div>
