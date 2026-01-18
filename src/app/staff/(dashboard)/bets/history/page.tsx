@@ -91,14 +91,14 @@ export default function BetHistoryPage() {
         <div className="space-y-6 animate-fade-in">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold">Bet History</h1>
-                    <p className="text-[var(--text-secondary)]">
+                    <h1 className="text-2xl font-bold text-white">Bet History</h1>
+                    <p className="text-gray-400">
                         View and search all placed bets
                     </p>
                 </div>
                 <button
                     onClick={fetchBets}
-                    className="btn btn-secondary flex items-center gap-2"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
                     disabled={loading}
                 >
                     <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
@@ -110,12 +110,12 @@ export default function BetHistoryPage() {
             <Card>
                 <div className="flex flex-col md:flex-row gap-4">
                     <div className="flex-1 relative">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] opacity-80" size={18} />
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10 pointer-events-none" size={18} />
                         <Input
                             placeholder="Search by player or number..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-12"
+                            className="!pl-12"
                         />
                     </div>
                     <div className="w-full md:w-40">
@@ -142,12 +142,12 @@ export default function BetHistoryPage() {
                         />
                     </div>
                     <div className="w-full md:w-48 relative">
-                        <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] opacity-80" size={18} />
+                        <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10 pointer-events-none" size={18} />
                         <Input
                             type="date"
                             value={filterDate}
                             onChange={(e) => setFilterDate(e.target.value)}
-                            className="pl-12"
+                            className="!pl-12"
                         />
                     </div>
                 </div>

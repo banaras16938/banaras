@@ -3,17 +3,22 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Badge } from '@/components/ui/Badge'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { CurrentResult } from '@/components/results/CurrentResult'
+import { ResultHistory } from '@/components/results/ResultHistory'
+import { Card, CardHeader } from '@/components/ui'
 import {
     TrendingUp,
     TrendingDown,
     Ticket,
     Clock,
     Trophy,
-    ArrowUpRight
+    RefreshCw
 } from 'lucide-react'
 import Link from 'next/link'
-import { BetCategory, SessionType, PAYOUT_MULTIPLIERS } from '@/types/types'
+import { BetCategory, GameResult } from '@/types/types'
 import { useStaffName } from './layout'
+import { useSchedules } from '@/hooks/useSchedules'
+import { toast } from 'sonner'
 
 interface DashboardStats {
     today: {
@@ -41,7 +46,12 @@ interface DashboardStats {
 export default function StaffDashboard() {
     const [loading, setLoading] = useState(true)
     const [stats, setStats] = useState<DashboardStats | null>(null)
+    const [morningResult, setMorningResult] = useState<GameResult | null>(null)
+    const [nightResult, setNightResult] = useState<GameResult | null>(null)
+    const [historicalResults, setHistoricalResults] = useState<GameResult[]>([])
+    const [resultsLoading, setResultsLoading] = useState(true)
     const staffName = useStaffName()
+    const { getScheduleForSession } = useSchedules()
 
     const fetchDashboardData = useCallback(async () => {
         try {
@@ -58,30 +68,106 @@ export default function StaffDashboard() {
         }
     }, [])
 
+    const fetchResults = useCallback(async () => {
+        setResultsLoading(true)
+        try {
+            // Fetch today's results
+            const todayResponse = await fetch('/api/results', {
+                method: 'POST'
+            })
+            const todayData = await todayResponse.json()
+
+            if (todayResponse.ok) {
+                setMorningResult(todayData.morning)
+                setNightResult(todayData.night)
+            }
+
+            // Fetch historical results
+            const historyResponse = await fetch('/api/results?limit=20')
+            const historyData = await historyResponse.json()
+
+            if (historyResponse.ok) {
+                setHistoricalResults(historyData.results || [])
+            }
+        } catch (error) {
+            toast.error('Failed to load results')
+        } finally {
+            setResultsLoading(false)
+        }
+    }, [])
+
     useEffect(() => {
         fetchDashboardData()
-        // Refresh every 60 seconds
-        const interval = setInterval(fetchDashboardData, 60000)
-        return () => clearInterval(interval)
-    }, [fetchDashboardData])
+        fetchResults()
 
-    const formatTimeAgo = (dateStr: string) => {
-        const date = new Date(dateStr)
-        const now = new Date()
-        const diffMs = now.getTime() - date.getTime()
-        const diffMins = Math.floor(diffMs / (1000 * 60))
+        // Refresh dashboard every 60 seconds
+        const dashboardInterval = setInterval(fetchDashboardData, 60000)
 
-        if (diffMins < 1) return 'Just now'
-        if (diffMins < 60) return `${diffMins} min ago`
-        const diffHours = Math.floor(diffMins / 60)
-        if (diffHours < 24) return `${diffHours}h ago`
-        return date.toLocaleDateString()
+        // Auto-refresh results every 30 seconds during result times
+        const resultsInterval = setInterval(() => {
+            const now = new Date()
+            const istOffset = 5.5 * 60 * 60 * 1000
+            const istNow = new Date(now.getTime() + istOffset)
+            const hours = istNow.getHours()
+            const minutes = istNow.getMinutes()
+            const timeOfDay = hours * 60 + minutes
+
+            // Result declaration times in minutes from midnight
+            const resultTimes = [
+                { start: 12 * 60 + 30, end: 13 * 60 + 5 },  // 12:30-1:05 PM (Morning Open)
+                { start: 14 * 60 + 30, end: 15 * 60 + 5 },  // 2:30-3:05 PM (Morning Close)
+                { start: 17 * 60 + 30, end: 18 * 60 + 5 },  // 5:30-6:05 PM (Night Open)
+                { start: 19 * 60 + 30, end: 20 * 60 + 5 },  // 7:30-8:05 PM (Night Close)
+            ]
+
+            const isResultTime = resultTimes.some(
+                ({ start, end }) => timeOfDay >= start && timeOfDay <= end
+            )
+
+            if (isResultTime) {
+                fetchResults()
+            }
+        }, 30000)
+
+        return () => {
+            clearInterval(dashboardInterval)
+            clearInterval(resultsInterval)
+        }
+    }, [fetchDashboardData, fetchResults])
+
+    // Create empty result placeholder for display
+    const emptyMorningResult: GameResult = {
+        id: 'placeholder-morning',
+        game_date: new Date().toISOString().split('T')[0],
+        session_name: 'morning',
+        open_triple: null,
+        open_single: null,
+        close_triple: null,
+        close_single: null,
+        jodi_result: null,
+        is_open_declared: false,
+        is_close_declared: false,
+        created_at: new Date().toISOString(),
+    }
+
+    const emptyNightResult: GameResult = {
+        id: 'placeholder-night',
+        game_date: new Date().toISOString().split('T')[0],
+        session_name: 'night',
+        open_triple: null,
+        open_single: null,
+        close_triple: null,
+        close_single: null,
+        jodi_result: null,
+        is_open_declared: false,
+        is_close_declared: false,
+        created_at: new Date().toISOString(),
     }
 
     const statCards = [
         {
             label: "Today's Collection",
-            value: `₹${(stats?.today.totalCollection || 0).toLocaleString()}`,
+            value: `${(stats?.today.totalCollection || 0).toLocaleString()} Points`,
             change: `${stats?.today.totalBets || 0} bets`,
             trending: 'neutral',
             icon: Ticket
@@ -95,19 +181,10 @@ export default function StaffDashboard() {
         },
         {
             label: "Today's Profit",
-            value: `₹${(stats?.today.profit || 0).toLocaleString()}`,
+            value: `${(stats?.today.profit || 0).toLocaleString()} Points`,
             change: `${stats?.today.profitPercent || 0}%`,
             trending: (stats?.today.profit || 0) >= 0 ? 'up' : 'down',
             icon: TrendingUp
-        },
-        {
-            label: 'Win Rate',
-            value: stats?.today.totalBets
-                ? `${((stats.today.wonBets / stats.today.totalBets) * 100).toFixed(1)}%`
-                : '0%',
-            change: `${stats?.today.wonBets || 0} winners`,
-            trending: 'neutral',
-            icon: Trophy
         },
     ]
 
@@ -139,7 +216,7 @@ export default function StaffDashboard() {
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {statCards.map((stat) => {
                     const Icon = stat.icon
                     return (
@@ -172,100 +249,54 @@ export default function StaffDashboard() {
                 })}
             </div>
 
-            {/* Recent Activity */}
-            <div className="grid lg:grid-cols-2 gap-6">
-                {/* Recent Bets */}
-                <div className="bg-gray-800/80 backdrop-blur border border-gray-700 rounded-xl p-5">
-                    <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-700">
-                        <h3 className="text-lg font-semibold text-white">Recent Bets</h3>
-                        <Link
-                            href="/staff/bets/history"
-                            className="text-sm text-indigo-400 hover:underline flex items-center gap-1"
-                        >
-                            View All <ArrowUpRight size={14} />
-                        </Link>
-                    </div>
-                    <div className="space-y-3">
-                        {!stats?.recentBets || stats.recentBets.length === 0 ? (
-                            <div className="py-8 text-center text-gray-400">
-                                No bets placed today yet
-                            </div>
-                        ) : (
-                            stats.recentBets.slice(0, 5).map((bet) => (
-                                <div
-                                    key={bet.id}
-                                    className="flex items-center justify-between p-3 rounded-lg bg-gray-900/50 hover:bg-gray-900 transition-colors"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center">
-                                            <span className="font-mono text-indigo-400">
-                                                {bet.selected_number || '-'}
-                                            </span>
-                                        </div>
-                                        <div>
-                                            <p className="font-medium text-white">
-                                                {bet.player?.name || 'Player'}
-                                            </p>
-                                            <p className="text-xs text-gray-500">
-                                                {formatTimeAgo(bet.created_at)}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="font-medium text-white">₹{Number(bet.amount).toLocaleString()}</p>
-                                        <Badge
-                                            variant={
-                                                bet.status === 'won' ? 'success' :
-                                                    bet.status === 'lost' ? 'error' :
-                                                        bet.status === 'pending' ? 'warning' : 'info'
-                                            }
-                                        >
-                                            {bet.status}
-                                        </Badge>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
+            {/* Today's Results Section */}
+            <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-white">Today&apos;s Results</h2>
+                    <button
+                        onClick={fetchResults}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                        disabled={resultsLoading}
+                    >
+                        <RefreshCw size={16} className={resultsLoading ? 'animate-spin' : ''} />
+                        Refresh
+                    </button>
                 </div>
 
-                {/* Quick Actions */}
-                <div className="bg-gray-800/80 backdrop-blur border border-gray-700 rounded-xl p-5">
-                    <div className="mb-4 pb-4 border-b border-gray-700">
-                        <h3 className="text-lg font-semibold text-white">Quick Actions</h3>
+                {resultsLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                        <LoadingSpinner size="md" />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <Link href="/staff/bets" className="block">
-                            <div className="p-4 rounded-lg border border-gray-700 hover:border-indigo-500 hover:bg-indigo-500/5 transition-all text-center">
-                                <Ticket size={32} className="mx-auto text-cyan-400 mb-3" />
-                                <p className="font-medium text-white">Place Bet</p>
-                                <p className="text-xs text-gray-400">Single, Jodi, Triple</p>
-                            </div>
-                        </Link>
-                        <Link href="/staff/bets/history" className="block">
-                            <div className="p-4 rounded-lg border border-gray-700 hover:border-indigo-500 hover:bg-indigo-500/5 transition-all text-center">
-                                <Clock size={32} className="mx-auto text-pink-400 mb-3" />
-                                <p className="font-medium text-white">Bet History</p>
-                                <p className="text-xs text-gray-400">View all bets</p>
-                            </div>
-                        </Link>
-                        <Link href="/staff/results" className="block">
-                            <div className="p-4 rounded-lg border border-gray-700 hover:border-indigo-500 hover:bg-indigo-500/5 transition-all text-center">
-                                <Trophy size={32} className="mx-auto text-green-400 mb-3" />
-                                <p className="font-medium text-white">Results</p>
-                                <p className="text-xs text-gray-400">View declared results</p>
-                            </div>
-                        </Link>
-                        <Link href="/staff/profit-loss" className="block">
-                            <div className="p-4 rounded-lg border border-gray-700 hover:border-indigo-500 hover:bg-indigo-500/5 transition-all text-center">
-                                <TrendingUp size={32} className="mx-auto text-orange-400 mb-3" />
-                                <p className="font-medium text-white">Profit & Loss</p>
-                                <p className="text-xs text-gray-400">Analytics dashboard</p>
-                            </div>
-                        </Link>
+                ) : (
+                    <div className="grid md:grid-cols-2 gap-6">
+                        <CurrentResult
+                            result={morningResult || emptyMorningResult}
+                            slot="morning"
+                            schedule={getScheduleForSession('morning')}
+                        />
+                        <CurrentResult
+                            result={nightResult || emptyNightResult}
+                            slot="night"
+                            schedule={getScheduleForSession('night')}
+                        />
                     </div>
-                </div>
+                )}
             </div>
+
+            {/* Result History */}
+            <Card>
+                <CardHeader
+                    title="Result History"
+                    subtitle="Previous game results"
+                />
+                {historicalResults.length === 0 ? (
+                    <div className="py-8 text-center text-gray-400">
+                        No historical results available
+                    </div>
+                ) : (
+                    <ResultHistory results={historicalResults} />
+                )}
+            </Card>
         </div>
     )
 }

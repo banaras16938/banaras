@@ -145,7 +145,6 @@ export const staffSidebarLinks: SidebarLink[] = [
     { href: '/staff/bets', icon: Ticket, label: 'Place Bet' },
     { href: '/staff/bets/history', icon: History, label: 'Bet History' },
     { href: '/staff/players', icon: Users, label: 'Players' },
-    { href: '/staff/results', icon: Trophy, label: 'Results' },
 ]
 
 // Admin Sidebar Configuration

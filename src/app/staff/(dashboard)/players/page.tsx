@@ -192,15 +192,15 @@ export default function PlayersPage() {
         <div className="space-y-6 animate-fade-in">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold">Players</h1>
-                    <p className="text-[var(--text-secondary)]">
+                    <h1 className="text-2xl font-bold text-white">Players</h1>
+                    <p className="text-gray-400">
                         Manage your players for bet placement
                     </p>
                 </div>
                 <div className="flex gap-3">
                     <button
                         onClick={fetchPlayers}
-                        className="btn btn-secondary flex items-center gap-2"
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
                         disabled={loading}
                     >
                         <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
@@ -221,12 +221,12 @@ export default function PlayersPage() {
             {/* Search */}
             <Card>
                 <div className="relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={18} />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10 pointer-events-none" size={18} />
                     <Input
                         placeholder="Search by name or phone..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-12"
+                        className="!pl-12"
                     />
                 </div>
             </Card>
@@ -244,8 +244,8 @@ export default function PlayersPage() {
                     </div>
                 ) : players.length === 0 ? (
                     <div className="py-12 text-center">
-                        <User size={48} className="mx-auto text-[var(--text-muted)] mb-4" />
-                        <p className="text-[var(--text-muted)]">
+                        <User size={48} className="mx-auto text-gray-500 mb-4" />
+                        <p className="text-gray-400">
                             {searchTerm ? 'No players found matching your search' : 'No players yet. Add your first player!'}
                         </p>
                     </div>
@@ -254,15 +254,15 @@ export default function PlayersPage() {
                         {players.map((player) => (
                             <div
                                 key={player.id}
-                                className="flex items-center justify-between p-4 rounded-lg bg-[var(--bg-surface)] hover:bg-[var(--bg-card-hover)] transition-colors"
+                                className="flex items-center justify-between p-4 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 transition-colors"
                             >
                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-full bg-[var(--primary-500)]/10 flex items-center justify-center">
-                                        <User size={24} className="text-[var(--primary-400)]" />
+                                    <div className="w-12 h-12 rounded-full bg-indigo-500/10 flex items-center justify-center">
+                                        <User size={24} className="text-indigo-400" />
                                     </div>
                                     <div>
-                                        <p className="font-medium text-lg">{player.name}</p>
-                                        <div className="flex items-center gap-4 text-sm text-[var(--text-muted)]">
+                                        <p className="font-medium text-lg text-white">{player.name}</p>
+                                        <div className="flex items-center gap-4 text-sm text-gray-400">
                                             {player.phone && (
                                                 <span className="flex items-center gap-1">
                                                     <Phone size={14} />
@@ -276,14 +276,14 @@ export default function PlayersPage() {
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={() => openEditModal(player)}
-                                        className="p-2 rounded-lg hover:bg-[var(--bg-dark)] transition-colors text-[var(--text-muted)] hover:text-[var(--primary-400)]"
+                                        className="p-2 rounded-lg hover:bg-gray-600 transition-colors text-gray-400 hover:text-indigo-400"
                                         title="Edit player"
                                     >
                                         <Edit2 size={18} />
                                     </button>
                                     <button
                                         onClick={() => openDeleteModal(player)}
-                                        className="p-2 rounded-lg hover:bg-[var(--bg-dark)] transition-colors text-[var(--text-muted)] hover:text-[var(--status-error)]"
+                                        className="p-2 rounded-lg hover:bg-gray-600 transition-colors text-gray-400 hover:text-red-400"
                                         title="Delete player"
                                     >
                                         <Trash2 size={18} />
@@ -397,10 +397,10 @@ export default function PlayersPage() {
                 title="Delete Player"
             >
                 <div className="space-y-4">
-                    <p className="text-[var(--text-secondary)]">
-                        Are you sure you want to delete <strong>{selectedPlayer?.name}</strong>?
+                    <p className="text-gray-300">
+                        Are you sure you want to delete <strong className="text-white">{selectedPlayer?.name}</strong>?
                     </p>
-                    <p className="text-sm text-[var(--status-warning)]">
+                    <p className="text-sm text-yellow-400">
                         Note: Players with existing bets cannot be deleted.
                     </p>
                     <div className="flex gap-3 pt-4">

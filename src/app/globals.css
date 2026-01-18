@@ -758,6 +758,12 @@ body {
   outline: none;
 }
 
+/* Ensure pl-12 class works properly for inputs with icons */
+.input.pl-12,
+input.pl-12 {
+  padding-left: 3rem !important;
+}
+
 .input:focus {
   border-color: #6366f1;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
