@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { BetCategory, SessionType, PAYOUT_MULTIPLIERS } from '@/types/types'
+import { useStaffName } from './layout'
 
 interface DashboardStats {
     today: {
@@ -40,6 +41,7 @@ interface DashboardStats {
 export default function StaffDashboard() {
     const [loading, setLoading] = useState(true)
     const [stats, setStats] = useState<DashboardStats | null>(null)
+    const staffName = useStaffName()
 
     const fetchDashboardData = useCallback(async () => {
         try {
@@ -122,7 +124,7 @@ export default function StaffDashboard() {
             {/* Welcome Header */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Welcome back, Staff!</h1>
+                    <h1 className="text-2xl font-bold text-white">Welcome back, {staffName}!</h1>
                     <p className="text-gray-400">
                         Here&apos;s what&apos;s happening today
                     </p>

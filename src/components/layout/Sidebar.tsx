@@ -2,6 +2,7 @@
 
 import { ReactNode, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import {
     Home,
@@ -25,6 +26,7 @@ interface SidebarLink {
 interface SidebarProps {
     title: string
     subtitle?: string
+    logoSrc?: string
     links: SidebarLink[]
     onLogout?: () => void
     children?: ReactNode
@@ -32,7 +34,7 @@ interface SidebarProps {
     onClose?: () => void
 }
 
-export function Sidebar({ title, subtitle, links, onLogout, isOpen = true, onClose }: SidebarProps) {
+export function Sidebar({ title, subtitle, logoSrc, links, onLogout, isOpen = true, onClose }: SidebarProps) {
     const pathname = usePathname()
 
     return (
@@ -64,9 +66,20 @@ export function Sidebar({ title, subtitle, links, onLogout, isOpen = true, onClo
 
                 {/* Logo/Title */}
                 <div className="mb-8">
-                    <h1 className="text-xl font-bold bg-gradient-to-r from-cyan-400 via-indigo-500 to-pink-500 bg-clip-text text-transparent">
-                        {title}
-                    </h1>
+                    {logoSrc ? (
+                        <Image
+                            src={logoSrc}
+                            alt={title}
+                            width={500}
+                            height={500}
+                            className="w-full h-auto object-contain"
+                            priority
+                        />
+                    ) : (
+                        <h1 className="text-xl font-bold bg-gradient-to-r from-cyan-400 via-indigo-500 to-pink-500 bg-clip-text text-transparent">
+                            {title}
+                        </h1>
+                    )}
                     {subtitle && (
                         <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
                     )}
@@ -133,7 +146,6 @@ export const staffSidebarLinks: SidebarLink[] = [
     { href: '/staff/bets/history', icon: History, label: 'Bet History' },
     { href: '/staff/players', icon: Users, label: 'Players' },
     { href: '/staff/results', icon: Trophy, label: 'Results' },
-    { href: '/staff/profit-loss', icon: TrendingUp, label: 'Profit & Loss' },
 ]
 
 // Admin Sidebar Configuration
