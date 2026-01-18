@@ -19,24 +19,25 @@ export default function StaffLayout({ children }: { children: ReactNode }) {
         router.refresh()
     }
 
-
     return (
-        <div className="min-h-screen bg-[var(--bg-dark)]">
+        <div className="min-h-screen bg-gray-950">
             <Sidebar
                 title="Staff Portal"
                 subtitle="Bet Management"
                 links={staffSidebarLinks}
                 onLogout={handleLogout}
+                isOpen={sidebarOpen}
+                onClose={() => setSidebarOpen(false)}
             />
 
-            <div className="lg:ml-[260px]">
+            <div className="lg:ml-64 transition-all duration-300 min-h-screen flex flex-col">
                 <Header
                     title="Staff Dashboard"
                     userName="Staff User"
-                    onMenuClick={() => setSidebarOpen(!sidebarOpen)}
+                    onMenuClick={() => setSidebarOpen(true)}
                 />
 
-                <main className="p-6">
+                <main className="p-4 md:p-6 lg:p-8 flex-1">
                     {children}
                 </main>
             </div>

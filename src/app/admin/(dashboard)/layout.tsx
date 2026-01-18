@@ -22,30 +22,30 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
     const getPageTitle = () => {
         if (pathname === '/admin') return 'Admin Dashboard'
-        // Check for specific paths
         if (pathname.includes('/admin/staff')) return 'Staff Management'
         if (pathname.includes('/admin/results')) return 'Result Management'
         if (pathname.includes('/admin/analytics')) return 'Analytics'
         if (pathname.includes('/admin/games')) return 'Game Settings'
-
         return 'Admin Portal'
     }
 
     return (
-        <div className="min-h-screen bg-[var(--bg-dark)]">
+        <div className="min-h-screen bg-gray-950">
             <Sidebar
                 title="Admin Portal"
                 subtitle="System Control"
                 links={adminSidebarLinks}
                 onLogout={handleLogout}
+                isOpen={sidebarOpen}
+                onClose={() => setSidebarOpen(false)}
             />
 
             {/* Main Content Wrapper */}
-            <div className={`lg:ml-[260px] transition-all duration-300 min-h-screen flex flex-col`}>
+            <div className="lg:ml-64 transition-all duration-300 min-h-screen flex flex-col">
                 <Header
                     title={getPageTitle()}
                     userName="Administrator"
-                    onMenuClick={() => setSidebarOpen(!sidebarOpen)}
+                    onMenuClick={() => setSidebarOpen(true)}
                 />
 
                 <main className="p-4 md:p-6 lg:p-8 w-full max-w-[1920px] mx-auto flex-1">
