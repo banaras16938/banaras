@@ -13,7 +13,9 @@ import {
     Copy,
     Check,
     Search,
-    RefreshCw
+    RefreshCw,
+    Eye,
+    EyeOff
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/utils/supabase/client'
@@ -25,6 +27,16 @@ function generatePassword(): string {
         password += chars.charAt(Math.floor(Math.random() * chars.length))
     }
     return password
+}
+
+// Sanitize input to prevent XSS/script injection
+function sanitizeInput(input: string): string {
+    return input
+        .replace(/<script[^>]*>.*?<\/script>/gi, '')
+        .replace(/<[^>]*>/g, '')
+        .replace(/javascript:/gi, '')
+        .replace(/on\w+=/gi, '')
+        .trim()
 }
 
 export default function StaffManagementPage() {
@@ -42,6 +54,8 @@ export default function StaffManagementPage() {
     const [newName, setNewName] = useState('')
     const [newEmail, setNewEmail] = useState('')
     const [newPhone, setNewPhone] = useState('')
+    const [newPassword, setNewPassword] = useState('')
+    const [showPassword, setShowPassword] = useState(false)
     const [isCreating, setIsCreating] = useState(false)
 
     // Load staff
@@ -73,10 +87,11 @@ export default function StaffManagementPage() {
     )
 
     const handleCreateStaff = async () => {
+        if (!newPassword || newPassword.length < 6) {
+            toast.error('Password must be at least 6 characters')
+            return
+        }
         setIsCreating(true)
-
-        // Auto-generate a password for better security
-        const password = generatePassword()
 
         try {
             const response = await fetch('/api/staff', {
@@ -84,7 +99,7 @@ export default function StaffManagementPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     email: newEmail,
-                    password: password,
+                    password: newPassword,
                     name: newName,
                     phone: newPhone
                 })
@@ -94,7 +109,7 @@ export default function StaffManagementPage() {
 
             if (response.ok && data.profile) {
                 setStaff([data.profile, ...staff])
-                setNewCredentials({ email: newEmail, password })
+                setNewCredentials({ email: newEmail, password: newPassword })
                 setShowCreateModal(false)
                 setShowCredentialsModal(true)
 
@@ -102,6 +117,7 @@ export default function StaffManagementPage() {
                 setNewName('')
                 setNewEmail('')
                 setNewPhone('')
+                setNewPassword('')
                 toast.success('Staff account created successfully')
             } else {
                 toast.error(data.error || 'Failed to create staff')
@@ -219,8 +235,8 @@ export default function StaffManagementPage() {
             {!isLoading && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <Card className="text-center">
-                        <p className="text-sm text-[var(--text-muted)]">Total Staff</p>
-                        <p className="text-2xl font-bold">{staff.length}</p>
+                        <p className="text-sm text-gray-400">Total Staff</p>
+                        <p className="text-2xl font-bold text-white">{staff.length}</p>
                     </Card>
                     <Card className="text-center">
                         <p className="text-sm text-[var(--text-muted)]">Active</p>
@@ -324,25 +340,42 @@ export default function StaffManagementPage() {
                         label="Full Name"
                         placeholder="e.g. John Doe"
                         value={newName}
-                        onChange={(e) => setNewName(e.target.value)}
+                        onChange={(e) => setNewName(sanitizeInput(e.target.value))}
+                        autoComplete="off"
                     />
                     <Input
                         label="Email Address"
                         type="email"
                         placeholder="e.g. staff@example.com"
                         value={newEmail}
-                        onChange={(e) => setNewEmail(e.target.value)}
+                        onChange={(e) => setNewEmail(sanitizeInput(e.target.value).toLowerCase())}
                         helperText="Used for login access"
+                        autoComplete="off"
                     />
                     <Input
                         label="Phone Number"
                         placeholder="e.g. +91 98765 00000"
                         value={newPhone}
-                        onChange={(e) => setNewPhone(e.target.value)}
+                        onChange={(e) => setNewPhone(sanitizeInput(e.target.value))}
+                        autoComplete="off"
                     />
-
-                    <div className="p-3 bg-[var(--primary-500)]/5 border border-[var(--primary-500)]/20 rounded-lg text-sm text-[var(--text-secondary)]">
-                        <p>A random strong password will be generated automatically. You will view it in the next step.</p>
+                    <div className="relative">
+                        <Input
+                            label="Password"
+                            type={showPassword ? 'text' : 'password'}
+                            placeholder="Enter a strong password"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            helperText="Minimum 6 characters"
+                            autoComplete="new-password"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-9 p-1 text-gray-400 hover:text-white transition-colors"
+                        >
+                            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
                     </div>
 
                     <div className="flex gap-3 pt-4">
@@ -357,7 +390,7 @@ export default function StaffManagementPage() {
                             className="flex-1"
                             onClick={handleCreateStaff}
                             isLoading={isCreating}
-                            disabled={!newName.trim() || !newEmail.trim()}
+                            disabled={!newName.trim() || !newEmail.trim() || newPassword.length < 6}
                         >
                             Create Account
                         </Button>
@@ -379,35 +412,35 @@ export default function StaffManagementPage() {
                     </div>
 
                     <div className="space-y-3">
-                        <div className="p-3 rounded-lg bg-[var(--bg-surface)] flex items-center justify-between border border-[var(--glass-border)]">
+                        <div className="p-3 rounded-lg bg-gray-900 flex items-center justify-between border border-gray-700">
                             <div className="overflow-hidden">
-                                <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Email / Login ID</p>
-                                <p className="font-mono font-bold truncate">{newCredentials.email}</p>
+                                <p className="text-xs text-gray-400 uppercase tracking-wider">Email / Login ID</p>
+                                <p className="font-mono font-bold text-white truncate">{newCredentials.email}</p>
                             </div>
                             <button
                                 onClick={() => copyToClipboard(newCredentials.email, 'email')}
-                                className="p-2 hover:bg-[var(--glass-border)] rounded-lg transition-colors ml-2"
+                                className="p-2 hover:bg-gray-700 rounded-lg transition-colors ml-2"
                             >
                                 {copied === 'email' ? (
-                                    <Check size={18} className="text-[var(--status-success)]" />
+                                    <Check size={18} className="text-green-400" />
                                 ) : (
-                                    <Copy size={18} className="text-[var(--text-muted)]" />
+                                    <Copy size={18} className="text-gray-400" />
                                 )}
                             </button>
                         </div>
-                        <div className="p-3 rounded-lg bg-[var(--bg-surface)] flex items-center justify-between border border-[var(--glass-border)]">
+                        <div className="p-3 rounded-lg bg-gray-900 flex items-center justify-between border border-gray-700">
                             <div>
-                                <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Password</p>
-                                <p className="font-mono font-bold text-lg">{newCredentials.password}</p>
+                                <p className="text-xs text-gray-400 uppercase tracking-wider">Password</p>
+                                <p className="font-mono font-bold text-lg text-white">{newCredentials.password}</p>
                             </div>
                             <button
                                 onClick={() => copyToClipboard(newCredentials.password, 'password')}
-                                className="p-2 hover:bg-[var(--glass-border)] rounded-lg transition-colors ml-2"
+                                className="p-2 hover:bg-gray-700 rounded-lg transition-colors ml-2"
                             >
                                 {copied === 'password' ? (
-                                    <Check size={18} className="text-[var(--status-success)]" />
+                                    <Check size={18} className="text-green-400" />
                                 ) : (
-                                    <Copy size={18} className="text-[var(--text-muted)]" />
+                                    <Copy size={18} className="text-gray-400" />
                                 )}
                             </button>
                         </div>

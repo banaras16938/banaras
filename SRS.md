@@ -275,7 +275,7 @@ Based on the calculation above, the screen displays 4 specific tables requested 
 
 ## Game Timeline
 
-This is the **Final, Locked Logic** for your developer. This schedule maximizes betting volume (starting at 9:00 AM) while mathematically guaranteeing the Admin remains net positive by using the **30-minute Calculation Windows** to manipulate the result.
+This is the **Final, Locked Logic** for  developer. This schedule maximizes betting volume (starting at 9:00 AM) while mathematically guaranteeing the Admin remains net positive by using the **30-minute Calculation Windows** to manipulate the result.
 
 ### 🕒 The Master Schedule (Daily Cycle)
 
