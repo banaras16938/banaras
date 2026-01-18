@@ -1,22 +1,28 @@
 'use client'
 
-import { GameResult } from '@/types/types'
+import { useState } from 'react'
+import { GameResult, SessionType } from '@/types/types'
 
 interface JodiChartProps {
     results: GameResult[]
 }
 
 export function JodiChart({ results }: JodiChartProps) {
+    const [selectedSession, setSelectedSession] = useState<SessionType>('morning')
+
+    // Filter results by selected session
+    const filteredResults = results.filter(r => r.session_name === selectedSession)
+
     // Group results by week for display
     const weekDays = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
 
     // Get last 4 weeks of results for display
     const getWeeklyResults = () => {
-        if (results.length === 0) {
+        if (filteredResults.length === 0) {
             return []
         }
 
-        const sortedResults = [...results].sort((a, b) =>
+        const sortedResults = [...filteredResults].sort((a, b) =>
             new Date(b.game_date).getTime() - new Date(a.game_date).getTime()
         )
 
@@ -56,9 +62,20 @@ export function JodiChart({ results }: JodiChartProps) {
                 <p>Get the most accurate BANARAS JODI CHART records</p>
             </div>
 
-            {/* Chart Title */}
-            <div className="bg-white py-4 text-center">
-                <h3 className="text-lg font-bold text-[var(--primary-600)]">BANARAS</h3>
+            {/* Session Sub-Tabs */}
+            <div className="session-tabs">
+                <button
+                    onClick={() => setSelectedSession('morning')}
+                    className={`session-tab ${selectedSession === 'morning' ? 'active' : ''}`}
+                >
+                    Banaras Morning
+                </button>
+                <button
+                    onClick={() => setSelectedSession('night')}
+                    className={`session-tab ${selectedSession === 'night' ? 'active' : ''}`}
+                >
+                    Banaras Night
+                </button>
             </div>
 
             {/* Table */}

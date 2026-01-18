@@ -1,21 +1,27 @@
 'use client'
 
-import { GameResult } from '@/types/types'
+import { useState } from 'react'
+import { GameResult, SessionType } from '@/types/types'
 
 interface PanelChartProps {
     results: GameResult[]
 }
 
 export function PanelChart({ results }: PanelChartProps) {
+    const [selectedSession, setSelectedSession] = useState<SessionType>('morning')
+
+    // Filter results by selected session
+    const filteredResults = results.filter(r => r.session_name === selectedSession)
+
     const weekDays = ['DATE', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
 
     // Get panel data by week with date ranges
     const getPanelData = () => {
-        if (results.length === 0) {
+        if (filteredResults.length === 0) {
             return []
         }
 
-        const sortedResults = [...results].sort((a, b) =>
+        const sortedResults = [...filteredResults].sort((a, b) =>
             new Date(b.game_date).getTime() - new Date(a.game_date).getTime()
         )
 
@@ -75,9 +81,20 @@ export function PanelChart({ results }: PanelChartProps) {
                 <p>Get the most accurate BANARAS Panel Chart records</p>
             </div>
 
-            {/* Chart Title */}
-            <div className="bg-white py-4 text-center">
-                <h3 className="text-lg font-bold text-[var(--primary-600)]">BANARAS</h3>
+            {/* Session Sub-Tabs */}
+            <div className="session-tabs">
+                <button
+                    onClick={() => setSelectedSession('morning')}
+                    className={`session-tab ${selectedSession === 'morning' ? 'active' : ''}`}
+                >
+                    Banaras Morning
+                </button>
+                <button
+                    onClick={() => setSelectedSession('night')}
+                    className={`session-tab ${selectedSession === 'night' ? 'active' : ''}`}
+                >
+                    Banaras Night
+                </button>
             </div>
 
             {/* Table */}
