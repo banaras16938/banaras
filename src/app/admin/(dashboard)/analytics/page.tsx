@@ -228,8 +228,8 @@ export default function AnalyticsPage() {
         <div className="space-y-6 animate-fade-in">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold">Analytics Dashboard</h1>
-                    <p className="text-[var(--text-secondary)]">
+                    <h1 className="text-2xl font-bold text-white">Analytics Dashboard</h1>
+                    <p className="text-gray-400">
                         Comprehensive profit and performance analysis
                     </p>
                 </div>

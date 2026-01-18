@@ -201,8 +201,8 @@ export default function GameSettingsPage() {
         <div className="space-y-6 animate-fade-in max-w-4xl">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold">Game Settings</h1>
-                    <p className="text-[var(--text-secondary)]">
+                    <h1 className="text-2xl font-bold text-white">Game Settings</h1>
+                    <p className="text-gray-400">
                         Configure game timings, payouts, and holidays
                     </p>
                 </div>

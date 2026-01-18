@@ -164,8 +164,8 @@ export default function ResultSelectorPage() {
         <div className="space-y-6 animate-fade-in">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold">Result Selector</h1>
-                    <p className="text-[var(--text-secondary)]">
+                    <h1 className="text-2xl font-bold text-white">Result Selector</h1>
+                    <p className="text-gray-400">
                         Select optimal result for maximum profit control
                     </p>
                 </div>

@@ -184,8 +184,8 @@ export default function StaffManagementPage() {
         <div className="space-y-6 animate-fade-in w-full max-w-full">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold">Staff Directory</h1>
-                    <p className="text-[var(--text-secondary)]">
+                    <h1 className="text-2xl font-bold text-white">Staff Directory</h1>
+                    <p className="text-gray-400">
                         Manage your team, permissions, and account status
                     </p>
                 </div>

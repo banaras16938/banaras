@@ -33,7 +33,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         <div className="min-h-screen bg-gray-950">
             <Sidebar
                 title="Admin Portal"
-                subtitle="System Control"
+                logoSrc="/logo-1.png"
                 links={adminSidebarLinks}
                 onLogout={handleLogout}
                 isOpen={sidebarOpen}
@@ -46,6 +46,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                     title={getPageTitle()}
                     userName="Administrator"
                     onMenuClick={() => setSidebarOpen(true)}
+                    showNotifications={false}
                 />
 
                 <main className="p-4 md:p-6 lg:p-8 w-full max-w-[1920px] mx-auto flex-1">
