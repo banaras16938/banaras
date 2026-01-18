@@ -154,7 +154,10 @@ export interface ResultRecommendations {
     noBets: ResultOption[]               // List D: Zero bets (100% profit)
 }
 
-// UI Schedule Format
+/**
+ * @deprecated Use schedules from game_schedules table instead.
+ * This is kept for backwards compatibility but times should be fetched from database.
+ */
 export const GAME_SCHEDULE_UI: { session: SessionType; label: string; times: string }[] = [
     { session: 'morning', label: 'Morning Game', times: '1:00 PM & 3:00 PM' },
     { session: 'night', label: 'Night Game', times: '6:00 PM & 8:00 PM' },

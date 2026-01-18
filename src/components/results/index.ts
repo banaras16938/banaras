@@ -1,3 +1,5 @@
 export { CurrentResult } from './CurrentResult'
 export { ResultHistory } from './ResultHistory'
 export { GameTimeline } from './GameTimeline'
+export { JodiChart } from './JodiChart'
+export { PanelChart } from './PanelChart'

@@ -20,21 +20,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${inter.variable} antialiased`}>
+    <html lang="en">
+      <body className={`${inter.variable} antialiased bg-white`}>
         {children}
         <Toaster
-          theme="dark"
+          theme="light"
           position="top-right"
           richColors
           closeButton
-          toastOptions={{
-            style: {
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--glass-border)',
-              color: 'var(--text-primary)',
-            },
-          }}
         />
       </body>
     </html>

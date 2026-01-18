@@ -1,30 +1,10 @@
 'use client'
 
-import { GameSchedule, SessionType } from '@/types/types'
-import { Clock, Lock, Unlock } from 'lucide-react'
+import { GameSchedule } from '@/types/types'
+import { Clock, Lock, Unlock, AlertCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { createClient } from '@/utils/supabase/client'
 
-// Default schedule based on SRS (will be overridden by API data)
-const DEFAULT_SCHEDULES: GameSchedule[] = [
-    {
-        session_name: 'morning',
-        start_time: '09:00:00',
-        open_bet_freeze_time: '12:30:00',
-        open_result_time: '13:00:00',
-        close_bet_resume_time: null,
-        close_bet_freeze_time: '14:30:00',
-        close_result_time: '15:00:00',
-    },
-    {
-        session_name: 'night',
-        start_time: '09:00:00',
-        open_bet_freeze_time: '17:30:00',
-        open_result_time: '18:00:00',
-        close_bet_resume_time: null,
-        close_bet_freeze_time: '19:30:00',
-        close_result_time: '20:00:00',
-    },
-]
 
 interface GameTimelineProps {
     currentTime?: Date
@@ -79,24 +59,87 @@ function getTimeStatus(
 }
 
 export function GameTimeline({ currentTime = new Date() }: GameTimelineProps) {
-    const [schedules, setSchedules] = useState<GameSchedule[]>(DEFAULT_SCHEDULES)
+    const [schedules, setSchedules] = useState<GameSchedule[]>([])
+    const [isLoading, setIsLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
     const currentMinutes = currentTime.getHours() * 60 + currentTime.getMinutes()
 
     useEffect(() => {
-        // Fetch live schedules from API
+        // Fetch live schedules directly from Supabase (public read access via RLS)
         async function fetchSchedules() {
             try {
-                const response = await fetch('/api/analytics?type=schedules')
-                const data = await response.json()
-                if (data.schedules && data.schedules.length > 0) {
-                    setSchedules(data.schedules)
+                setIsLoading(true)
+                setError(null)
+
+                const supabase = createClient()
+                const { data, error: fetchError } = await supabase
+                    .from('game_schedules')
+                    .select('*')
+
+                if (fetchError) {
+                    throw new Error(fetchError.message)
                 }
-            } catch (error) {
-                console.error('Failed to fetch schedules:', error)
+
+                if (data && data.length > 0) {
+                    setSchedules(data)
+                } else {
+                    setError('No schedule data available')
+                }
+            } catch (err) {
+                const message = err instanceof Error ? err.message : 'Failed to load schedules'
+                setError(message)
+                console.error('Failed to fetch schedules:', err)
+            } finally {
+                setIsLoading(false)
             }
         }
         fetchSchedules()
     }, [])
+
+    // Loading state
+    if (isLoading) {
+        return (
+            <div className="space-y-6">
+                <div className="glass-card p-6 animate-pulse">
+                    <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-4"></div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {[1, 2, 3, 4].map(i => (
+                            <div key={i} className="p-3 rounded-lg border border-[var(--glass-border)]">
+                                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
+                                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    // Error state
+    if (error) {
+        return (
+            <div className="space-y-6">
+                <div className="glass-card p-6 text-center">
+                    <AlertCircle size={40} className="mx-auto text-[var(--status-error)] mb-2" />
+                    <h3 className="text-lg font-semibold mb-2">Unable to Load Schedules</h3>
+                    <p className="text-[var(--text-muted)]">{error}</p>
+                </div>
+            </div>
+        )
+    }
+
+    // Empty state (shouldn't happen with proper DB setup, but handle gracefully)
+    if (schedules.length === 0) {
+        return (
+            <div className="space-y-6">
+                <div className="glass-card p-6 text-center">
+                    <Clock size={40} className="mx-auto text-[var(--text-muted)] mb-2" />
+                    <h3 className="text-lg font-semibold mb-2">No Schedules Available</h3>
+                    <p className="text-[var(--text-muted)]">Game schedules have not been configured yet.</p>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="space-y-6">

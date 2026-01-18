@@ -2,20 +2,68 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { CurrentResult } from '@/components/results/CurrentResult'
-import { ResultHistory } from '@/components/results/ResultHistory'
+import { JodiChart } from '@/components/results/JodiChart'
+import { PanelChart } from '@/components/results/PanelChart'
 import { GameTimeline } from '@/components/results/GameTimeline'
-import { Card, CardHeader } from '@/components/ui'
-import { GameResult, SessionType } from '@/types/types'
-import { Trophy, Clock, History, Sparkles } from 'lucide-react'
+import { GameResult, GameSchedule, SessionType, sessionToResult, GameSession } from '@/types/types'
+import { Trophy, Calendar, FileText, Sun, Moon } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
+
+type TabType = 'results' | 'schedule' | 'past'
+type ChartType = 'jodi' | 'panel'
 
 export default function Home() {
   const [currentTime, setCurrentTime] = useState(new Date())
-  const [activeTab, setActiveTab] = useState<'results' | 'schedule' | 'history'>('results')
+  const [activeTab, setActiveTab] = useState<TabType>('results')
+  const [activeChart, setActiveChart] = useState<ChartType>('jodi')
   const [morningResult, setMorningResult] = useState<GameResult | null>(null)
   const [nightResult, setNightResult] = useState<GameResult | null>(null)
   const [historicalResults, setHistoricalResults] = useState<GameResult[]>([])
+  const [schedules, setSchedules] = useState<GameSchedule[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isDark, setIsDark] = useState(false)
+
+  // Get schedule for a specific session
+  const getScheduleForSession = useCallback((session: SessionType): GameSchedule | undefined => {
+    return schedules.find(s => s.session_name === session)
+  }, [schedules])
+
+  // Theme toggle effect
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme')
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    const shouldBeDark = savedTheme === 'dark' || (!savedTheme && prefersDark)
+    setIsDark(shouldBeDark)
+    document.documentElement.classList.toggle('dark', shouldBeDark)
+  }, [])
+
+  const toggleTheme = () => {
+    const newTheme = !isDark
+    setIsDark(newTheme)
+    document.documentElement.classList.toggle('dark', newTheme)
+    localStorage.setItem('theme', newTheme ? 'dark' : 'light')
+  }
+
+  // Fetch schedules from database
+  const fetchSchedules = useCallback(async () => {
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from('game_schedules')
+        .select('*')
+
+      if (error) {
+        console.error('Failed to fetch schedules:', error)
+        return
+      }
+
+      if (data && data.length > 0) {
+        setSchedules(data)
+      }
+    } catch (error) {
+      console.error('Failed to fetch schedules:', error)
+    }
+  }, [])
 
   const fetchResults = useCallback(async () => {
     try {
@@ -25,7 +73,6 @@ export default function Home() {
       if (data.results) {
         const today = new Date().toISOString().split('T')[0]
 
-        // Find today's results (using session_name field from new schema)
         const todayMorning = data.results.find(
           (r: GameResult) => r.game_date === today && r.session_name === 'morning'
         )
@@ -44,7 +91,6 @@ export default function Home() {
     }
   }, [])
 
-  // Create empty result placeholder
   const createEmptyResult = (date: string, session: SessionType): GameResult => ({
     id: `empty-${session}`,
     game_date: date,
@@ -59,208 +105,230 @@ export default function Home() {
     created_at: new Date().toISOString(),
   })
 
-  useEffect(() => {
-    fetchResults()
+  // Handle real-time updates with payload data for instant updates
+  const handleRealtimeUpdate = useCallback((payload: {
+    eventType: string
+    new: GameSession
+    old: GameSession | null
+  }) => {
+    const today = new Date().toISOString().split('T')[0]
 
-    // Update time every minute
+    if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+      const session = payload.new
+      const result = sessionToResult(session)
+
+      // Update today's results instantly if applicable
+      if (session.game_date === today) {
+        if (session.session_name === 'morning') {
+          setMorningResult(result)
+        } else if (session.session_name === 'night') {
+          setNightResult(result)
+        }
+      }
+
+      // Update historical results
+      setHistoricalResults(prev => {
+        const existingIndex = prev.findIndex(r => r.id === session.id)
+        if (existingIndex >= 0) {
+          const updated = [...prev]
+          updated[existingIndex] = result
+          return updated
+        } else {
+          // New result - add to beginning and maintain sort order
+          return [result, ...prev].sort((a, b) =>
+            new Date(b.game_date).getTime() - new Date(a.game_date).getTime()
+          )
+        }
+      })
+    }
+  }, [])
+
+  useEffect(() => {
+    // Initial data fetch
+    fetchResults()
+    fetchSchedules()
+
+    // Update clock every second
     const interval = setInterval(() => {
       setCurrentTime(new Date())
-    }, 60000)
+    }, 1000)
 
-    // Set up real-time subscription (new table name: game_sessions)
+    // Set up real-time subscription with optimistic updates
     const supabase = createClient()
     const channel = supabase
-      .channel('results-changes')
+      .channel('results-realtime')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'game_sessions' },
-        () => {
-          fetchResults() // Refresh when results change
+        (payload) => {
+          // Handle the update with payload data for instant UI update
+          // Type narrowing for Supabase realtime payload
+          const realtimePayload = payload as unknown as {
+            eventType: string
+            new: GameSession
+            old: GameSession | null
+          }
+          if (realtimePayload.new && realtimePayload.eventType) {
+            handleRealtimeUpdate(realtimePayload)
+          }
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Real-time subscription active')
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('Real-time subscription error, falling back to polling')
+          // Fallback: refetch on error
+          fetchResults()
+        }
+      })
 
     return () => {
       clearInterval(interval)
       supabase.removeChannel(channel)
     }
-  }, [fetchResults])
+  }, [fetchResults, fetchSchedules, handleRealtimeUpdate])
 
 
   return (
-    <div className="min-h-screen bg-[var(--bg-dark)]">
-      {/* Hero Header */}
-      <header className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-[var(--primary-600)]/20 to-transparent" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-[var(--primary-500)] rounded-full blur-[200px] opacity-20" />
-
-        <div className="relative z-10 max-w-6xl mx-auto px-4 py-12 text-center">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <Sparkles className="text-[var(--accent-yellow)] animate-pulse" size={32} />
-            <h1 className="text-4xl md:text-5xl font-bold gradient-text">
-              Game Results
-            </h1>
-            <Sparkles className="text-[var(--accent-yellow)] animate-pulse" size={32} />
-          </div>
-          <p className="text-[var(--text-secondary)] text-lg max-w-xl mx-auto">
-            View live game results, historical data, and betting schedules
-          </p>
-
-          {/* Current Time Display */}
-          <div className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--bg-card)] border border-[var(--glass-border)]">
-            <Clock size={18} className="text-[var(--primary-400)]" />
-            <span className="font-mono text-lg">
+    <div className="app-container">
+      {/* App Header */}
+      <header className="app-header">
+        <img src="/logo-1.png" alt="Banaras Matka Play" className="header-logo" />
+        <div className="header-right">
+          <div className="header-time">
+            <span className="time-display">
               {currentTime.toLocaleTimeString('en-IN', {
                 hour: '2-digit',
                 minute: '2-digit',
+                second: '2-digit',
                 hour12: true
               })}
             </span>
+            <span className="date-display">
+              {currentTime.toLocaleDateString('en-IN', {
+                weekday: 'short',
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric'
+              })}
+            </span>
           </div>
+          <button onClick={toggleTheme} className="theme-toggle" aria-label="Toggle theme">
+            {isDark ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
         </div>
       </header>
 
-      {/* Tab Navigation */}
-      <nav className="sticky top-0 z-50 bg-[var(--bg-dark)]/80 backdrop-blur-lg border-b border-[var(--glass-border)]">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="flex gap-1">
-            <TabButton
-              active={activeTab === 'results'}
-              onClick={() => setActiveTab('results')}
-              icon={<Trophy size={18} />}
-            >
-              Live Results
-            </TabButton>
-            <TabButton
-              active={activeTab === 'schedule'}
-              onClick={() => setActiveTab('schedule')}
-              icon={<Clock size={18} />}
-            >
-              Schedule
-            </TabButton>
-            <TabButton
-              active={activeTab === 'history'}
-              onClick={() => setActiveTab('history')}
-              icon={<History size={18} />}
-            >
-              History
-            </TabButton>
-          </div>
-        </div>
-      </nav>
-
       {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      <main>
+        {/* Results Tab */}
         {activeTab === 'results' && (
-          <div className="space-y-8 animate-fade-in">
-            {/* Today's Results */}
-            <section>
-              <h2 className="text-2xl font-semibold mb-6 flex items-center gap-3">
-                <Trophy className="text-[var(--accent-yellow)]" />
-                Today&apos;s Results
-              </h2>
-
-              <div className="grid md:grid-cols-2 gap-6">
-                {/* Morning Game */}
-                <div>
-                  <h3 className="text-sm text-[var(--text-muted)] mb-3 uppercase tracking-wide">
-                    Morning Game • 1:00 PM & 3:00 PM
-                  </h3>
-                  {isLoading ? (
-                    <Card className="animate-pulse h-48"><div /></Card>
-                  ) : morningResult && (
-                    <CurrentResult result={morningResult} slot="morning" />
-                  )}
+          <div className="animate-fade-in">
+            <div className="results-grid">
+              {/* Morning Result Card */}
+              {isLoading ? (
+                <div className="result-card">
+                  <div className="result-card-header">
+                    <span className="time">--:--</span>
+                    <span className="title">LOADING...</span>
+                    <span className="time">--:--</span>
+                  </div>
+                  <div className="result-card-body">
+                    <span className="result-value">***</span>
+                    <span className="result-value jodi">**</span>
+                    <span className="result-value">***</span>
+                  </div>
                 </div>
+              ) : (
+                <CurrentResult result={morningResult} slot="morning" schedule={getScheduleForSession('morning')} />
+              )}
 
-                {/* Night Game */}
-                <div>
-                  <h3 className="text-sm text-[var(--text-muted)] mb-3 uppercase tracking-wide">
-                    Night Game • 6:00 PM & 8:00 PM
-                  </h3>
-                  {isLoading ? (
-                    <Card className="animate-pulse h-48"><div /></Card>
-                  ) : nightResult && (
-                    <CurrentResult result={nightResult} slot="night" isLive={!nightResult.is_close_declared} />
-                  )}
+              {/* Night Result Card */}
+              {isLoading ? (
+                <div className="result-card">
+                  <div className="result-card-header">
+                    <span className="time">--:--</span>
+                    <span className="title">LOADING...</span>
+                    <span className="time">--:--</span>
+                  </div>
+                  <div className="result-card-body">
+                    <span className="result-value">***</span>
+                    <span className="result-value jodi">**</span>
+                    <span className="result-value">***</span>
+                  </div>
                 </div>
-              </div>
-            </section>
-
-            {/* Game Info Cards */}
-            <section className="grid md:grid-cols-3 gap-4">
-              <Card className="text-center">
-                <div className="text-3xl font-bold text-[var(--accent-cyan)] mb-2">9x</div>
-                <p className="text-sm text-[var(--text-secondary)]">Single Payout</p>
-                <p className="text-xs text-[var(--text-muted)] mt-1">₹10 → ₹90</p>
-              </Card>
-              <Card className="text-center">
-                <div className="text-3xl font-bold text-[var(--accent-pink)] mb-2">90x</div>
-                <p className="text-sm text-[var(--text-secondary)]">Jodi Payout</p>
-                <p className="text-xs text-[var(--text-muted)] mt-1">₹10 → ₹900</p>
-              </Card>
-              <Card className="text-center">
-                <div className="text-3xl font-bold text-[var(--accent-green)] mb-2">800x</div>
-                <p className="text-sm text-[var(--text-secondary)]">Triple Payout</p>
-                <p className="text-xs text-[var(--text-muted)] mt-1">₹10 → ₹8000</p>
-              </Card>
-            </section>
+              ) : (
+                <CurrentResult result={nightResult} slot="night" schedule={getScheduleForSession('night')} isLive={!nightResult?.is_close_declared} />
+              )}
+            </div>
           </div>
         )}
 
+        {/* Schedule Tab */}
         {activeTab === 'schedule' && (
-          <div className="animate-fade-in">
-            <h2 className="text-2xl font-semibold mb-6 flex items-center gap-3">
-              <Clock className="text-[var(--primary-400)]" />
+          <div className="animate-fade-in p-4">
+            <h2 className="section-title">
+              <Calendar size={20} className="text-[var(--primary-600)]" />
               Game Schedule
             </h2>
             <GameTimeline currentTime={currentTime} />
           </div>
         )}
 
-        {activeTab === 'history' && (
+        {/* Past Results Tab */}
+        {activeTab === 'past' && (
           <div className="animate-fade-in">
-            <Card>
-              <CardHeader
-                title="Result History"
-                subtitle="View all previous game results"
-              />
-              <ResultHistory results={historicalResults} />
-            </Card>
+            {/* Chart Type Tabs */}
+            <div className="chart-tabs">
+              <button
+                onClick={() => setActiveChart('jodi')}
+                className={`chart-tab ${activeChart === 'jodi' ? 'active' : ''}`}
+              >
+                Jodi Chart
+              </button>
+              <button
+                onClick={() => setActiveChart('panel')}
+                className={`chart-tab ${activeChart === 'panel' ? 'active' : ''}`}
+              >
+                Panel Chart
+              </button>
+            </div>
+
+            {/* Chart Content */}
+            {activeChart === 'jodi' ? (
+              <JodiChart results={historicalResults} />
+            ) : (
+              <PanelChart results={historicalResults} />
+            )}
           </div>
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-[var(--glass-border)] py-8 mt-12">
-        <div className="max-w-6xl mx-auto px-4 text-center">
-          <p className="text-[var(--text-muted)] text-sm">
-            Results are for viewing only. Contact authorized staff for betting.
-          </p>
-        </div>
-      </footer>
+      {/* Bottom Navigation */}
+      <nav className="bottom-nav">
+        <button
+          onClick={() => setActiveTab('results')}
+          className={`bottom-nav-item ${activeTab === 'results' ? 'active' : ''}`}
+        >
+          <Trophy />
+          <span>Results</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('schedule')}
+          className={`bottom-nav-item ${activeTab === 'schedule' ? 'active' : ''}`}
+        >
+          <Calendar />
+          <span>Schedule</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('past')}
+          className={`bottom-nav-item ${activeTab === 'past' ? 'active' : ''}`}
+        >
+          <FileText />
+          <span>Past Results</span>
+        </button>
+      </nav>
     </div>
-  )
-}
-
-interface TabButtonProps {
-  active: boolean
-  onClick: () => void
-  icon: React.ReactNode
-  children: React.ReactNode
-}
-
-function TabButton({ active, onClick, icon, children }: TabButtonProps) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-2 px-5 py-4 font-medium transition-all border-b-2 ${active
-        ? 'text-[var(--primary-400)] border-[var(--primary-400)]'
-        : 'text-[var(--text-secondary)] border-transparent hover:text-white'
-        }`}
-    >
-      {icon}
-      {children}
-    </button>
   )
 }
