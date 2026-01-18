@@ -182,8 +182,8 @@ export default function StaffDashboard() {
         {
             label: "Today's Profit",
             value: `${(stats?.today.profit || 0).toLocaleString()} Points`,
-            change: `${stats?.today.profitPercent || 0}%`,
-            trending: (stats?.today.profit || 0) >= 0 ? 'up' : 'down',
+            change: '',
+            trending: 'neutral',
             icon: TrendingUp
         },
     ]
