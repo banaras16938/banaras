@@ -178,21 +178,21 @@ export default function BetHistoryPage() {
             {/* Summary Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Card className="text-center">
-                    <p className="text-sm text-[var(--text-muted)]">Total Bets</p>
-                    <p className="text-2xl font-bold">{filteredBets.length}</p>
+                    <p className="text-sm text-gray-400">Total Bets</p>
+                    <p className="text-2xl font-bold text-white">{filteredBets.length}</p>
                 </Card>
                 <Card className="text-center">
-                    <p className="text-sm text-[var(--text-muted)]">Total Amount</p>
-                    <p className="text-2xl font-bold">₹{totalBets.toLocaleString()}</p>
+                    <p className="text-sm text-gray-400">Total Amount</p>
+                    <p className="text-2xl font-bold text-white">₹{totalBets.toLocaleString()}</p>
                 </Card>
                 <Card className="text-center">
-                    <p className="text-sm text-[var(--text-muted)]">Potential Payout</p>
-                    <p className="text-2xl font-bold text-[var(--accent-cyan)]">₹{totalPotentialPayout.toLocaleString()}</p>
+                    <p className="text-sm text-gray-400">Potential Payout</p>
+                    <p className="text-2xl font-bold text-cyan-400">₹{totalPotentialPayout.toLocaleString()}</p>
                 </Card>
                 <Card className="text-center">
-                    <p className="text-sm text-[var(--text-muted)]">Winners</p>
-                    <p className="text-2xl font-bold text-[var(--status-success)]">
-                        {wonBets.length} <span className="text-sm font-normal">(₹{totalWinnings.toLocaleString()})</span>
+                    <p className="text-sm text-gray-400">Winners</p>
+                    <p className="text-2xl font-bold text-green-400">
+                        {wonBets.length} <span className="text-sm font-normal text-gray-300">(₹{totalWinnings.toLocaleString()})</span>
                     </p>
                 </Card>
             </div>

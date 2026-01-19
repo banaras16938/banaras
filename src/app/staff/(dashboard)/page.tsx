@@ -50,6 +50,7 @@ export default function StaffDashboard() {
     const [nightResult, setNightResult] = useState<GameResult | null>(null)
     const [historicalResults, setHistoricalResults] = useState<GameResult[]>([])
     const [resultsLoading, setResultsLoading] = useState(true)
+    const [currentTime, setCurrentTime] = useState(new Date())
     const staffName = useStaffName()
     const { getScheduleForSession } = useSchedules()
 
@@ -103,6 +104,11 @@ export default function StaffDashboard() {
         // Refresh dashboard every 60 seconds
         const dashboardInterval = setInterval(fetchDashboardData, 60000)
 
+        // Update current time every second for time-based result visibility
+        const timeInterval = setInterval(() => {
+            setCurrentTime(new Date())
+        }, 1000)
+
         // Auto-refresh results every 30 seconds during result times
         const resultsInterval = setInterval(() => {
             const now = new Date()
@@ -132,6 +138,7 @@ export default function StaffDashboard() {
         return () => {
             clearInterval(dashboardInterval)
             clearInterval(resultsInterval)
+            clearInterval(timeInterval)
         }
     }, [fetchDashboardData, fetchResults])
 
@@ -273,11 +280,13 @@ export default function StaffDashboard() {
                             result={morningResult || emptyMorningResult}
                             slot="morning"
                             schedule={getScheduleForSession('morning')}
+                            currentTime={currentTime}
                         />
                         <CurrentResult
                             result={nightResult || emptyNightResult}
                             slot="night"
                             schedule={getScheduleForSession('night')}
+                            currentTime={currentTime}
                         />
                     </div>
                 )}

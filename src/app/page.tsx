@@ -241,7 +241,7 @@ export default function Home() {
                   </div>
                 </div>
               ) : (
-                <CurrentResult result={morningResult} slot="morning" schedule={getScheduleForSession('morning')} />
+                <CurrentResult result={morningResult} slot="morning" schedule={getScheduleForSession('morning')} currentTime={currentTime} />
               )}
 
               {/* Night Result Card */}
@@ -259,7 +259,7 @@ export default function Home() {
                   </div>
                 </div>
               ) : (
-                <CurrentResult result={nightResult} slot="night" schedule={getScheduleForSession('night')} isLive={!nightResult?.is_close_declared} />
+                <CurrentResult result={nightResult} slot="night" schedule={getScheduleForSession('night')} currentTime={currentTime} isLive={!nightResult?.is_close_declared} />
               )}
             </div>
           </div>
