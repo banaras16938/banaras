@@ -307,8 +307,12 @@ export default function PlaceBetPage() {
             toast.error(`Enter a ${maxDigits}-digit number`)
             return
         }
-        if (!amount || Number(amount) <= 0) {
-            toast.error('Enter a valid amount')
+        if (!amount || Number(amount) < 10) {
+            toast.error('Minimum bet amount is 10 points')
+            return
+        }
+        if (Number(amount) % 10 !== 0) {
+            toast.error('Bet amount must be a multiple of 10')
             return
         }
 
@@ -355,22 +359,34 @@ export default function PlaceBetPage() {
         let addedCount = 0
         const newItems: CartItem[] = []
 
+        const invalidAmounts: string[] = []
         Object.entries(singleAmounts).forEach(([digit, amt]) => {
             const numAmt = Number(amt)
             if (numAmt > 0) {
-                newItems.push({
-                    id: `${Date.now()}-${digit}-${Math.random()}`,
-                    category: 'single',
-                    target: betTarget,
-                    number: digit,
-                    amount: numAmt
-                })
-                addedCount++
+                if (numAmt < 10) {
+                    invalidAmounts.push(`${digit}: min 10`)
+                } else if (numAmt % 10 !== 0) {
+                    invalidAmounts.push(`${digit}: must be multiple of 10`)
+                } else {
+                    newItems.push({
+                        id: `${Date.now()}-${digit}-${Math.random()}`,
+                        category: 'single',
+                        target: betTarget,
+                        number: digit,
+                        amount: numAmt
+                    })
+                    addedCount++
+                }
             }
         })
 
+        if (invalidAmounts.length > 0) {
+            toast.error(`Invalid amounts: ${invalidAmounts.join(', ')}`)
+            return
+        }
+
         if (addedCount === 0) {
-            toast.error('Enter amount for at least one number')
+            toast.error('Enter amount for at least one number (min 10, multiples of 10)')
             return
         }
 
@@ -418,22 +434,34 @@ export default function PlaceBetPage() {
         let addedCount = 0
         const newItems: CartItem[] = []
 
+        const invalidAmounts: string[] = []
         Object.entries(jodiSelections).forEach(([jodi, amt]) => {
             const numAmt = Number(amt)
             if (numAmt > 0) {
-                newItems.push({
-                    id: `${Date.now()}-${jodi}-${Math.random()}`,
-                    category: 'jodi',
-                    target: 'jodi_full',
-                    number: jodi.padStart(2, '0'),
-                    amount: numAmt
-                })
-                addedCount++
+                if (numAmt < 10) {
+                    invalidAmounts.push(`${jodi}: min 10`)
+                } else if (numAmt % 10 !== 0) {
+                    invalidAmounts.push(`${jodi}: must be multiple of 10`)
+                } else {
+                    newItems.push({
+                        id: `${Date.now()}-${jodi}-${Math.random()}`,
+                        category: 'jodi',
+                        target: 'jodi_full',
+                        number: jodi.padStart(2, '0'),
+                        amount: numAmt
+                    })
+                    addedCount++
+                }
             }
         })
 
+        if (invalidAmounts.length > 0) {
+            toast.error(`Invalid amounts: ${invalidAmounts.join(', ')}`)
+            return
+        }
+
         if (addedCount === 0) {
-            toast.error('Enter amount for at least one jodi')
+            toast.error('Enter amount for at least one jodi (min 10, multiples of 10)')
             return
         }
 
@@ -840,8 +868,8 @@ export default function PlaceBetPage() {
                                             onClick={() => toggleJodiSelection(jodi)}
                                             disabled={!canPlaceBet}
                                             className={`w-full px-4 py-2.5 text-left border-b border-gray-800 transition-colors ${isSelected
-                                                    ? 'bg-indigo-600 text-white font-medium'
-                                                    : 'text-gray-300 hover:bg-gray-800'
+                                                ? 'bg-indigo-600 text-white font-medium'
+                                                : 'text-gray-300 hover:bg-gray-800'
                                                 } disabled:opacity-50`}
                                         >
                                             {jodi}
@@ -969,8 +997,8 @@ export default function PlaceBetPage() {
                                         onClick={() => setAmount(amt.toString())}
                                         disabled={!canPlaceBet}
                                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${amount === amt.toString()
-                                                ? 'bg-indigo-500 text-white'
-                                                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                            ? 'bg-indigo-500 text-white'
+                                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                                             } disabled:opacity-50`}
                                     >
                                         {amt}

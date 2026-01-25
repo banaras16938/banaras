@@ -127,9 +127,13 @@ export async function POST(request: NextRequest) {
         }, { status: 400 })
     }
 
-    // Validate amount
-    if (amount <= 0) {
-        return NextResponse.json({ error: 'Amount must be positive' }, { status: 400 })
+    // Validate amount - minimum 10, must be multiple of 10
+    const numericAmount = Number(amount)
+    if (isNaN(numericAmount) || numericAmount < 10) {
+        return NextResponse.json({ error: 'Minimum bet amount is 10 points' }, { status: 400 })
+    }
+    if (numericAmount % 10 !== 0) {
+        return NextResponse.json({ error: 'Bet amount must be a multiple of 10' }, { status: 400 })
     }
 
     // Validate category/target combination
