@@ -101,7 +101,8 @@ export async function POST(request: NextRequest) {
         amount,
         playerName,
         playerPhone,
-        playerId: existingPlayerId
+        playerId: existingPlayerId,
+        isSelfBet
     } = body
 
     // Validate required fields
@@ -159,7 +160,47 @@ export async function POST(request: NextRequest) {
     // Get or create player
     let playerId = existingPlayerId
 
-    if (!playerId && playerName) {
+    // Handle self-bet: when staff places bet under their own name
+    if (isSelfBet) {
+        // Look for existing "self" player for this staff
+        const { data: selfPlayer } = await supabase
+            .from('players')
+            .select('id')
+            .eq('created_by', profile.id)
+            .eq('is_self', true)
+            .single()
+
+        if (selfPlayer) {
+            playerId = selfPlayer.id
+        } else {
+            // Get staff name from profile
+            const { data: staffProfile } = await supabase
+                .from('profiles')
+                .select('name')
+                .eq('id', profile.id)
+                .single()
+
+            const staffName = staffProfile?.name || 'Staff'
+
+            // Create a "self" player for this staff
+            const { data: newSelfPlayer, error: selfPlayerError } = await supabase
+                .from('players')
+                .insert({
+                    name: `${staffName} (Self)`,
+                    phone: null,
+                    created_by: profile.id,
+                    is_self: true
+                })
+                .select('id')
+                .single()
+
+            if (selfPlayerError) {
+                console.error('Failed to create self player:', selfPlayerError)
+                return NextResponse.json({ error: 'Failed to create player for self-bet' }, { status: 500 })
+            }
+            playerId = newSelfPlayer.id
+        }
+    } else if (!playerId && playerName) {
         // Check if player already exists for this staff
         if (playerPhone) {
             const { data: existingPlayer } = await supabase
@@ -218,4 +259,143 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ bet }, { status: 201 })
+}
+
+// PUT: Batch place multiple bets (optimized for cart submission)
+export async function PUT(request: NextRequest) {
+    const supabase = await createClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, role, is_active, name')
+        .eq('id', user.id)
+        .single()
+
+    if (!profile || !profile.is_active) {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    const body = await request.json()
+    const { gameDate, sessionName, bets, isSelfBet, playerId: existingPlayerId } = body
+
+    if (!gameDate || !sessionName || !bets || !Array.isArray(bets) || bets.length === 0) {
+        return NextResponse.json({ error: 'Missing required fields or empty bets array' }, { status: 400 })
+    }
+
+    // Validate all bets first
+    for (const bet of bets) {
+        const { category, target, selectedNumber, amount } = bet
+
+        if (!category || !target || !selectedNumber || !amount) {
+            return NextResponse.json({ error: 'Each bet must have category, target, selectedNumber, and amount' }, { status: 400 })
+        }
+
+        if (!['single', 'jodi', 'triple'].includes(category)) {
+            return NextResponse.json({ error: `Invalid category: ${category}` }, { status: 400 })
+        }
+
+        if (!['open', 'close', 'jodi_full'].includes(target)) {
+            return NextResponse.json({ error: `Invalid target: ${target}` }, { status: 400 })
+        }
+
+        const expectedLength = category === 'single' ? 1 : category === 'jodi' ? 2 : 3
+        if (selectedNumber.length !== expectedLength || !/^[0-9]+$/.test(selectedNumber)) {
+            return NextResponse.json({ error: `${category} must be ${expectedLength} digit(s)` }, { status: 400 })
+        }
+
+        const numericAmount = Number(amount)
+        if (isNaN(numericAmount) || numericAmount < 10 || numericAmount % 10 !== 0) {
+            return NextResponse.json({ error: 'Amount must be minimum 10 and multiple of 10' }, { status: 400 })
+        }
+
+        if (category === 'jodi' && target !== 'jodi_full') {
+            return NextResponse.json({ error: 'Jodi bets must use jodi_full target' }, { status: 400 })
+        }
+        if (category !== 'jodi' && target === 'jodi_full') {
+            return NextResponse.json({ error: 'Only jodi bets can use jodi_full target' }, { status: 400 })
+        }
+    }
+
+    // Get or create game session
+    const { data: gameSessionId, error: sessionError } = await supabase
+        .rpc('get_or_create_session', {
+            p_date: gameDate,
+            p_session: sessionName
+        })
+
+    if (sessionError || !gameSessionId) {
+        console.error('Session error:', sessionError)
+        return NextResponse.json({ error: 'Failed to create game session' }, { status: 500 })
+    }
+
+    // Get player ID
+    let playerId = existingPlayerId
+
+    if (isSelfBet) {
+        // Look for existing "self" player for this staff
+        const { data: selfPlayer } = await supabase
+            .from('players')
+            .select('id')
+            .eq('created_by', profile.id)
+            .eq('is_self', true)
+            .single()
+
+        if (selfPlayer) {
+            playerId = selfPlayer.id
+        } else {
+            // Create a "self" player for this staff
+            const { data: newSelfPlayer, error: selfPlayerError } = await supabase
+                .from('players')
+                .insert({
+                    name: `${profile.name || 'Staff'} (Self)`,
+                    phone: null,
+                    created_by: profile.id,
+                    is_self: true
+                })
+                .select('id')
+                .single()
+
+            if (selfPlayerError) {
+                console.error('Failed to create self player:', selfPlayerError)
+                return NextResponse.json({ error: 'Failed to create player for self-bet' }, { status: 500 })
+            }
+            playerId = newSelfPlayer.id
+        }
+    }
+
+    if (!playerId) {
+        return NextResponse.json({ error: 'Player information required' }, { status: 400 })
+    }
+
+    // Prepare all bets for batch insert
+    const betsToInsert = bets.map(bet => ({
+        game_session_id: gameSessionId,
+        player_id: playerId,
+        staff_id: profile.id,
+        category: bet.category as BetCategory,
+        target: bet.target as BetTarget,
+        selected_number: bet.selectedNumber,
+        amount: bet.amount
+    }))
+
+    // Insert all bets in a single operation
+    const { data: insertedBets, error: betError } = await supabase
+        .from('bets')
+        .insert(betsToInsert)
+        .select()
+
+    if (betError) {
+        return NextResponse.json({ error: betError.message }, { status: 400 })
+    }
+
+    return NextResponse.json({
+        success: true,
+        count: insertedBets?.length || 0,
+        bets: insertedBets
+    }, { status: 201 })
 }

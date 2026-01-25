@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { BetCategory, BetTarget, SessionType, PAYOUT_MULTIPLIERS } from '@/types/types'
-import { Check, Search, Plus, User, Trash2, ShoppingCart, Clock, AlertTriangle, CalendarX, UserCheck } from 'lucide-react'
+import { Check, Search, Plus, User, Clock, AlertTriangle, CalendarX, UserCheck, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSchedules, formatScheduleTime } from '@/hooks/useSchedules'
 import { createClient } from '@/utils/supabase/client'
@@ -18,20 +18,19 @@ interface Player {
     phone: string | null
 }
 
-interface CartItem {
-    id: string
-    category: BetCategory
-    target: BetTarget
-    number: string
-    amount: number
-}
-
 interface BettingStatus {
     openBetting: boolean
     closeBetting: boolean
     jodiBetting: boolean
     openMessage: string
     closeMessage: string
+}
+
+interface BetItem {
+    category: BetCategory
+    target: BetTarget
+    selectedNumber: string
+    amount: number
 }
 
 const quickAmounts = [10, 20, 50, 100, 200, 500]
@@ -46,7 +45,7 @@ export default function PlaceBetPage() {
     // Player & Session
     const [players, setPlayers] = useState<Player[]>([])
     const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
-    const [useSelfBet, setUseSelfBet] = useState(true) // Default to using staff's own name
+    const [useSelfBet, setUseSelfBet] = useState(true)
     const [playerSearch, setPlayerSearch] = useState('')
     const [showPlayerModal, setShowPlayerModal] = useState(false)
     const [showNewPlayerForm, setShowNewPlayerForm] = useState(false)
@@ -54,18 +53,10 @@ export default function PlaceBetPage() {
     const [newPlayerPhone, setNewPlayerPhone] = useState('')
     const [loadingPlayers, setLoadingPlayers] = useState(false)
 
-    // Get staff info for self-bet feature
     const staffInfo = useStaffInfo()
-
     const [sessionName, setSessionName] = useState<SessionType>('morning')
-
-    // Category Tab
     const [activeTab, setActiveTab] = useState<BetCategory>('single')
-
-    // Bet Input (legacy - kept for triple)
     const [target, setTarget] = useState<BetTarget>('open')
-    const [number, setNumber] = useState('')
-    const [amount, setAmount] = useState('')
 
     // Single Grid: amounts for each digit 0-9
     const [singleAmounts, setSingleAmounts] = useState<Record<number, string>>(
@@ -74,17 +65,19 @@ export default function PlaceBetPage() {
 
     // Jodi Selection: selected jodis with their amounts
     const [jodiSelections, setJodiSelections] = useState<Record<string, string>>({})
-    const [jodiScrollPosition, setJodiScrollPosition] = useState(0)
 
-    // Cart
-    const [cart, setCart] = useState<CartItem[]>([])
+    // Triple Selection: selected triples with their amounts (like jodi)
+    const [tripleSelections, setTripleSelections] = useState<Record<string, string>>({})
+    const [tripleNumber, setTripleNumber] = useState('')
+    const [tripleAmount, setTripleAmount] = useState('')
 
     // Submission
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [showConfirmModal, setShowConfirmModal] = useState(false)
+    const [pendingBets, setPendingBets] = useState<BetItem[]>([])
 
     // Time & Schedule
-    const { schedules, getScheduleForSession, isLoading: schedulesLoading } = useSchedules()
+    const { getScheduleForSession, isLoading: schedulesLoading } = useSchedules()
     const [currentTime, setCurrentTime] = useState(() => {
         const now = new Date()
         return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
@@ -95,29 +88,21 @@ export default function PlaceBetPage() {
     const [holidayDesc, setHolidayDesc] = useState('')
     const [holidayLoading, setHolidayLoading] = useState(true)
 
-    // Check for holiday on mount
     useEffect(() => {
         async function checkHoliday() {
             setHolidayLoading(true)
             try {
                 const supabase = createClient()
-                // Use local date (not UTC) to match database format
                 const now = new Date()
                 const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-                console.log('Checking holiday for date:', today)
-
                 const { data, error } = await supabase
                     .from('holidays')
                     .select('*')
                     .eq('holiday_date', today)
                     .maybeSingle()
-
-                console.log('Holiday check result:', { data, error })
-
                 if (data && !error) {
                     setIsHoliday(true)
                     setHolidayDesc(data.description || 'Holiday')
-                    console.log('Holiday detected:', data.description)
                 }
             } catch (err) {
                 console.error('Holiday check error:', err)
@@ -128,19 +113,16 @@ export default function PlaceBetPage() {
         checkHoliday()
     }, [])
 
-    // Update current time every minute
     useEffect(() => {
         const interval = setInterval(() => {
             const now = new Date()
             setCurrentTime(`${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`)
-        }, 30000) // Check every 30 seconds for more accurate updates
+        }, 30000)
         return () => clearInterval(interval)
     }, [])
 
-    // Calculate betting status for current session based on DB logic
     const bettingStatus = useMemo((): BettingStatus => {
         const schedule = getScheduleForSession(sessionName)
-
         if (!schedule || isHoliday) {
             return {
                 openBetting: false,
@@ -150,30 +132,20 @@ export default function PlaceBetPage() {
                 closeMessage: isHoliday ? `Holiday: ${holidayDesc}` : 'Schedule not available'
             }
         }
-
         const now = timeToMinutes(currentTime)
         const startTime = timeToMinutes(schedule.start_time)
         const openFreezeTime = timeToMinutes(schedule.open_bet_freeze_time)
         const openResultTime = timeToMinutes(schedule.open_result_time)
         const closeFreezeTime = timeToMinutes(schedule.close_bet_freeze_time)
-
-        // Open/Jodi betting: start_time <= current < open_bet_freeze_time
         const openBetting = now >= startTime && now < openFreezeTime
-
-        // Close betting: start_time <= current < close_bet_freeze_time
-        // BUT NOT during open_bet_freeze_time to open_result_time (result calculation window)
         const inResultWindow = now >= openFreezeTime && now < openResultTime
         const closeBetting = (now >= startTime && now < closeFreezeTime) && !inResultWindow
-
-        // Jodi betting follows Open timing
         const jodiBetting = openBetting
-
         const openMessage = openBetting
             ? `Open until ${formatScheduleTime(schedule.open_bet_freeze_time)}`
             : now < startTime
                 ? `Opens at ${formatScheduleTime(schedule.start_time)}`
                 : `Closed at ${formatScheduleTime(schedule.open_bet_freeze_time)}`
-
         let closeMessage = ''
         if (closeBetting) {
             closeMessage = `Open until ${formatScheduleTime(schedule.close_bet_freeze_time)}`
@@ -184,27 +156,14 @@ export default function PlaceBetPage() {
         } else {
             closeMessage = `Closed at ${formatScheduleTime(schedule.close_bet_freeze_time)}`
         }
-
-        return {
-            openBetting,
-            closeBetting,
-            jodiBetting,
-            openMessage,
-            closeMessage
-        }
+        return { openBetting, closeBetting, jodiBetting, openMessage, closeMessage }
     }, [sessionName, currentTime, getScheduleForSession, isHoliday, holidayDesc])
 
-    // Check if current bet type is allowed
     const canPlaceBet = useMemo(() => {
         if (isHoliday) return false
-        if (activeTab === 'jodi') {
-            return bettingStatus.jodiBetting
-        }
+        if (activeTab === 'jodi') return bettingStatus.jodiBetting
         return target === 'open' ? bettingStatus.openBetting : bettingStatus.closeBetting
     }, [activeTab, target, bettingStatus, isHoliday])
-
-    const maxDigits = activeTab === 'single' ? 1 : activeTab === 'jodi' ? 2 : 3
-    const categoryLabel = activeTab === 'single' ? 'Single' : activeTab === 'jodi' ? 'Jodi' : 'Triple'
 
     // Fetch players
     const fetchPlayers = useCallback(async (search?: string) => {
@@ -214,9 +173,7 @@ export default function PlaceBetPage() {
             if (search) params.append('search', search)
             const response = await fetch(`/api/players?${params.toString()}`)
             const data = await response.json()
-            if (response.ok) {
-                setPlayers(data.players || [])
-            }
+            if (response.ok) setPlayers(data.players || [])
         } catch (error) {
             console.error('Failed to fetch players:', error)
         } finally {
@@ -224,26 +181,19 @@ export default function PlaceBetPage() {
         }
     }, [])
 
-    useEffect(() => {
-        fetchPlayers()
-    }, [fetchPlayers])
+    useEffect(() => { fetchPlayers() }, [fetchPlayers])
 
     useEffect(() => {
         const debounce = setTimeout(() => {
-            if (showPlayerModal) {
-                fetchPlayers(playerSearch)
-            }
+            if (showPlayerModal) fetchPlayers(playerSearch)
         }, 300)
         return () => clearTimeout(debounce)
     }, [playerSearch, showPlayerModal, fetchPlayers])
 
-    // Reset number when tab changes, auto-select available target
     useEffect(() => {
-        setNumber('')
         if (activeTab === 'jodi') {
             setTarget('jodi_full')
         } else {
-            // Auto-select an available target
             if (bettingStatus.openBetting) {
                 setTarget('open')
             } else if (bettingStatus.closeBetting) {
@@ -253,11 +203,6 @@ export default function PlaceBetPage() {
             }
         }
     }, [activeTab, bettingStatus.openBetting, bettingStatus.closeBetting])
-
-    const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value.replace(/\D/g, '').slice(0, maxDigits)
-        setNumber(value)
-    }
 
     const handleSelectPlayer = (player: Player) => {
         setSelectedPlayer(player)
@@ -275,15 +220,10 @@ export default function PlaceBetPage() {
             const response = await fetch('/api/players', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: newPlayerName.trim(),
-                    phone: newPlayerPhone.trim() || null
-                })
+                body: JSON.stringify({ name: newPlayerName.trim(), phone: newPlayerPhone.trim() || null })
             })
             const data = await response.json()
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to add player')
-            }
+            if (!response.ok) throw new Error(data.error || 'Failed to add player')
             setSelectedPlayer(data.player)
             setShowPlayerModal(false)
             setShowNewPlayerForm(false)
@@ -298,49 +238,7 @@ export default function PlaceBetPage() {
         }
     }
 
-    const addToCart = () => {
-        if (!canPlaceBet) {
-            toast.error('Betting is closed for this type')
-            return
-        }
-        if (number.length !== maxDigits) {
-            toast.error(`Enter a ${maxDigits}-digit number`)
-            return
-        }
-        if (!amount || Number(amount) < 10) {
-            toast.error('Minimum bet amount is 10 points')
-            return
-        }
-        if (Number(amount) % 10 !== 0) {
-            toast.error('Bet amount must be a multiple of 10')
-            return
-        }
-
-        const betTarget = activeTab === 'jodi' ? 'jodi_full' : target
-
-        const newItem: CartItem = {
-            id: `${Date.now()}-${Math.random()}`,
-            category: activeTab,
-            target: betTarget,
-            number: number.padStart(maxDigits, '0'),
-            amount: Number(amount)
-        }
-
-        setCart([...cart, newItem])
-        setNumber('')
-        setAmount('')
-        toast.success(`Added ${categoryLabel} ${newItem.number}`)
-    }
-
-    const removeFromCart = (id: string) => {
-        setCart(cart.filter(item => item.id !== id))
-    }
-
-    const clearCart = () => {
-        setCart([])
-    }
-
-    // === Single Grid Helpers ===
+    // === Single Grid ===
     const updateSingleAmount = (digit: number, value: string) => {
         setSingleAmounts(prev => ({ ...prev, [digit]: value }))
     }
@@ -349,57 +247,11 @@ export default function PlaceBetPage() {
         return Object.values(singleAmounts).reduce((sum, val) => sum + (Number(val) || 0), 0)
     }, [singleAmounts])
 
-    const addAllSinglesToCart = () => {
-        if (!canPlaceBet) {
-            toast.error('Betting is closed')
-            return
-        }
-
-        const betTarget = target
-        let addedCount = 0
-        const newItems: CartItem[] = []
-
-        const invalidAmounts: string[] = []
-        Object.entries(singleAmounts).forEach(([digit, amt]) => {
-            const numAmt = Number(amt)
-            if (numAmt > 0) {
-                if (numAmt < 10) {
-                    invalidAmounts.push(`${digit}: min 10`)
-                } else if (numAmt % 10 !== 0) {
-                    invalidAmounts.push(`${digit}: must be multiple of 10`)
-                } else {
-                    newItems.push({
-                        id: `${Date.now()}-${digit}-${Math.random()}`,
-                        category: 'single',
-                        target: betTarget,
-                        number: digit,
-                        amount: numAmt
-                    })
-                    addedCount++
-                }
-            }
-        })
-
-        if (invalidAmounts.length > 0) {
-            toast.error(`Invalid amounts: ${invalidAmounts.join(', ')}`)
-            return
-        }
-
-        if (addedCount === 0) {
-            toast.error('Enter amount for at least one number (min 10, multiples of 10)')
-            return
-        }
-
-        setCart(prev => [...prev, ...newItems])
-        setSingleAmounts(Object.fromEntries(Array.from({ length: 10 }, (_, i) => [i, ''])))
-        toast.success(`Added ${addedCount} single bets`)
-    }
-
     const clearSingleGrid = () => {
         setSingleAmounts(Object.fromEntries(Array.from({ length: 10 }, (_, i) => [i, ''])))
     }
 
-    // === Jodi Selection Helpers ===
+    // === Jodi Selection ===
     const toggleJodiSelection = (jodi: string) => {
         setJodiSelections(prev => {
             if (prev[jodi] !== undefined) {
@@ -425,140 +277,162 @@ export default function PlaceBetPage() {
         return Object.values(jodiSelections).reduce((sum, val) => sum + (Number(val) || 0), 0)
     }, [jodiSelections])
 
-    const addAllJodisToCart = () => {
-        if (!canPlaceBet) {
-            toast.error('Betting is closed')
-            return
-        }
+    const clearJodiSelections = () => setJodiSelections({})
 
-        let addedCount = 0
-        const newItems: CartItem[] = []
-
-        const invalidAmounts: string[] = []
-        Object.entries(jodiSelections).forEach(([jodi, amt]) => {
-            const numAmt = Number(amt)
-            if (numAmt > 0) {
-                if (numAmt < 10) {
-                    invalidAmounts.push(`${jodi}: min 10`)
-                } else if (numAmt % 10 !== 0) {
-                    invalidAmounts.push(`${jodi}: must be multiple of 10`)
-                } else {
-                    newItems.push({
-                        id: `${Date.now()}-${jodi}-${Math.random()}`,
-                        category: 'jodi',
-                        target: 'jodi_full',
-                        number: jodi.padStart(2, '0'),
-                        amount: numAmt
-                    })
-                    addedCount++
-                }
-            }
-        })
-
-        if (invalidAmounts.length > 0) {
-            toast.error(`Invalid amounts: ${invalidAmounts.join(', ')}`)
-            return
-        }
-
-        if (addedCount === 0) {
-            toast.error('Enter amount for at least one jodi (min 10, multiples of 10)')
-            return
-        }
-
-        setCart(prev => [...prev, ...newItems])
-        setJodiSelections({})
-        toast.success(`Added ${addedCount} jodi bets`)
-    }
-
-    const clearJodiSelections = () => {
-        setJodiSelections({})
-    }
-
-    // Apply same amount to all selected jodis
     const applyAmountToAllJodis = (amt: number) => {
         setJodiSelections(prev => {
             const updated: Record<string, string> = {}
-            Object.keys(prev).forEach(jodi => {
-                updated[jodi] = amt.toString()
-            })
+            Object.keys(prev).forEach(jodi => { updated[jodi] = amt.toString() })
             return updated
         })
     }
 
-    const cartTotal = cart.reduce((sum, item) => sum + item.amount, 0)
+    // === Triple Selection ===
+    const addTripleToSelection = () => {
+        if (tripleNumber.length !== 3) {
+            toast.error('Enter a 3-digit number')
+            return
+        }
+        if (!tripleAmount || Number(tripleAmount) < 10) {
+            toast.error('Minimum amount is 10')
+            return
+        }
+        if (Number(tripleAmount) % 10 !== 0) {
+            toast.error('Amount must be multiple of 10')
+            return
+        }
+        setTripleSelections(prev => ({
+            ...prev,
+            [tripleNumber.padStart(3, '0')]: tripleAmount
+        }))
+        setTripleNumber('')
+        setTripleAmount('')
+    }
 
-    const handleSubmitAll = () => {
-        // Check if we have a valid player (either self-bet with staff ID, or selected player)
-        const effectivePlayerId = useSelfBet ? staffInfo.id : selectedPlayer?.id
-        if (!effectivePlayerId) {
-            if (useSelfBet) {
-                toast.error('Staff profile not loaded. Please refresh the page.')
-            } else {
-                toast.error('Please select a player')
+    const removeTripleSelection = (triple: string) => {
+        setTripleSelections(prev => {
+            const { [triple]: _, ...rest } = prev
+            return rest
+        })
+    }
+
+    const tripleSelectionTotal = useMemo(() => {
+        return Object.values(tripleSelections).reduce((sum, val) => sum + (Number(val) || 0), 0)
+    }, [tripleSelections])
+
+    const clearTripleSelections = () => setTripleSelections({})
+
+    // === Place Bets Functions ===
+    const prepareSingleBets = (): BetItem[] => {
+        const bets: BetItem[] = []
+        Object.entries(singleAmounts).forEach(([digit, amt]) => {
+            const numAmt = Number(amt)
+            if (numAmt >= 10 && numAmt % 10 === 0) {
+                bets.push({
+                    category: 'single',
+                    target: target,
+                    selectedNumber: digit,
+                    amount: numAmt
+                })
             }
+        })
+        return bets
+    }
+
+    const prepareJodiBets = (): BetItem[] => {
+        const bets: BetItem[] = []
+        Object.entries(jodiSelections).forEach(([jodi, amt]) => {
+            const numAmt = Number(amt)
+            if (numAmt >= 10 && numAmt % 10 === 0) {
+                bets.push({
+                    category: 'jodi',
+                    target: 'jodi_full',
+                    selectedNumber: jodi.padStart(2, '0'),
+                    amount: numAmt
+                })
+            }
+        })
+        return bets
+    }
+
+    const prepareTripleBets = (): BetItem[] => {
+        const bets: BetItem[] = []
+        Object.entries(tripleSelections).forEach(([triple, amt]) => {
+            const numAmt = Number(amt)
+            if (numAmt >= 10 && numAmt % 10 === 0) {
+                bets.push({
+                    category: 'triple',
+                    target: target,
+                    selectedNumber: triple.padStart(3, '0'),
+                    amount: numAmt
+                })
+            }
+        })
+        return bets
+    }
+
+    const validateAndShowConfirm = (bets: BetItem[]) => {
+        if (!useSelfBet && !selectedPlayer?.id) {
+            toast.error('Please select a player')
             return
         }
-        if (cart.length === 0) {
-            toast.error('Add at least one bet to submit')
+        if (!canPlaceBet) {
+            toast.error('Betting is closed')
             return
         }
+        if (bets.length === 0) {
+            toast.error('Enter amount for at least one bet (min 10, multiples of 10)')
+            return
+        }
+        // Check for invalid amounts
+        const invalidCheck = bets.find(b => b.amount < 10 || b.amount % 10 !== 0)
+        if (invalidCheck) {
+            toast.error('All amounts must be min 10 and multiples of 10')
+            return
+        }
+        setPendingBets(bets)
         setShowConfirmModal(true)
     }
 
-    const confirmSubmitAll = async () => {
-        const effectivePlayerId = useSelfBet ? staffInfo.id : selectedPlayer?.id
-        if (!effectivePlayerId || cart.length === 0) return
+    const handlePlaceSingleBets = () => validateAndShowConfirm(prepareSingleBets())
+    const handlePlaceJodiBets = () => validateAndShowConfirm(prepareJodiBets())
+    const handlePlaceTripleBets = () => validateAndShowConfirm(prepareTripleBets())
 
+    const confirmPlaceBets = async () => {
+        if (pendingBets.length === 0) return
         setIsSubmitting(true)
         setShowConfirmModal(false)
-
         const today = new Date().toISOString().split('T')[0]
-        let successCount = 0
-        let failCount = 0
-        let lastError = ''
-
-        for (const item of cart) {
-            try {
-                const response = await fetch('/api/bets', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        gameDate: today,
-                        sessionName: sessionName,
-                        category: item.category,
-                        target: item.target,
-                        selectedNumber: item.number,
-                        amount: item.amount,
-                        playerId: effectivePlayerId
-                    })
+        try {
+            const response = await fetch('/api/bets', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    gameDate: today,
+                    sessionName: sessionName,
+                    bets: pendingBets,
+                    ...(useSelfBet ? { isSelfBet: true } : { playerId: selectedPlayer?.id })
                 })
-
-                const data = await response.json()
-
-                if (response.ok) {
-                    successCount++
-                } else {
-                    failCount++
-                    lastError = data.error || 'Unknown error'
-                }
-            } catch {
-                failCount++
-                lastError = 'Network error'
+            })
+            const data = await response.json()
+            if (response.ok) {
+                toast.success(`${data.count || pendingBets.length} bets placed successfully!`)
+                // Clear the appropriate form
+                if (pendingBets[0]?.category === 'single') clearSingleGrid()
+                else if (pendingBets[0]?.category === 'jodi') clearJodiSelections()
+                else if (pendingBets[0]?.category === 'triple') clearTripleSelections()
+            } else {
+                toast.error(`Failed: ${data.error || 'Unknown error'}`)
             }
-        }
-
-        setIsSubmitting(false)
-
-        if (failCount === 0) {
-            toast.success(`All ${successCount} bets placed successfully!`)
-            clearCart()
-        } else if (successCount > 0) {
-            toast.warning(`${successCount} placed, ${failCount} failed: ${lastError}`)
-            clearCart()
-        } else {
-            toast.error(`Failed: ${lastError}`)
+        } catch {
+            toast.error('Network error')
+        } finally {
+            setIsSubmitting(false)
+            setPendingBets([])
         }
     }
+
+    const pendingTotal = pendingBets.reduce((sum, b) => sum + b.amount, 0)
 
     // Loading state
     if (schedulesLoading || holidayLoading) {
@@ -626,30 +500,20 @@ export default function PlaceBetPage() {
                             type="button"
                             onClick={() => {
                                 setUseSelfBet(!useSelfBet)
-                                if (!useSelfBet) {
-                                    setSelectedPlayer(null)
-                                }
+                                if (!useSelfBet) setSelectedPlayer(null)
                             }}
-                            className={`relative w-14 h-7 rounded-full transition-colors ${useSelfBet ? 'bg-green-500' : 'bg-gray-600'
-                                }`}
+                            className={`relative w-14 h-7 rounded-full transition-colors ${useSelfBet ? 'bg-green-500' : 'bg-gray-600'}`}
                         >
-                            <span
-                                className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white transition-transform ${useSelfBet ? 'translate-x-7' : 'translate-x-0'
-                                    }`}
-                            />
+                            <span className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white transition-transform ${useSelfBet ? 'translate-x-7' : 'translate-x-0'}`} />
                         </button>
                     </div>
 
                     <div className="flex flex-col md:flex-row gap-4">
-                        {/* Player Selection - only show when not using self-bet */}
                         {!useSelfBet && (
                             <button
                                 type="button"
                                 onClick={() => setShowPlayerModal(true)}
-                                className={`flex-1 p-3 rounded-xl border transition-all text-left flex items-center gap-3 ${selectedPlayer
-                                    ? 'border-indigo-500 bg-indigo-500/10'
-                                    : 'border-gray-600 hover:border-indigo-500/50'
-                                    }`}
+                                className={`flex-1 p-3 rounded-xl border transition-all text-left flex items-center gap-3 ${selectedPlayer ? 'border-indigo-500 bg-indigo-500/10' : 'border-gray-600 hover:border-indigo-500/50'}`}
                             >
                                 <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center">
                                     <User size={20} className="text-indigo-400" />
@@ -658,9 +522,7 @@ export default function PlaceBetPage() {
                                     {selectedPlayer ? (
                                         <>
                                             <p className="font-medium text-white truncate">{selectedPlayer.name}</p>
-                                            {selectedPlayer.phone && (
-                                                <p className="text-xs text-gray-400">{selectedPlayer.phone}</p>
-                                            )}
+                                            {selectedPlayer.phone && <p className="text-xs text-gray-400">{selectedPlayer.phone}</p>}
                                         </>
                                     ) : (
                                         <p className="text-gray-400">Select Player</p>
@@ -669,25 +531,18 @@ export default function PlaceBetPage() {
                             </button>
                         )}
 
-                        {/* Session Toggle */}
                         <div className={`flex rounded-xl overflow-hidden border border-gray-600 ${useSelfBet ? 'flex-1' : ''}`}>
                             <button
                                 type="button"
                                 onClick={() => setSessionName('morning')}
-                                className={`flex-1 px-6 py-3 font-medium transition-all ${sessionName === 'morning'
-                                    ? 'bg-indigo-500 text-white'
-                                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                                    }`}
+                                className={`flex-1 px-6 py-3 font-medium transition-all ${sessionName === 'morning' ? 'bg-indigo-500 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
                             >
                                 Morning
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setSessionName('night')}
-                                className={`flex-1 px-6 py-3 font-medium transition-all ${sessionName === 'night'
-                                    ? 'bg-indigo-500 text-white'
-                                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                                    }`}
+                                className={`flex-1 px-6 py-3 font-medium transition-all ${sessionName === 'night' ? 'bg-indigo-500 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
                             >
                                 Night
                             </button>
@@ -706,23 +561,13 @@ export default function PlaceBetPage() {
                             type="button"
                             onClick={() => !isDisabled && setActiveTab(cat)}
                             className={`flex-1 py-4 font-semibold text-center transition-all relative ${activeTab === cat
-                                ? isDisabled
-                                    ? 'bg-gray-700 text-gray-400'
-                                    : 'bg-indigo-500 text-white'
-                                : isDisabled
-                                    ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
-                                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                ? isDisabled ? 'bg-gray-700 text-gray-400' : 'bg-indigo-500 text-white'
+                                : isDisabled ? 'bg-gray-800 text-gray-600 cursor-not-allowed' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                                 }`}
                         >
                             {cat === 'single' ? 'Single' : cat === 'jodi' ? 'Jodi' : 'Triple'}
-                            <span className="block text-xs mt-1 opacity-75">
-                                {PAYOUT_MULTIPLIERS[cat]}x
-                            </span>
-                            {isDisabled && (
-                                <span className="absolute top-1 right-2 text-red-400">
-                                    <AlertTriangle size={14} />
-                                </span>
-                            )}
+                            <span className="block text-xs mt-1 opacity-75">{PAYOUT_MULTIPLIERS[cat]}x</span>
+                            {isDisabled && <span className="absolute top-1 right-2 text-red-400"><AlertTriangle size={14} /></span>}
                         </button>
                     )
                 })}
@@ -735,12 +580,7 @@ export default function PlaceBetPage() {
                     <div>
                         <p className="text-red-400 font-medium">Betting Closed</p>
                         <p className="text-sm text-gray-400">
-                            {activeTab === 'jodi'
-                                ? bettingStatus.openMessage
-                                : target === 'open'
-                                    ? bettingStatus.openMessage
-                                    : bettingStatus.closeMessage
-                            }
+                            {activeTab === 'jodi' ? bettingStatus.openMessage : target === 'open' ? bettingStatus.openMessage : bettingStatus.closeMessage}
                         </p>
                     </div>
                 </div>
@@ -758,9 +598,7 @@ export default function PlaceBetPage() {
                                 disabled={!bettingStatus.openBetting}
                                 className={`flex-1 py-2 rounded-lg font-medium text-sm transition-all ${!bettingStatus.openBetting
                                     ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                                    : target === 'open'
-                                        ? 'bg-cyan-500 text-white'
-                                        : 'bg-gray-700 text-gray-400'
+                                    : target === 'open' ? 'bg-cyan-500 text-white' : 'bg-gray-700 text-gray-400'
                                     }`}
                             >
                                 Open {!bettingStatus.openBetting && <span className="text-red-400 text-xs">(Closed)</span>}
@@ -771,9 +609,7 @@ export default function PlaceBetPage() {
                                 disabled={!bettingStatus.closeBetting}
                                 className={`flex-1 py-2 rounded-lg font-medium text-sm transition-all ${!bettingStatus.closeBetting
                                     ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                                    : target === 'close'
-                                        ? 'bg-pink-500 text-white'
-                                        : 'bg-gray-700 text-gray-400'
+                                    : target === 'close' ? 'bg-pink-500 text-white' : 'bg-gray-700 text-gray-400'
                                     }`}
                             >
                                 Close {!bettingStatus.closeBetting && <span className="text-red-400 text-xs">(Closed)</span>}
@@ -781,16 +617,13 @@ export default function PlaceBetPage() {
                         </div>
                     )}
 
-                    {/* === SINGLE TAB: Mobile-First Grid UI === */}
+                    {/* === SINGLE TAB === */}
                     {activeTab === 'single' && (
                         <div className="space-y-3">
-                            {/* Grid: 5 columns on mobile, 2 rows */}
                             <div className="grid grid-cols-5 gap-2">
                                 {Array.from({ length: 10 }, (_, i) => (
                                     <div key={i} className="flex flex-col items-center">
-                                        <div className="w-10 h-10 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center text-lg mb-1">
-                                            {i}
-                                        </div>
+                                        <div className="w-10 h-10 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center text-lg mb-1">{i}</div>
                                         <input
                                             type="number"
                                             inputMode="numeric"
@@ -799,64 +632,46 @@ export default function PlaceBetPage() {
                                             value={singleAmounts[i]}
                                             onChange={(e) => updateSingleAmount(i, e.target.value)}
                                             disabled={!canPlaceBet}
-                                            className="w-full px-1 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white text-center text-sm font-mono focus:border-indigo-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                                            className="w-full px-1 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white text-center text-sm font-mono focus:border-indigo-500 focus:outline-none disabled:opacity-50"
                                         />
                                     </div>
                                 ))}
                             </div>
 
-                            {/* Quick Amount Buttons */}
                             <div className="flex flex-wrap gap-1">
                                 {quickAmounts.map((amt) => (
                                     <button
                                         key={amt}
                                         type="button"
                                         onClick={() => {
-                                            // Apply to first empty or overwrite all
                                             const firstEmpty = Object.entries(singleAmounts).find(([_, v]) => !v)?.[0]
-                                            if (firstEmpty !== undefined) {
-                                                updateSingleAmount(Number(firstEmpty), amt.toString())
-                                            }
+                                            if (firstEmpty !== undefined) updateSingleAmount(Number(firstEmpty), amt.toString())
                                         }}
                                         disabled={!canPlaceBet}
-                                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50"
                                     >
                                         +{amt}
                                     </button>
                                 ))}
                             </div>
 
-                            {/* Total & Actions */}
                             <div className="flex items-center justify-between pt-2 border-t border-gray-700">
                                 <div className="text-gray-400">
                                     Total: <span className="text-white font-bold text-lg">{singleGridTotal}</span> Points
                                 </div>
                                 <div className="flex gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={clearSingleGrid}
-                                        className="px-3 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600"
-                                    >
-                                        Clear
-                                    </button>
-                                    <Button
-                                        type="button"
-                                        size="sm"
-                                        onClick={addAllSinglesToCart}
-                                        disabled={!canPlaceBet || singleGridTotal === 0}
-                                    >
-                                        <Plus size={16} />
-                                        Add All
+                                    <button type="button" onClick={clearSingleGrid} className="px-3 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600">Clear</button>
+                                    <Button type="button" size="sm" onClick={handlePlaceSingleBets} disabled={!canPlaceBet || singleGridTotal === 0} isLoading={isSubmitting}>
+                                        Place Bets
                                     </Button>
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {/* === JODI TAB: Scrollable List with Chips === */}
+                    {/* === JODI TAB === */}
                     {activeTab === 'jodi' && (
                         <div className="space-y-3">
-                            {/* Scrollable Jodi List */}
                             <div className="h-48 overflow-y-auto bg-gray-900 rounded-lg border border-gray-700">
                                 {Array.from({ length: 100 }, (_, i) => {
                                     const jodi = i.toString().padStart(2, '0')
@@ -867,10 +682,7 @@ export default function PlaceBetPage() {
                                             type="button"
                                             onClick={() => toggleJodiSelection(jodi)}
                                             disabled={!canPlaceBet}
-                                            className={`w-full px-4 py-2.5 text-left border-b border-gray-800 transition-colors ${isSelected
-                                                ? 'bg-indigo-600 text-white font-medium'
-                                                : 'text-gray-300 hover:bg-gray-800'
-                                                } disabled:opacity-50`}
+                                            className={`w-full px-4 py-2.5 text-left border-b border-gray-800 transition-colors ${isSelected ? 'bg-indigo-600 text-white font-medium' : 'text-gray-300 hover:bg-gray-800'} disabled:opacity-50`}
                                         >
                                             {jodi}
                                         </button>
@@ -878,19 +690,13 @@ export default function PlaceBetPage() {
                                 })}
                             </div>
 
-                            {/* Selected Jodis as Chips */}
                             {Object.keys(jodiSelections).length > 0 && (
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
                                         <span className="text-sm text-gray-400">Selected ({Object.keys(jodiSelections).length})</span>
                                         <div className="flex gap-1">
                                             {quickAmounts.slice(0, 4).map((amt) => (
-                                                <button
-                                                    key={amt}
-                                                    type="button"
-                                                    onClick={() => applyAmountToAllJodis(amt)}
-                                                    className="px-2 py-1 text-xs bg-gray-700 text-gray-300 rounded hover:bg-gray-600"
-                                                >
+                                                <button key={amt} type="button" onClick={() => applyAmountToAllJodis(amt)} className="px-2 py-1 text-xs bg-gray-700 text-gray-300 rounded hover:bg-gray-600">
                                                     All={amt}
                                                 </button>
                                             ))}
@@ -898,13 +704,8 @@ export default function PlaceBetPage() {
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         {Object.entries(jodiSelections).map(([jodi, amt]) => (
-                                            <div
-                                                key={jodi}
-                                                className="flex items-center gap-1 bg-gray-900 border border-gray-700 rounded-lg p-1"
-                                            >
-                                                <span className="w-8 h-8 flex items-center justify-center bg-indigo-600 text-white font-bold rounded text-sm">
-                                                    {jodi}
-                                                </span>
+                                            <div key={jodi} className="flex items-center gap-1 bg-gray-900 border border-gray-700 rounded-lg p-1">
+                                                <span className="w-8 h-8 flex items-center justify-center bg-indigo-600 text-white font-bold rounded text-sm">{jodi}</span>
                                                 <input
                                                     type="number"
                                                     inputMode="numeric"
@@ -914,12 +715,8 @@ export default function PlaceBetPage() {
                                                     onChange={(e) => updateJodiAmount(jodi, e.target.value)}
                                                     className="w-14 px-1 py-1 bg-gray-800 border border-gray-600 rounded text-white text-center text-sm font-mono focus:border-indigo-500 focus:outline-none"
                                                 />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeJodiSelection(jodi)}
-                                                    className="w-6 h-6 flex items-center justify-center bg-red-600 text-white rounded hover:bg-red-700"
-                                                >
-                                                    ×
+                                                <button type="button" onClick={() => removeJodiSelection(jodi)} className="w-6 h-6 flex items-center justify-center bg-red-600 text-white rounded hover:bg-red-700">
+                                                    <X size={14} />
                                                 </button>
                                             </div>
                                         ))}
@@ -927,65 +724,54 @@ export default function PlaceBetPage() {
                                 </div>
                             )}
 
-                            {/* Total & Actions */}
                             <div className="flex items-center justify-between pt-2 border-t border-gray-700">
                                 <div className="text-gray-400">
                                     Total: <span className="text-white font-bold text-lg">{jodiSelectionTotal}</span> Points
                                 </div>
                                 <div className="flex gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={clearJodiSelections}
-                                        className="px-3 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600"
-                                    >
-                                        Clear
-                                    </button>
-                                    <Button
-                                        type="button"
-                                        size="sm"
-                                        onClick={addAllJodisToCart}
-                                        disabled={!canPlaceBet || jodiSelectionTotal === 0}
-                                    >
-                                        <Plus size={16} />
-                                        Add All
+                                    <button type="button" onClick={clearJodiSelections} className="px-3 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600">Clear</button>
+                                    <Button type="button" size="sm" onClick={handlePlaceJodiBets} disabled={!canPlaceBet || jodiSelectionTotal === 0} isLoading={isSubmitting}>
+                                        Place Bets
                                     </Button>
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {/* === TRIPLE TAB: Legacy Manual Input === */}
+                    {/* === TRIPLE TAB === */}
                     {activeTab === 'triple' && (
                         <div className="space-y-3">
-                            {/* Number & Amount */}
-                            <div className="flex gap-3">
-                                <div className="flex-1">
-                                    <label className="block text-xs text-gray-400 mb-1">Number (000-999)</label>
-                                    <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        pattern="[0-9]*"
-                                        placeholder="000"
-                                        maxLength={3}
-                                        value={number}
-                                        onChange={handleNumberChange}
-                                        disabled={!canPlaceBet}
-                                        className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white text-center text-xl font-mono focus:border-indigo-500 focus:outline-none disabled:opacity-50"
-                                    />
-                                </div>
-                                <div className="flex-1">
-                                    <label className="block text-xs text-gray-400 mb-1">Points</label>
-                                    <input
-                                        type="number"
-                                        inputMode="numeric"
-                                        min="10"
-                                        placeholder="0"
-                                        value={amount}
-                                        onChange={(e) => setAmount(e.target.value)}
-                                        disabled={!canPlaceBet}
-                                        className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white text-center text-xl font-mono focus:border-indigo-500 focus:outline-none disabled:opacity-50"
-                                    />
-                                </div>
+                            {/* Add Triple Form */}
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    placeholder="000"
+                                    maxLength={3}
+                                    value={tripleNumber}
+                                    onChange={(e) => setTripleNumber(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                                    disabled={!canPlaceBet}
+                                    className="flex-1 px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white text-center text-xl font-mono focus:border-indigo-500 focus:outline-none disabled:opacity-50"
+                                />
+                                <input
+                                    type="number"
+                                    inputMode="numeric"
+                                    min="10"
+                                    placeholder="Points"
+                                    value={tripleAmount}
+                                    onChange={(e) => setTripleAmount(e.target.value)}
+                                    disabled={!canPlaceBet}
+                                    className="w-24 px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white text-center text-xl font-mono focus:border-indigo-500 focus:outline-none disabled:opacity-50"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={addTripleToSelection}
+                                    disabled={!canPlaceBet || tripleNumber.length !== 3 || !tripleAmount}
+                                    className="px-4 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <Plus size={20} />
+                                </button>
                             </div>
 
                             {/* Quick Amounts */}
@@ -994,95 +780,48 @@ export default function PlaceBetPage() {
                                     <button
                                         key={amt}
                                         type="button"
-                                        onClick={() => setAmount(amt.toString())}
+                                        onClick={() => setTripleAmount(amt.toString())}
                                         disabled={!canPlaceBet}
-                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${amount === amt.toString()
-                                            ? 'bg-indigo-500 text-white'
-                                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                                            } disabled:opacity-50`}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${tripleAmount === amt.toString() ? 'bg-indigo-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'} disabled:opacity-50`}
                                     >
                                         {amt}
                                     </button>
                                 ))}
                             </div>
 
-                            {/* Add Button */}
-                            <Button
-                                type="button"
-                                className="w-full"
-                                onClick={addToCart}
-                                disabled={!canPlaceBet || number.length !== 3 || !amount}
-                            >
-                                <Plus size={18} />
-                                Add to Cart
-                            </Button>
+                            {/* Selected Triples */}
+                            {Object.keys(tripleSelections).length > 0 && (
+                                <div className="space-y-2">
+                                    <span className="text-sm text-gray-400">Selected ({Object.keys(tripleSelections).length})</span>
+                                    <div className="flex flex-wrap gap-2">
+                                        {Object.entries(tripleSelections).map(([triple, amt]) => (
+                                            <div key={triple} className="flex items-center gap-1 bg-gray-900 border border-gray-700 rounded-lg p-1">
+                                                <span className="w-10 h-8 flex items-center justify-center bg-indigo-600 text-white font-bold rounded text-sm">{triple}</span>
+                                                <span className="px-2 text-white font-mono text-sm">{amt}</span>
+                                                <button type="button" onClick={() => removeTripleSelection(triple)} className="w-6 h-6 flex items-center justify-center bg-red-600 text-white rounded hover:bg-red-700">
+                                                    <X size={14} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex items-center justify-between pt-2 border-t border-gray-700">
+                                <div className="text-gray-400">
+                                    Total: <span className="text-white font-bold text-lg">{tripleSelectionTotal}</span> Points
+                                </div>
+                                <div className="flex gap-2">
+                                    <button type="button" onClick={clearTripleSelections} className="px-3 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600">Clear</button>
+                                    <Button type="button" size="sm" onClick={handlePlaceTripleBets} disabled={!canPlaceBet || tripleSelectionTotal === 0} isLoading={isSubmitting}>
+                                        Place Bets
+                                    </Button>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>
             </Card>
-
-            {/* Cart */}
-            {cart.length > 0 && (
-                <Card className="!bg-gray-800/80 !border-gray-700">
-                    <div className="p-4">
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className="font-semibold text-white flex items-center gap-2">
-                                <ShoppingCart size={18} />
-                                Cart ({cart.length} bets)
-                            </h3>
-                            <button
-                                type="button"
-                                onClick={clearCart}
-                                className="text-sm text-red-400 hover:text-red-300"
-                            >
-                                Clear All
-                            </button>
-                        </div>
-
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                            {cart.map((item) => (
-                                <div
-                                    key={item.id}
-                                    className="flex items-center justify-between p-3 bg-gray-900/50 rounded-lg"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <span className="px-2 py-1 bg-indigo-500/20 text-indigo-400 text-xs rounded font-semibold uppercase">
-                                            {item.category}
-                                        </span>
-                                        <span className="font-mono text-lg text-white">{item.number}</span>
-                                        <span className="text-gray-400 text-xs uppercase">{item.target}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <span className="font-medium text-white">{item.amount} pts</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => removeFromCart(item.id)}
-                                            className="text-red-400 hover:text-red-300"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="mt-4 pt-4 border-t border-gray-700">
-                            <div className="flex items-center justify-between mb-3">
-                                <span className="text-gray-400">Total Points:</span>
-                                <span className="text-xl font-bold text-white">{cartTotal}</span>
-                            </div>
-                            <Button
-                                type="button"
-                                className="w-full"
-                                onClick={handleSubmitAll}
-                                isLoading={isSubmitting}
-                            >
-                                Submit All Bets
-                            </Button>
-                        </div>
-                    </div>
-                </Card>
-            )}
 
             {/* Player Selection Modal */}
             <Modal
@@ -1109,30 +848,21 @@ export default function PlaceBetPage() {
                         {loadingPlayers ? (
                             <div className="py-4 text-center text-gray-400">Loading...</div>
                         ) : players.length === 0 ? (
-                            <div className="py-4 text-center text-gray-400">
-                                {playerSearch ? 'No players found' : 'No players yet'}
-                            </div>
+                            <div className="py-4 text-center text-gray-400">{playerSearch ? 'No players found' : 'No players yet'}</div>
                         ) : (
                             players.map((player) => (
                                 <button
                                     key={player.id}
                                     type="button"
                                     onClick={() => handleSelectPlayer(player)}
-                                    className={`w-full p-3 rounded-lg text-left flex items-center gap-3 transition-colors ${selectedPlayer?.id === player.id
-                                        ? 'bg-indigo-500/20 border border-indigo-500'
-                                        : 'bg-gray-800 hover:bg-gray-700 border border-transparent'
-                                        }`}
+                                    className={`w-full p-3 rounded-lg text-left flex items-center gap-3 transition-colors ${selectedPlayer?.id === player.id ? 'bg-indigo-500/20 border border-indigo-500' : 'bg-gray-800 hover:bg-gray-700 border border-transparent'}`}
                                 >
                                     <User size={18} className="text-indigo-400" />
                                     <div className="flex-1">
                                         <p className="font-medium text-white">{player.name}</p>
-                                        {player.phone && (
-                                            <p className="text-xs text-gray-400">{player.phone}</p>
-                                        )}
+                                        {player.phone && <p className="text-xs text-gray-400">{player.phone}</p>}
                                     </div>
-                                    {selectedPlayer?.id === player.id && (
-                                        <Check size={18} className="text-indigo-400" />
-                                    )}
+                                    {selectedPlayer?.id === player.id && <Check size={18} className="text-indigo-400" />}
                                 </button>
                             ))
                         )}
@@ -1164,22 +894,10 @@ export default function PlaceBetPage() {
                                 className="w-full px-4 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white focus:border-indigo-500 focus:outline-none"
                             />
                             <div className="flex gap-2">
-                                <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    onClick={() => {
-                                        setShowNewPlayerForm(false)
-                                        setNewPlayerName('')
-                                        setNewPlayerPhone('')
-                                    }}
-                                >
+                                <Button variant="secondary" size="sm" onClick={() => { setShowNewPlayerForm(false); setNewPlayerName(''); setNewPlayerPhone('') }}>
                                     Cancel
                                 </Button>
-                                <Button
-                                    size="sm"
-                                    onClick={handleAddNewPlayer}
-                                    isLoading={isSubmitting}
-                                >
+                                <Button size="sm" onClick={handleAddNewPlayer} isLoading={isSubmitting}>
                                     Add & Select
                                 </Button>
                             </div>
@@ -1192,36 +910,32 @@ export default function PlaceBetPage() {
             <Modal
                 isOpen={showConfirmModal}
                 onClose={() => setShowConfirmModal(false)}
-                title="Confirm Submission"
+                title="Confirm Bets"
             >
                 <div className="space-y-4">
                     <p className="text-gray-300">
-                        Submit <strong className="text-white">{cart.length} bets</strong> for{' '}
-                        <strong className="text-white">{selectedPlayer?.name}</strong>?
+                        Place <strong className="text-white">{pendingBets.length} bets</strong> for{' '}
+                        <strong className="text-white">{useSelfBet ? staffInfo.name : selectedPlayer?.name}</strong>?
                     </p>
                     <div className="p-4 bg-gray-800 rounded-lg">
                         <div className="flex justify-between text-sm text-gray-400 mb-2">
                             <span>Session:</span>
                             <span className="text-white capitalize">{sessionName}</span>
                         </div>
+                        <div className="flex justify-between text-sm text-gray-400 mb-2">
+                            <span>Type:</span>
+                            <span className="text-white capitalize">{pendingBets[0]?.category || '-'}</span>
+                        </div>
                         <div className="flex justify-between text-sm text-gray-400">
                             <span>Total Points:</span>
-                            <span className="text-white font-bold">{cartTotal}</span>
+                            <span className="text-white font-bold">{pendingTotal}</span>
                         </div>
                     </div>
                     <div className="flex gap-3">
-                        <Button
-                            variant="secondary"
-                            className="flex-1"
-                            onClick={() => setShowConfirmModal(false)}
-                        >
+                        <Button variant="secondary" className="flex-1" onClick={() => setShowConfirmModal(false)}>
                             Cancel
                         </Button>
-                        <Button
-                            className="flex-1"
-                            onClick={confirmSubmitAll}
-                            isLoading={isSubmitting}
-                        >
+                        <Button className="flex-1" onClick={confirmPlaceBets} isLoading={isSubmitting}>
                             Confirm
                         </Button>
                     </div>
