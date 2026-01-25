@@ -608,6 +608,36 @@ body {
   }
 }
 
+/* Brand Text Color Animation */
+@keyframes brandColorShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-brand-color {
+  background: linear-gradient(
+    90deg,
+    #6366f1 0%,
+    #8b5cf6 20%,
+    #a855f7 40%,
+    #d946ef 60%,
+    #ec4899 80%,
+    #6366f1 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: brandColorShift 3s ease-in-out infinite;
+}
+
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out;
 }

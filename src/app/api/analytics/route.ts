@@ -131,118 +131,119 @@ export async function GET(request: NextRequest) {
 
         const totalCollection = bets?.reduce((sum, b) => sum + Number(b.amount), 0) || 0
 
-        if (totalCollection === 0) {
-            // Generate no-bet triples
-            const noBets = []
-            for (let i = 0; i < 10; i++) {
-                const triple = i.toString().padStart(3, '0')
-                noBets.push({
-                    triple,
-                    single: calculateSingle(triple),
-                    totalBets: 0,
-                    totalLiability: 0,
-                    payoutPercentage: 0,
-                    profitPercentage: 100
-                })
-            }
+        // Helper to aggregate liability data
+        // Uses Map for O(1) lookup instead of array filtering O(N)
+        const getAggregatedData = (
+            data: any[],
+            category: string,
+            targetFilter?: string
+        ): Map<string, { liability: number, bets: number }> => {
+            const map = new Map()
 
-            return NextResponse.json({
-                recommendations: {
-                    totalCollection: 0,
-                    targetMatch: [],
-                    systemRecommendations: [],
-                    lowBets: [],
-                    noBets
-                }
+            const filtered = data.filter(d =>
+                d.category === category &&
+                (!targetFilter || d.target === targetFilter)
+            )
+
+            filtered.forEach(d => {
+                const key = d.selected_number
+                const current = map.get(key) || { liability: 0, bets: 0 }
+                map.set(key, {
+                    liability: current.liability + Number(d.potential_liability || 0),
+                    bets: current.bets + Number(d.total_bet_amount || 0)
+                })
             })
+
+            return map
         }
 
-        // Process liability data into triple recommendations
-        const tripleMap = new Map<string, {
-            totalBets: number,
-            totalLiability: number
-        }>()
+        // Pre-aggregate data for O(1) lookups
+        const tripleData = getAggregatedData(liabilityData || [], 'triple', target)
+        const singleData = getAggregatedData(liabilityData || [], 'single', target)
+        // Jodi data is only relevant if target is 'close' and we have an open single
+        const jodiData = (target === 'close' && session?.open_single)
+            ? getAggregatedData(liabilityData || [], 'jodi')
+            : new Map()
 
-        // Initialize map with sampled triples
-        for (let i = 0; i < 1000; i += 10) {
+        const results: any[] = []
+
+        // Calculate metrics for all 1000 triples
+        for (let i = 0; i < 1000; i++) {
             const triple = i.toString().padStart(3, '0')
-            tripleMap.set(triple, { totalBets: 0, totalLiability: 0 })
-        }
+            const single = calculateSingle(triple).toString()
 
-        // Calculate liability for each potential result
-        for (const [triple, data] of tripleMap) {
-            const single = calculateSingle(triple)
-            let liability = 0
-            let betsAmount = 0
+            let totalLiability = 0
+            let totalBets = 0
 
-            // Find matching bets from liability report
-            const tripleBets = liabilityData?.filter(
-                l => l.category === 'triple' && l.target === target && l.selected_number === triple
-            )
-            const singleBets = liabilityData?.filter(
-                l => l.category === 'single' && l.target === target && l.selected_number === single.toString()
-            )
-
-            tripleBets?.forEach(b => {
-                liability += Number(b.potential_liability || 0)
-                betsAmount += Number(b.total_bet_amount || 0)
-            })
-
-            singleBets?.forEach(b => {
-                liability += Number(b.potential_liability || 0)
-                betsAmount += Number(b.total_bet_amount || 0)
-            })
-
-            // If close result, include jodi liability
-            if (target === 'close' && session?.open_single) {
-                const jodi = session.open_single + single.toString()
-                const jodiBets = liabilityData?.filter(
-                    l => l.category === 'jodi' && l.selected_number === jodi
-                )
-                jodiBets?.forEach(b => {
-                    liability += Number(b.potential_liability || 0)
-                    betsAmount += Number(b.total_bet_amount || 0)
-                })
+            // 1. Triple Liability
+            const tData = tripleData.get(triple)
+            if (tData) {
+                totalLiability += tData.liability
+                totalBets += tData.bets
             }
 
-            tripleMap.set(triple, { totalBets: betsAmount, totalLiability: liability })
-        }
+            // 2. Single Liability
+            const sData = singleData.get(single)
+            if (sData) {
+                totalLiability += sData.liability
+                totalBets += sData.bets
+            }
 
-        // Convert to results array
-        const results = Array.from(tripleMap.entries()).map(([triple, data]) => {
+            // 3. Jodi Liability (Only for Close target)
+            if (target === 'close' && session?.open_single) {
+                const jodi = session.open_single + single
+                const jData = jodiData.get(jodi)
+                if (jData) {
+                    totalLiability += jData.liability
+                    totalBets += jData.bets
+                }
+            }
+
             const payoutPercentage = totalCollection > 0
-                ? (data.totalLiability / totalCollection) * 100
+                ? (totalLiability / totalCollection) * 100
                 : 0
-            return {
+
+            results.push({
                 triple,
-                single: calculateSingle(triple),
-                totalBets: data.totalBets,
-                totalLiability: data.totalLiability,
+                single: parseInt(single),
+                totalBets,
+                totalLiability,
                 payoutPercentage: Math.round(payoutPercentage * 100) / 100,
                 profitPercentage: Math.round((100 - payoutPercentage) * 100) / 100
-            }
-        })
+            })
+        }
 
-        const tolerance = 3
+        // Filter Lists logic - Relaxed constraints for better suggestions
+
+        // 1. Target Match: Sort by closeness to target payout
+        const targetMatch = [...results]
+            .sort((a, b) => Math.abs(a.payoutPercentage - targetPayout) - Math.abs(b.payoutPercentage - targetPayout))
+            .slice(0, 10)
+
+        // 2. System Recommendations (Best Profit): Highest profit % (must have some liability to not be ghost)
+        const systemRecommendations = results
+            .filter(r => r.totalLiability > 0)
+            .sort((a, b) => b.profitPercentage - a.profitPercentage)
+            .slice(0, 10)
+
+        // 3. Low Bets: Lowest non-zero bets
+        const lowBets = results
+            .filter(r => r.totalBets > 0)
+            .sort((a, b) => a.totalBets - b.totalBets)
+            .slice(0, 10)
+
+        // 4. Ghost (No Bets): Zero liability
+        const noBets = results
+            .filter(r => r.totalLiability === 0)
+            .slice(0, 10) // First 10 is fine as they are all 0
 
         return NextResponse.json({
             recommendations: {
                 totalCollection,
-                targetMatch: results
-                    .filter(r => Math.abs(r.payoutPercentage - targetPayout) <= tolerance)
-                    .sort((a, b) => Math.abs(a.payoutPercentage - targetPayout) - Math.abs(b.payoutPercentage - targetPayout))
-                    .slice(0, 10),
-                systemRecommendations: results
-                    .filter(r => r.totalLiability > 0)
-                    .sort((a, b) => b.profitPercentage - a.profitPercentage)
-                    .slice(0, 10),
-                lowBets: results
-                    .filter(r => r.totalBets > 0 && r.totalBets < totalCollection * 0.01)
-                    .sort((a, b) => a.totalBets - b.totalBets)
-                    .slice(0, 10),
-                noBets: results
-                    .filter(r => r.totalLiability === 0)
-                    .slice(0, 10)
+                targetMatch,
+                systemRecommendations,
+                lowBets,
+                noBets
             }
         })
     }

@@ -20,7 +20,14 @@ export function Header({
         <header className="sticky top-0 h-[70px] bg-gray-900/80 backdrop-blur-xl border-b border-gray-800 px-4 md:px-6 flex items-center justify-between z-40">
             <div className="flex items-center gap-4">
                 {onMenuClick && <MobileMenuButton onClick={onMenuClick} />}
-                {title && <h1 className="text-lg font-semibold text-white">{title}</h1>}
+                {title && <h1 className="text-lg font-semibold text-white hidden md:block">{title}</h1>}
+            </div>
+
+            {/* Mobile Branding - Center */}
+            <div className="absolute left-1/2 -translate-x-1/2 md:hidden">
+                <span className="text-xl font-black tracking-wider animate-brand-color">
+                    BANARAS
+                </span>
             </div>
 
             <div className="flex items-center gap-2 md:gap-4">

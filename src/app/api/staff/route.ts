@@ -182,16 +182,53 @@ export async function DELETE(request: NextRequest) {
         return NextResponse.json({ error: 'Cannot delete yourself' }, { status: 400 })
     }
 
-    // Use Service Role to delete user from Auth (which cascades to profiles usually if set up, or we delete profile manually)
-    // Supabase Auth deletion usually cascades.
     const adminSupabase = createAdminClient()
 
-    const { error: deleteError } = await adminSupabase.auth.admin.deleteUser(userId)
+    try {
+        // First, delete related bets (must come before players due to potential constraints)
+        const { error: betsDeleteError } = await adminSupabase
+            .from('bets')
+            .delete()
+            .eq('staff_id', userId)
 
-    if (deleteError) {
-        return NextResponse.json({ error: deleteError.message }, { status: 500 })
+        if (betsDeleteError) {
+            console.error('Bets delete error:', betsDeleteError)
+        }
+
+        // Delete players created by this staff
+        const { error: playersDeleteError } = await adminSupabase
+            .from('players')
+            .delete()
+            .eq('created_by', userId)
+
+        if (playersDeleteError) {
+            console.error('Players delete error:', playersDeleteError)
+        }
+
+        // Now delete the profile record
+        const { error: profileError } = await adminSupabase
+            .from('profiles')
+            .delete()
+            .eq('id', userId)
+
+        if (profileError) {
+            console.error('Profile deletion error:', profileError)
+            return NextResponse.json({ error: profileError.message }, { status: 500 })
+        }
+
+        // Then delete from auth
+        const { error: deleteError } = await adminSupabase.auth.admin.deleteUser(userId)
+
+        if (deleteError) {
+            console.error('Auth user deletion error:', deleteError)
+            return NextResponse.json({ error: deleteError.message }, { status: 500 })
+        }
+
+        return NextResponse.json({ message: 'User deleted successfully' })
+    } catch (error) {
+        console.error('Delete user exception:', error)
+        return NextResponse.json({
+            error: error instanceof Error ? error.message : 'Failed to delete user'
+        }, { status: 500 })
     }
-
-    return NextResponse.json({ message: 'User deleted successfully' })
 }
-

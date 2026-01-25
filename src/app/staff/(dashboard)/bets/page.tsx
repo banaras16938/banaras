@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { BetCategory, BetTarget, SessionType, PAYOUT_MULTIPLIERS } from '@/types/types'
-import { Check, Search, Plus, User, Trash2, ShoppingCart, Clock, AlertTriangle, CalendarX } from 'lucide-react'
+import { Check, Search, Plus, User, Trash2, ShoppingCart, Clock, AlertTriangle, CalendarX, UserCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSchedules, formatScheduleTime } from '@/hooks/useSchedules'
 import { createClient } from '@/utils/supabase/client'
+import { useStaffInfo } from '../layout'
 
 interface Player {
     id: string
@@ -45,6 +46,7 @@ export default function PlaceBetPage() {
     // Player & Session
     const [players, setPlayers] = useState<Player[]>([])
     const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
+    const [useSelfBet, setUseSelfBet] = useState(true) // Default to using staff's own name
     const [playerSearch, setPlayerSearch] = useState('')
     const [showPlayerModal, setShowPlayerModal] = useState(false)
     const [showNewPlayerForm, setShowNewPlayerForm] = useState(false)
@@ -52,15 +54,27 @@ export default function PlaceBetPage() {
     const [newPlayerPhone, setNewPlayerPhone] = useState('')
     const [loadingPlayers, setLoadingPlayers] = useState(false)
 
+    // Get staff info for self-bet feature
+    const staffInfo = useStaffInfo()
+
     const [sessionName, setSessionName] = useState<SessionType>('morning')
 
     // Category Tab
     const [activeTab, setActiveTab] = useState<BetCategory>('single')
 
-    // Bet Input
+    // Bet Input (legacy - kept for triple)
     const [target, setTarget] = useState<BetTarget>('open')
     const [number, setNumber] = useState('')
     const [amount, setAmount] = useState('')
+
+    // Single Grid: amounts for each digit 0-9
+    const [singleAmounts, setSingleAmounts] = useState<Record<number, string>>(
+        Object.fromEntries(Array.from({ length: 10 }, (_, i) => [i, '']))
+    )
+
+    // Jodi Selection: selected jodis with their amounts
+    const [jodiSelections, setJodiSelections] = useState<Record<string, string>>({})
+    const [jodiScrollPosition, setJodiScrollPosition] = useState(0)
 
     // Cart
     const [cart, setCart] = useState<CartItem[]>([])
@@ -322,11 +336,138 @@ export default function PlaceBetPage() {
         setCart([])
     }
 
+    // === Single Grid Helpers ===
+    const updateSingleAmount = (digit: number, value: string) => {
+        setSingleAmounts(prev => ({ ...prev, [digit]: value }))
+    }
+
+    const singleGridTotal = useMemo(() => {
+        return Object.values(singleAmounts).reduce((sum, val) => sum + (Number(val) || 0), 0)
+    }, [singleAmounts])
+
+    const addAllSinglesToCart = () => {
+        if (!canPlaceBet) {
+            toast.error('Betting is closed')
+            return
+        }
+
+        const betTarget = target
+        let addedCount = 0
+        const newItems: CartItem[] = []
+
+        Object.entries(singleAmounts).forEach(([digit, amt]) => {
+            const numAmt = Number(amt)
+            if (numAmt > 0) {
+                newItems.push({
+                    id: `${Date.now()}-${digit}-${Math.random()}`,
+                    category: 'single',
+                    target: betTarget,
+                    number: digit,
+                    amount: numAmt
+                })
+                addedCount++
+            }
+        })
+
+        if (addedCount === 0) {
+            toast.error('Enter amount for at least one number')
+            return
+        }
+
+        setCart(prev => [...prev, ...newItems])
+        setSingleAmounts(Object.fromEntries(Array.from({ length: 10 }, (_, i) => [i, ''])))
+        toast.success(`Added ${addedCount} single bets`)
+    }
+
+    const clearSingleGrid = () => {
+        setSingleAmounts(Object.fromEntries(Array.from({ length: 10 }, (_, i) => [i, ''])))
+    }
+
+    // === Jodi Selection Helpers ===
+    const toggleJodiSelection = (jodi: string) => {
+        setJodiSelections(prev => {
+            if (prev[jodi] !== undefined) {
+                const { [jodi]: _, ...rest } = prev
+                return rest
+            }
+            return { ...prev, [jodi]: '' }
+        })
+    }
+
+    const updateJodiAmount = (jodi: string, value: string) => {
+        setJodiSelections(prev => ({ ...prev, [jodi]: value }))
+    }
+
+    const removeJodiSelection = (jodi: string) => {
+        setJodiSelections(prev => {
+            const { [jodi]: _, ...rest } = prev
+            return rest
+        })
+    }
+
+    const jodiSelectionTotal = useMemo(() => {
+        return Object.values(jodiSelections).reduce((sum, val) => sum + (Number(val) || 0), 0)
+    }, [jodiSelections])
+
+    const addAllJodisToCart = () => {
+        if (!canPlaceBet) {
+            toast.error('Betting is closed')
+            return
+        }
+
+        let addedCount = 0
+        const newItems: CartItem[] = []
+
+        Object.entries(jodiSelections).forEach(([jodi, amt]) => {
+            const numAmt = Number(amt)
+            if (numAmt > 0) {
+                newItems.push({
+                    id: `${Date.now()}-${jodi}-${Math.random()}`,
+                    category: 'jodi',
+                    target: 'jodi_full',
+                    number: jodi.padStart(2, '0'),
+                    amount: numAmt
+                })
+                addedCount++
+            }
+        })
+
+        if (addedCount === 0) {
+            toast.error('Enter amount for at least one jodi')
+            return
+        }
+
+        setCart(prev => [...prev, ...newItems])
+        setJodiSelections({})
+        toast.success(`Added ${addedCount} jodi bets`)
+    }
+
+    const clearJodiSelections = () => {
+        setJodiSelections({})
+    }
+
+    // Apply same amount to all selected jodis
+    const applyAmountToAllJodis = (amt: number) => {
+        setJodiSelections(prev => {
+            const updated: Record<string, string> = {}
+            Object.keys(prev).forEach(jodi => {
+                updated[jodi] = amt.toString()
+            })
+            return updated
+        })
+    }
+
     const cartTotal = cart.reduce((sum, item) => sum + item.amount, 0)
 
     const handleSubmitAll = () => {
-        if (!selectedPlayer) {
-            toast.error('Please select a player')
+        // Check if we have a valid player (either self-bet with staff ID, or selected player)
+        const effectivePlayerId = useSelfBet ? staffInfo.id : selectedPlayer?.id
+        if (!effectivePlayerId) {
+            if (useSelfBet) {
+                toast.error('Staff profile not loaded. Please refresh the page.')
+            } else {
+                toast.error('Please select a player')
+            }
             return
         }
         if (cart.length === 0) {
@@ -337,7 +478,8 @@ export default function PlaceBetPage() {
     }
 
     const confirmSubmitAll = async () => {
-        if (!selectedPlayer || cart.length === 0) return
+        const effectivePlayerId = useSelfBet ? staffInfo.id : selectedPlayer?.id
+        if (!effectivePlayerId || cart.length === 0) return
 
         setIsSubmitting(true)
         setShowConfirmModal(false)
@@ -359,7 +501,7 @@ export default function PlaceBetPage() {
                         target: item.target,
                         selectedNumber: item.number,
                         amount: item.amount,
-                        playerId: selectedPlayer.id
+                        playerId: effectivePlayerId
                     })
                 })
 
@@ -440,55 +582,88 @@ export default function PlaceBetPage() {
 
             {/* Header: Player & Session */}
             <div className="bg-gray-800/80 backdrop-blur border border-gray-700 rounded-xl p-4">
-                <div className="flex flex-col md:flex-row gap-4">
-                    {/* Player Selection */}
-                    <button
-                        type="button"
-                        onClick={() => setShowPlayerModal(true)}
-                        className={`flex-1 p-3 rounded-xl border transition-all text-left flex items-center gap-3 ${selectedPlayer
-                            ? 'border-indigo-500 bg-indigo-500/10'
-                            : 'border-gray-600 hover:border-indigo-500/50'
-                            }`}
-                    >
-                        <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center">
-                            <User size={20} className="text-indigo-400" />
+                <div className="flex flex-col gap-4">
+                    {/* Self-Bet Toggle */}
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-gray-900/50 border border-gray-700">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
+                                <UserCheck size={20} className="text-green-400" />
+                            </div>
+                            <div>
+                                <p className="font-medium text-white">Use my name</p>
+                                <p className="text-xs text-gray-400">Place bet under: {staffInfo.name}</p>
+                            </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                            {selectedPlayer ? (
-                                <>
-                                    <p className="font-medium text-white truncate">{selectedPlayer.name}</p>
-                                    {selectedPlayer.phone && (
-                                        <p className="text-xs text-gray-400">{selectedPlayer.phone}</p>
-                                    )}
-                                </>
-                            ) : (
-                                <p className="text-gray-400">Select Player</p>
-                            )}
-                        </div>
-                    </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setUseSelfBet(!useSelfBet)
+                                if (!useSelfBet) {
+                                    setSelectedPlayer(null)
+                                }
+                            }}
+                            className={`relative w-14 h-7 rounded-full transition-colors ${useSelfBet ? 'bg-green-500' : 'bg-gray-600'
+                                }`}
+                        >
+                            <span
+                                className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white transition-transform ${useSelfBet ? 'translate-x-7' : 'translate-x-0'
+                                    }`}
+                            />
+                        </button>
+                    </div>
 
-                    {/* Session Toggle */}
-                    <div className="flex rounded-xl overflow-hidden border border-gray-600">
-                        <button
-                            type="button"
-                            onClick={() => setSessionName('morning')}
-                            className={`px-6 py-3 font-medium transition-all ${sessionName === 'morning'
-                                ? 'bg-indigo-500 text-white'
-                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                                }`}
-                        >
-                            Morning
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setSessionName('night')}
-                            className={`px-6 py-3 font-medium transition-all ${sessionName === 'night'
-                                ? 'bg-indigo-500 text-white'
-                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                                }`}
-                        >
-                            Night
-                        </button>
+                    <div className="flex flex-col md:flex-row gap-4">
+                        {/* Player Selection - only show when not using self-bet */}
+                        {!useSelfBet && (
+                            <button
+                                type="button"
+                                onClick={() => setShowPlayerModal(true)}
+                                className={`flex-1 p-3 rounded-xl border transition-all text-left flex items-center gap-3 ${selectedPlayer
+                                    ? 'border-indigo-500 bg-indigo-500/10'
+                                    : 'border-gray-600 hover:border-indigo-500/50'
+                                    }`}
+                            >
+                                <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+                                    <User size={20} className="text-indigo-400" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    {selectedPlayer ? (
+                                        <>
+                                            <p className="font-medium text-white truncate">{selectedPlayer.name}</p>
+                                            {selectedPlayer.phone && (
+                                                <p className="text-xs text-gray-400">{selectedPlayer.phone}</p>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <p className="text-gray-400">Select Player</p>
+                                    )}
+                                </div>
+                            </button>
+                        )}
+
+                        {/* Session Toggle */}
+                        <div className={`flex rounded-xl overflow-hidden border border-gray-600 ${useSelfBet ? 'flex-1' : ''}`}>
+                            <button
+                                type="button"
+                                onClick={() => setSessionName('morning')}
+                                className={`flex-1 px-6 py-3 font-medium transition-all ${sessionName === 'morning'
+                                    ? 'bg-indigo-500 text-white'
+                                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                    }`}
+                            >
+                                Morning
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setSessionName('night')}
+                                className={`flex-1 px-6 py-3 font-medium transition-all ${sessionName === 'night'
+                                    ? 'bg-indigo-500 text-white'
+                                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                    }`}
+                            >
+                                Night
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -545,100 +720,276 @@ export default function PlaceBetPage() {
 
             {/* Bet Entry Form */}
             <Card className="!bg-gray-800/80 !border-gray-700">
-                <div className="p-4 space-y-4">
-                    {/* Target (only for Single/Triple) */}
+                <div className="p-3 space-y-3">
+                    {/* Target Toggle (for Single/Triple only) */}
                     {activeTab !== 'jodi' && (
                         <div className="flex gap-2">
                             <button
                                 type="button"
                                 onClick={() => bettingStatus.openBetting && setTarget('open')}
                                 disabled={!bettingStatus.openBetting}
-                                className={`flex-1 py-3 rounded-lg font-medium transition-all ${!bettingStatus.openBetting
+                                className={`flex-1 py-2 rounded-lg font-medium text-sm transition-all ${!bettingStatus.openBetting
                                     ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
                                     : target === 'open'
                                         ? 'bg-cyan-500 text-white'
-                                        : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                                        : 'bg-gray-700 text-gray-400'
                                     }`}
                             >
-                                <div>Open</div>
-                                {!bettingStatus.openBetting && <div className="text-xs text-red-400">Closed</div>}
+                                Open {!bettingStatus.openBetting && <span className="text-red-400 text-xs">(Closed)</span>}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => bettingStatus.closeBetting && setTarget('close')}
                                 disabled={!bettingStatus.closeBetting}
-                                className={`flex-1 py-3 rounded-lg font-medium transition-all ${!bettingStatus.closeBetting
+                                className={`flex-1 py-2 rounded-lg font-medium text-sm transition-all ${!bettingStatus.closeBetting
                                     ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
                                     : target === 'close'
                                         ? 'bg-pink-500 text-white'
-                                        : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                                        : 'bg-gray-700 text-gray-400'
                                     }`}
                             >
-                                <div>Close</div>
-                                {!bettingStatus.closeBetting && <div className="text-xs text-red-400">Closed</div>}
+                                Close {!bettingStatus.closeBetting && <span className="text-red-400 text-xs">(Closed)</span>}
                             </button>
                         </div>
                     )}
 
-                    {/* Number & Amount in Row */}
-                    <div className="flex gap-3">
-                        <div className="flex-1">
-                            <label className="block text-sm text-gray-400 mb-1">Number</label>
-                            <input
-                                type="text"
-                                inputMode="numeric"
-                                pattern="[0-9]*"
-                                placeholder={activeTab === 'single' ? '0' : activeTab === 'jodi' ? '00' : '000'}
-                                value={number}
-                                onChange={handleNumberChange}
-                                disabled={!canPlaceBet}
-                                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white text-center text-2xl font-mono focus:border-indigo-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                            />
-                        </div>
-                        <div className="flex-1">
-                            <label className="block text-sm text-gray-400 mb-1">Points</label>
-                            <input
-                                type="number"
-                                min="10"
-                                placeholder="0"
-                                value={amount}
-                                onChange={(e) => setAmount(e.target.value)}
-                                disabled={!canPlaceBet}
-                                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white text-center text-2xl font-mono focus:border-indigo-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                            />
-                        </div>
-                    </div>
+                    {/* === SINGLE TAB: Mobile-First Grid UI === */}
+                    {activeTab === 'single' && (
+                        <div className="space-y-3">
+                            {/* Grid: 5 columns on mobile, 2 rows */}
+                            <div className="grid grid-cols-5 gap-2">
+                                {Array.from({ length: 10 }, (_, i) => (
+                                    <div key={i} className="flex flex-col items-center">
+                                        <div className="w-10 h-10 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center text-lg mb-1">
+                                            {i}
+                                        </div>
+                                        <input
+                                            type="number"
+                                            inputMode="numeric"
+                                            min="0"
+                                            placeholder="0"
+                                            value={singleAmounts[i]}
+                                            onChange={(e) => updateSingleAmount(i, e.target.value)}
+                                            disabled={!canPlaceBet}
+                                            className="w-full px-1 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white text-center text-sm font-mono focus:border-indigo-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                                        />
+                                    </div>
+                                ))}
+                            </div>
 
-                    {/* Quick Amount Buttons */}
-                    <div className="flex flex-wrap gap-2">
-                        {quickAmounts.map((amt) => (
-                            <button
-                                key={amt}
+                            {/* Quick Amount Buttons */}
+                            <div className="flex flex-wrap gap-1">
+                                {quickAmounts.map((amt) => (
+                                    <button
+                                        key={amt}
+                                        type="button"
+                                        onClick={() => {
+                                            // Apply to first empty or overwrite all
+                                            const firstEmpty = Object.entries(singleAmounts).find(([_, v]) => !v)?.[0]
+                                            if (firstEmpty !== undefined) {
+                                                updateSingleAmount(Number(firstEmpty), amt.toString())
+                                            }
+                                        }}
+                                        disabled={!canPlaceBet}
+                                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        +{amt}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Total & Actions */}
+                            <div className="flex items-center justify-between pt-2 border-t border-gray-700">
+                                <div className="text-gray-400">
+                                    Total: <span className="text-white font-bold text-lg">{singleGridTotal}</span> Points
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={clearSingleGrid}
+                                        className="px-3 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600"
+                                    >
+                                        Clear
+                                    </button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        onClick={addAllSinglesToCart}
+                                        disabled={!canPlaceBet || singleGridTotal === 0}
+                                    >
+                                        <Plus size={16} />
+                                        Add All
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* === JODI TAB: Scrollable List with Chips === */}
+                    {activeTab === 'jodi' && (
+                        <div className="space-y-3">
+                            {/* Scrollable Jodi List */}
+                            <div className="h-48 overflow-y-auto bg-gray-900 rounded-lg border border-gray-700">
+                                {Array.from({ length: 100 }, (_, i) => {
+                                    const jodi = i.toString().padStart(2, '0')
+                                    const isSelected = jodiSelections[jodi] !== undefined
+                                    return (
+                                        <button
+                                            key={jodi}
+                                            type="button"
+                                            onClick={() => toggleJodiSelection(jodi)}
+                                            disabled={!canPlaceBet}
+                                            className={`w-full px-4 py-2.5 text-left border-b border-gray-800 transition-colors ${isSelected
+                                                    ? 'bg-indigo-600 text-white font-medium'
+                                                    : 'text-gray-300 hover:bg-gray-800'
+                                                } disabled:opacity-50`}
+                                        >
+                                            {jodi}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+
+                            {/* Selected Jodis as Chips */}
+                            {Object.keys(jodiSelections).length > 0 && (
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm text-gray-400">Selected ({Object.keys(jodiSelections).length})</span>
+                                        <div className="flex gap-1">
+                                            {quickAmounts.slice(0, 4).map((amt) => (
+                                                <button
+                                                    key={amt}
+                                                    type="button"
+                                                    onClick={() => applyAmountToAllJodis(amt)}
+                                                    className="px-2 py-1 text-xs bg-gray-700 text-gray-300 rounded hover:bg-gray-600"
+                                                >
+                                                    All={amt}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {Object.entries(jodiSelections).map(([jodi, amt]) => (
+                                            <div
+                                                key={jodi}
+                                                className="flex items-center gap-1 bg-gray-900 border border-gray-700 rounded-lg p-1"
+                                            >
+                                                <span className="w-8 h-8 flex items-center justify-center bg-indigo-600 text-white font-bold rounded text-sm">
+                                                    {jodi}
+                                                </span>
+                                                <input
+                                                    type="number"
+                                                    inputMode="numeric"
+                                                    min="0"
+                                                    placeholder="0"
+                                                    value={amt}
+                                                    onChange={(e) => updateJodiAmount(jodi, e.target.value)}
+                                                    className="w-14 px-1 py-1 bg-gray-800 border border-gray-600 rounded text-white text-center text-sm font-mono focus:border-indigo-500 focus:outline-none"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeJodiSelection(jodi)}
+                                                    className="w-6 h-6 flex items-center justify-center bg-red-600 text-white rounded hover:bg-red-700"
+                                                >
+                                                    ×
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Total & Actions */}
+                            <div className="flex items-center justify-between pt-2 border-t border-gray-700">
+                                <div className="text-gray-400">
+                                    Total: <span className="text-white font-bold text-lg">{jodiSelectionTotal}</span> Points
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={clearJodiSelections}
+                                        className="px-3 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600"
+                                    >
+                                        Clear
+                                    </button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        onClick={addAllJodisToCart}
+                                        disabled={!canPlaceBet || jodiSelectionTotal === 0}
+                                    >
+                                        <Plus size={16} />
+                                        Add All
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* === TRIPLE TAB: Legacy Manual Input === */}
+                    {activeTab === 'triple' && (
+                        <div className="space-y-3">
+                            {/* Number & Amount */}
+                            <div className="flex gap-3">
+                                <div className="flex-1">
+                                    <label className="block text-xs text-gray-400 mb-1">Number (000-999)</label>
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        placeholder="000"
+                                        maxLength={3}
+                                        value={number}
+                                        onChange={handleNumberChange}
+                                        disabled={!canPlaceBet}
+                                        className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white text-center text-xl font-mono focus:border-indigo-500 focus:outline-none disabled:opacity-50"
+                                    />
+                                </div>
+                                <div className="flex-1">
+                                    <label className="block text-xs text-gray-400 mb-1">Points</label>
+                                    <input
+                                        type="number"
+                                        inputMode="numeric"
+                                        min="10"
+                                        placeholder="0"
+                                        value={amount}
+                                        onChange={(e) => setAmount(e.target.value)}
+                                        disabled={!canPlaceBet}
+                                        className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white text-center text-xl font-mono focus:border-indigo-500 focus:outline-none disabled:opacity-50"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Quick Amounts */}
+                            <div className="flex flex-wrap gap-1">
+                                {quickAmounts.map((amt) => (
+                                    <button
+                                        key={amt}
+                                        type="button"
+                                        onClick={() => setAmount(amt.toString())}
+                                        disabled={!canPlaceBet}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${amount === amt.toString()
+                                                ? 'bg-indigo-500 text-white'
+                                                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                            } disabled:opacity-50`}
+                                    >
+                                        {amt}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Add Button */}
+                            <Button
                                 type="button"
-                                onClick={() => setAmount(amt.toString())}
-                                disabled={!canPlaceBet}
-                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${!canPlaceBet
-                                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                                    : amount === amt.toString()
-                                        ? 'bg-indigo-500 text-white'
-                                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                                    }`}
+                                className="w-full"
+                                onClick={addToCart}
+                                disabled={!canPlaceBet || number.length !== 3 || !amount}
                             >
-                                {amt}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Add Button */}
-                    <Button
-                        type="button"
-                        className="w-full"
-                        onClick={addToCart}
-                        disabled={!canPlaceBet || !number || !amount}
-                    >
-                        <Plus size={18} />
-                        Add to Cart
-                    </Button>
+                                <Plus size={18} />
+                                Add to Cart
+                            </Button>
+                        </div>
+                    )}
                 </div>
             </Card>
 
