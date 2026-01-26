@@ -202,15 +202,11 @@ BEGIN
     END IF;
 
     -- Case B: Bet is for CLOSE (e.g., Morning Close)
+    -- Close betting is allowed from start_time until close_bet_freeze_time (no pause)
     IF NEW.target = 'close' THEN
         IF current_time_val < schedule_row.start_time OR current_time_val >= schedule_row.close_bet_freeze_time THEN
             RAISE EXCEPTION '% Close betting is closed. (Ends: %)', 
                 session_val, schedule_row.close_bet_freeze_time;
-        END IF;
-        
-        -- Block Close betting during the Open Result calculation window
-        IF current_time_val >= schedule_row.open_bet_freeze_time AND current_time_val < schedule_row.open_result_time THEN
-             RAISE EXCEPTION 'Close betting temporarily paused during Open Result calculation.';
         END IF;
     END IF;
 

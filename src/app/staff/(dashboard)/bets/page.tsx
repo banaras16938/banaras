@@ -135,20 +135,13 @@ export default function PlaceBetPage() {
         const now = timeToMinutes(currentTime)
         const startTime = timeToMinutes(schedule.start_time)
         const openFreezeTime = timeToMinutes(schedule.open_bet_freeze_time)
-        const openResultTime = timeToMinutes(schedule.open_result_time)
         const closeFreezeTime = timeToMinutes(schedule.close_bet_freeze_time)
 
         // Open betting: from start_time until open_bet_freeze_time
         const openBetting = now >= startTime && now < openFreezeTime
 
-        // Result window: between open freeze and open result (calculation period)
-        const inResultWindow = now >= openFreezeTime && now < openResultTime
-
-        // Close betting logic:
-        // - Open during start_time to open_freeze_time (same as open)
-        // - PAUSED during result window (open_freeze_time to open_result_time)
-        // - REOPENS after open_result_time until close_bet_freeze_time
-        const closeBetting = (now >= startTime && now < closeFreezeTime) && !inResultWindow
+        // Close betting: from start_time until close_bet_freeze_time (NO pause during result window)
+        const closeBetting = now >= startTime && now < closeFreezeTime
 
         // Jodi follows open betting timing
         const jodiBetting = openBetting
@@ -159,16 +152,12 @@ export default function PlaceBetPage() {
                 ? `Opens at ${formatScheduleTime(schedule.start_time)}`
                 : `Closed at ${formatScheduleTime(schedule.open_bet_freeze_time)}`
 
-        let closeMessage = ''
-        if (closeBetting) {
-            closeMessage = `Open until ${formatScheduleTime(schedule.close_bet_freeze_time)}`
-        } else if (inResultWindow) {
-            closeMessage = 'Paused (Open result calculation)'
-        } else if (now < startTime) {
-            closeMessage = `Opens at ${formatScheduleTime(schedule.start_time)}`
-        } else {
-            closeMessage = `Closed at ${formatScheduleTime(schedule.close_bet_freeze_time)}`
-        }
+        const closeMessage = now < startTime
+            ? `Opens at ${formatScheduleTime(schedule.start_time)}`
+            : now >= closeFreezeTime
+                ? `Closed at ${formatScheduleTime(schedule.close_bet_freeze_time)}`
+                : `Open until ${formatScheduleTime(schedule.close_bet_freeze_time)}`
+
         return { openBetting, closeBetting, jodiBetting, openMessage, closeMessage }
     }, [sessionName, currentTime, getScheduleForSession, isHoliday, holidayDesc])
 

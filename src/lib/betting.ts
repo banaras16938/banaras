@@ -74,20 +74,12 @@ export function canPlaceBetPreview(
         }
     }
 
-    // Close betting window
+    // Close betting window - NO pause during result calculation
     if (target === 'close') {
         if (currentTime >= schedule.close_bet_freeze_time) {
             return {
                 isValid: false,
                 error: `Close betting closed at ${formatTime(schedule.close_bet_freeze_time)}`
-            }
-        }
-
-        // Paused during open result calculation
-        if (currentTime >= schedule.open_bet_freeze_time && currentTime < schedule.open_result_time) {
-            return {
-                isValid: false,
-                error: 'Close betting paused during open result calculation'
             }
         }
     }
