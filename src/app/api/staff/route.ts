@@ -43,7 +43,7 @@ export async function GET() {
 
     const { data: profiles, error } = await supabase
         .from('profiles')
-        .select('id, email, role, is_active, created_at, name, phone, last_login')
+        .select('id, email, role, is_active, created_at, name, phone, address, last_login')
         .eq('role', 'staff') // Only return staff for staff management
         .order('created_at', { ascending: false })
 
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { email, password, name, phone } = body
+    const { email, password, name, phone, address } = body
 
     if (!email || !password || !name) {
         return NextResponse.json({ error: 'Email, password, and name are required' }, { status: 400 })
@@ -104,6 +104,7 @@ export async function POST(request: NextRequest) {
         .update({
             name,
             phone,
+            address,
             role: 'staff',
             is_active: true
         })

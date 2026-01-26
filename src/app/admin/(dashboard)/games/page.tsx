@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { Clock, DollarSign, Save, RefreshCw, Calendar, Trash2, Plus } from 'lucide-react'
+import { Clock, DollarSign, Save, RefreshCw, Calendar, Trash2, Plus, Edit2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface GameSchedule {
@@ -52,6 +52,11 @@ export default function GameSettingsPage() {
     const [showHolidayModal, setShowHolidayModal] = useState(false)
     const [newHolidayDate, setNewHolidayDate] = useState('')
     const [newHolidayDesc, setNewHolidayDesc] = useState('')
+
+    // Schedule editing
+    const [showScheduleModal, setShowScheduleModal] = useState(false)
+    const [editingSchedule, setEditingSchedule] = useState<GameSchedule | null>(null)
+    const [isSavingSchedule, setIsSavingSchedule] = useState(false)
 
     const fetchData = useCallback(async () => {
         setLoading(true)
@@ -123,6 +128,44 @@ export default function GameSettingsPage() {
         setEditingSingle(config.payout_single * 10)
         setEditingJodi(config.payout_jodi * 10)
         setEditingTriple(config.payout_triple * 10)
+    }
+
+    const handleEditSchedule = (schedule: GameSchedule) => {
+        setEditingSchedule({ ...schedule })
+        setShowScheduleModal(true)
+    }
+
+    const handleSaveSchedule = async () => {
+        if (!editingSchedule) return
+
+        setIsSavingSchedule(true)
+        try {
+            const response = await fetch('/api/game-schedules', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(editingSchedule)
+            })
+
+            if (!response.ok) {
+                const data = await response.json()
+                throw new Error(data.error || 'Failed to save schedule')
+            }
+
+            toast.success(`${editingSchedule.session_name} schedule updated!`)
+            setShowScheduleModal(false)
+            setEditingSchedule(null)
+            await fetchData()
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Failed to save schedule')
+        } finally {
+            setIsSavingSchedule(false)
+        }
+    }
+
+    const formatTimeForInput = (timeStr: string) => {
+        if (!timeStr) return ''
+        // Convert HH:MM:SS to HH:MM for input
+        return timeStr.substring(0, 5)
     }
 
     const handleAddHoliday = async () => {
@@ -226,9 +269,19 @@ export default function GameSettingsPage() {
                 <div className="space-y-6">
                     {schedules.map((schedule) => (
                         <div key={schedule.session_name} className="p-4 rounded-lg bg-[var(--bg-surface)]">
-                            <h3 className="font-semibold text-lg mb-4 capitalize">
-                                {schedule.session_name} Game
-                            </h3>
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-semibold text-lg capitalize">
+                                    {schedule.session_name} Game
+                                </h3>
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => handleEditSchedule(schedule)}
+                                    icon={<Edit2 size={14} />}
+                                >
+                                    Edit
+                                </Button>
+                            </div>
 
                             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <div>
@@ -262,12 +315,6 @@ export default function GameSettingsPage() {
                             </div>
                         </div>
                     ))}
-                </div>
-
-                <div className="mt-4 p-3 rounded-lg bg-[var(--status-info)]/10 border border-[var(--status-info)]/30">
-                    <p className="text-sm text-[var(--status-info)]">
-                        ℹ️ Game schedules are configured in the database. Contact system admin for schedule changes.
-                    </p>
                 </div>
             </Card>
 
@@ -466,6 +513,97 @@ export default function GameSettingsPage() {
                         </Button>
                     </div>
                 </div>
+            </Modal>
+
+            {/* Edit Schedule Modal */}
+            <Modal
+                isOpen={showScheduleModal}
+                onClose={() => {
+                    setShowScheduleModal(false)
+                    setEditingSchedule(null)
+                }}
+                title={`Edit ${editingSchedule?.session_name ? editingSchedule.session_name.charAt(0).toUpperCase() + editingSchedule.session_name.slice(1) : ''} Schedule`}
+            >
+                {editingSchedule && (
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <Input
+                                label="Betting Starts"
+                                type="time"
+                                value={formatTimeForInput(editingSchedule.start_time)}
+                                onChange={(e) => setEditingSchedule({
+                                    ...editingSchedule,
+                                    start_time: e.target.value
+                                })}
+                            />
+                            <Input
+                                label="Open Lock Time"
+                                type="time"
+                                value={formatTimeForInput(editingSchedule.open_bet_freeze_time)}
+                                onChange={(e) => setEditingSchedule({
+                                    ...editingSchedule,
+                                    open_bet_freeze_time: e.target.value
+                                })}
+                            />
+                            <Input
+                                label="Open Result Time"
+                                type="time"
+                                value={formatTimeForInput(editingSchedule.open_result_time)}
+                                onChange={(e) => setEditingSchedule({
+                                    ...editingSchedule,
+                                    open_result_time: e.target.value
+                                })}
+                            />
+                            <Input
+                                label="Close Resume Time (optional)"
+                                type="time"
+                                value={formatTimeForInput(editingSchedule.close_bet_resume_time || '')}
+                                onChange={(e) => setEditingSchedule({
+                                    ...editingSchedule,
+                                    close_bet_resume_time: e.target.value || null
+                                })}
+                            />
+                            <Input
+                                label="Close Lock Time"
+                                type="time"
+                                value={formatTimeForInput(editingSchedule.close_bet_freeze_time)}
+                                onChange={(e) => setEditingSchedule({
+                                    ...editingSchedule,
+                                    close_bet_freeze_time: e.target.value
+                                })}
+                            />
+                            <Input
+                                label="Close Result Time"
+                                type="time"
+                                value={formatTimeForInput(editingSchedule.close_result_time)}
+                                onChange={(e) => setEditingSchedule({
+                                    ...editingSchedule,
+                                    close_result_time: e.target.value
+                                })}
+                            />
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                            <Button
+                                variant="secondary"
+                                className="flex-1"
+                                onClick={() => {
+                                    setShowScheduleModal(false)
+                                    setEditingSchedule(null)
+                                }}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                className="flex-1"
+                                onClick={handleSaveSchedule}
+                                isLoading={isSavingSchedule}
+                                icon={<Save size={16} />}
+                            >
+                                Save Schedule
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </Modal>
         </div>
     )

@@ -34,6 +34,7 @@ export interface Profile {
 export interface Staff extends Profile {
     name: string | null
     phone: string | null
+    address: string | null
     last_login: string | null
 }
 

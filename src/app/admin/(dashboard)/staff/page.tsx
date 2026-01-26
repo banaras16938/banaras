@@ -29,14 +29,13 @@ function generatePassword(): string {
     return password
 }
 
-// Sanitize input to prevent XSS/script injection
+// Sanitize input to prevent XSS/script injection (preserves spaces for user input)
 function sanitizeInput(input: string): string {
     return input
         .replace(/<script[^>]*>.*?<\/script>/gi, '')
         .replace(/<[^>]*>/g, '')
         .replace(/javascript:/gi, '')
         .replace(/on\w+=/gi, '')
-        .trim()
 }
 
 export default function StaffManagementPage() {
@@ -54,6 +53,7 @@ export default function StaffManagementPage() {
     const [newName, setNewName] = useState('')
     const [newEmail, setNewEmail] = useState('')
     const [newPhone, setNewPhone] = useState('')
+    const [newAddress, setNewAddress] = useState('')
     const [newPassword, setNewPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
     const [isCreating, setIsCreating] = useState(false)
@@ -101,7 +101,8 @@ export default function StaffManagementPage() {
                     email: newEmail,
                     password: newPassword,
                     name: newName,
-                    phone: newPhone
+                    phone: newPhone,
+                    address: newAddress
                 })
             })
 
@@ -117,6 +118,7 @@ export default function StaffManagementPage() {
                 setNewName('')
                 setNewEmail('')
                 setNewPhone('')
+                setNewAddress('')
                 setNewPassword('')
                 toast.success('Staff account created successfully')
             } else {
@@ -267,8 +269,9 @@ export default function StaffManagementPage() {
                                 <tr>
                                     <th className="whitespace-nowrap">Name / Email</th>
                                     <th className="hidden md:table-cell">Phone</th>
+                                    <th className="hidden lg:table-cell">Address</th>
                                     <th className="whitespace-nowrap">Status</th>
-                                    <th className="hidden lg:table-cell">Last Login</th>
+                                    <th className="hidden xl:table-cell">Last Login</th>
                                     <th className="hidden sm:table-cell">Created</th>
                                     <th className="text-right">Actions</th>
                                 </tr>
@@ -276,7 +279,7 @@ export default function StaffManagementPage() {
                             <tbody>
                                 {filteredStaff.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="text-center py-12 text-[var(--text-muted)]">
+                                        <td colSpan={7} className="text-center py-12 text-[var(--text-muted)]">
                                             {searchTerm ? 'No matching staff found' : 'No staff members added yet'}
                                         </td>
                                     </tr>
@@ -288,6 +291,7 @@ export default function StaffManagementPage() {
                                                 <div className="text-xs text-[var(--text-muted)] font-mono">{s.email}</div>
                                             </td>
                                             <td className="text-[var(--text-muted)] hidden md:table-cell">{s.phone || '-'}</td>
+                                            <td className="text-[var(--text-muted)] hidden lg:table-cell max-w-[200px] truncate" title={s.address || '-'}>{s.address || '-'}</td>
                                             <td>
                                                 <button onClick={() => handleToggleActive(s)} className="focus:outline-none">
                                                     <Badge
@@ -299,7 +303,7 @@ export default function StaffManagementPage() {
                                                     </Badge>
                                                 </button>
                                             </td>
-                                            <td className="text-[var(--text-muted)] hidden lg:table-cell">
+                                            <td className="text-[var(--text-muted)] hidden xl:table-cell">
                                                 {s.last_login
                                                     ? new Date(s.last_login).toLocaleDateString() + ' ' + new Date(s.last_login).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                                                     : 'Never'
@@ -357,6 +361,13 @@ export default function StaffManagementPage() {
                         placeholder="e.g. +91 98765 00000"
                         value={newPhone}
                         onChange={(e) => setNewPhone(sanitizeInput(e.target.value))}
+                        autoComplete="off"
+                    />
+                    <Input
+                        label="Address"
+                        placeholder="e.g. 123 Main Street, City"
+                        value={newAddress}
+                        onChange={(e) => setNewAddress(sanitizeInput(e.target.value))}
                         autoComplete="off"
                     />
                     <div className="relative">
