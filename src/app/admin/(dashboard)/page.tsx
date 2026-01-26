@@ -429,8 +429,8 @@ export default function AdminDashboard() {
                             </div>
                             <div className="text-center px-6 border-x border-gray-700">
                                 <p className="text-xs text-gray-500">JODI</p>
-                                <p className={`text-2xl font-mono font-bold ${currentSession.jodi_result ? 'text-pink-400' : 'text-gray-600'}`}>
-                                    {currentSession.jodi_result || '**'}
+                                <p className={`text-2xl font-mono font-bold ${currentSession.jodi_result ? 'text-pink-400' : currentSession.open_single ? 'text-pink-400' : 'text-gray-600'}`}>
+                                    {currentSession.jodi_result || (currentSession.open_single ? `${currentSession.open_single}*` : '**')}
                                 </p>
                             </div>
                             <div className="text-center">

@@ -137,15 +137,28 @@ export default function PlaceBetPage() {
         const openFreezeTime = timeToMinutes(schedule.open_bet_freeze_time)
         const openResultTime = timeToMinutes(schedule.open_result_time)
         const closeFreezeTime = timeToMinutes(schedule.close_bet_freeze_time)
+
+        // Open betting: from start_time until open_bet_freeze_time
         const openBetting = now >= startTime && now < openFreezeTime
+
+        // Result window: between open freeze and open result (calculation period)
         const inResultWindow = now >= openFreezeTime && now < openResultTime
+
+        // Close betting logic:
+        // - Open during start_time to open_freeze_time (same as open)
+        // - PAUSED during result window (open_freeze_time to open_result_time)
+        // - REOPENS after open_result_time until close_bet_freeze_time
         const closeBetting = (now >= startTime && now < closeFreezeTime) && !inResultWindow
+
+        // Jodi follows open betting timing
         const jodiBetting = openBetting
+
         const openMessage = openBetting
             ? `Open until ${formatScheduleTime(schedule.open_bet_freeze_time)}`
             : now < startTime
                 ? `Opens at ${formatScheduleTime(schedule.start_time)}`
                 : `Closed at ${formatScheduleTime(schedule.open_bet_freeze_time)}`
+
         let closeMessage = ''
         if (closeBetting) {
             closeMessage = `Open until ${formatScheduleTime(schedule.close_bet_freeze_time)}`
