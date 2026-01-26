@@ -668,13 +668,13 @@ export default function PlaceBetPage() {
                                 ))}
                             </div>
 
-                            <div className="flex items-center justify-between pt-2 border-t border-gray-700">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-2 border-t border-gray-700">
                                 <div className="text-gray-400">
                                     Total: <span className="text-white font-bold text-lg">{singleGridTotal}</span> Points
                                 </div>
-                                <div className="flex gap-2">
-                                    <button type="button" onClick={clearSingleGrid} className="px-3 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600">Clear</button>
-                                    <Button type="button" size="sm" onClick={handlePlaceSingleBets} disabled={!canPlaceBet || singleGridTotal === 0} isLoading={isSubmitting}>
+                                <div className="flex gap-2 w-full sm:w-auto">
+                                    <button type="button" onClick={clearSingleGrid} className="flex-1 sm:flex-none px-3 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600">Clear</button>
+                                    <Button type="button" size="sm" onClick={handlePlaceSingleBets} disabled={!canPlaceBet || singleGridTotal === 0} isLoading={isSubmitting} className="flex-1 sm:flex-none">
                                         Place Bets
                                     </Button>
                                 </div>
@@ -737,13 +737,13 @@ export default function PlaceBetPage() {
                                 </div>
                             )}
 
-                            <div className="flex items-center justify-between pt-2 border-t border-gray-700">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-2 border-t border-gray-700">
                                 <div className="text-gray-400">
                                     Total: <span className="text-white font-bold text-lg">{jodiSelectionTotal}</span> Points
                                 </div>
-                                <div className="flex gap-2">
-                                    <button type="button" onClick={clearJodiSelections} className="px-3 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600">Clear</button>
-                                    <Button type="button" size="sm" onClick={handlePlaceJodiBets} disabled={!canPlaceBet || jodiSelectionTotal === 0} isLoading={isSubmitting}>
+                                <div className="flex gap-2 w-full sm:w-auto">
+                                    <button type="button" onClick={clearJodiSelections} className="flex-1 sm:flex-none px-3 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600">Clear</button>
+                                    <Button type="button" size="sm" onClick={handlePlaceJodiBets} disabled={!canPlaceBet || jodiSelectionTotal === 0} isLoading={isSubmitting} className="flex-1 sm:flex-none">
                                         Place Bets
                                     </Button>
                                 </div>
@@ -754,36 +754,39 @@ export default function PlaceBetPage() {
                     {/* === TRIPLE TAB === */}
                     {activeTab === 'triple' && (
                         <div className="space-y-3">
-                            {/* Add Triple Form */}
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    pattern="[0-9]*"
-                                    placeholder="000"
-                                    maxLength={3}
-                                    value={tripleNumber}
-                                    onChange={(e) => setTripleNumber(e.target.value.replace(/\D/g, '').slice(0, 3))}
-                                    disabled={!canPlaceBet}
-                                    className="flex-1 px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white text-center text-xl font-mono focus:border-indigo-500 focus:outline-none disabled:opacity-50"
-                                />
-                                <input
-                                    type="number"
-                                    inputMode="numeric"
-                                    min="10"
-                                    placeholder="Points"
-                                    value={tripleAmount}
-                                    onChange={(e) => setTripleAmount(e.target.value)}
-                                    disabled={!canPlaceBet}
-                                    className="w-24 px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white text-center text-xl font-mono focus:border-indigo-500 focus:outline-none disabled:opacity-50"
-                                />
+                            {/* Add Triple Form - Mobile Responsive */}
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <div className="flex gap-2 flex-1">
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        placeholder="000"
+                                        maxLength={3}
+                                        value={tripleNumber}
+                                        onChange={(e) => setTripleNumber(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                                        disabled={!canPlaceBet}
+                                        className="flex-1 min-w-0 px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white text-center text-lg sm:text-xl font-mono focus:border-indigo-500 focus:outline-none disabled:opacity-50"
+                                    />
+                                    <input
+                                        type="number"
+                                        inputMode="numeric"
+                                        min="10"
+                                        placeholder="Points"
+                                        value={tripleAmount}
+                                        onChange={(e) => setTripleAmount(e.target.value)}
+                                        disabled={!canPlaceBet}
+                                        className="flex-1 min-w-0 px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white text-center text-lg sm:text-xl font-mono focus:border-indigo-500 focus:outline-none disabled:opacity-50"
+                                    />
+                                </div>
                                 <button
                                     type="button"
                                     onClick={addTripleToSelection}
                                     disabled={!canPlaceBet || tripleNumber.length !== 3 || !tripleAmount}
-                                    className="px-4 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="px-4 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                 >
                                     <Plus size={20} />
+                                    <span className="sm:hidden">Add</span>
                                 </button>
                             </div>
 
@@ -820,13 +823,13 @@ export default function PlaceBetPage() {
                                 </div>
                             )}
 
-                            <div className="flex items-center justify-between pt-2 border-t border-gray-700">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-2 border-t border-gray-700">
                                 <div className="text-gray-400">
                                     Total: <span className="text-white font-bold text-lg">{tripleSelectionTotal}</span> Points
                                 </div>
-                                <div className="flex gap-2">
-                                    <button type="button" onClick={clearTripleSelections} className="px-3 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600">Clear</button>
-                                    <Button type="button" size="sm" onClick={handlePlaceTripleBets} disabled={!canPlaceBet || tripleSelectionTotal === 0} isLoading={isSubmitting}>
+                                <div className="flex gap-2 w-full sm:w-auto">
+                                    <button type="button" onClick={clearTripleSelections} className="flex-1 sm:flex-none px-3 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600">Clear</button>
+                                    <Button type="button" size="sm" onClick={handlePlaceTripleBets} disabled={!canPlaceBet || tripleSelectionTotal === 0} isLoading={isSubmitting} className="flex-1 sm:flex-none">
                                         Place Bets
                                     </Button>
                                 </div>

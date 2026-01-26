@@ -6,22 +6,33 @@ import { JodiChart } from '@/components/results/JodiChart'
 import { PanelChart } from '@/components/results/PanelChart'
 import { GameTimeline } from '@/components/results/GameTimeline'
 import { GameResult, GameSchedule, SessionType, sessionToResult, GameSession } from '@/types/types'
-import { Trophy, Calendar, FileText, Sun, Moon } from 'lucide-react'
+import { Trophy, FileText, Sun, Moon, Menu, X, BarChart3, Grid3X3, HelpCircle, AlertTriangle } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 
-type TabType = 'results' | 'schedule' | 'past'
+type TabType = 'results' | 'past'
 type ChartType = 'jodi' | 'panel'
+type PageType = 'home' | 'how-to-play' | 'disclaimer'
 
 export default function Home() {
   const [currentTime, setCurrentTime] = useState(new Date())
   const [activeTab, setActiveTab] = useState<TabType>('results')
   const [activeChart, setActiveChart] = useState<ChartType>('jodi')
+  const [activePage, setActivePage] = useState<PageType>('home')
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [morningResult, setMorningResult] = useState<GameResult | null>(null)
   const [nightResult, setNightResult] = useState<GameResult | null>(null)
   const [historicalResults, setHistoricalResults] = useState<GameResult[]>([])
   const [schedules, setSchedules] = useState<GameSchedule[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isDark, setIsDark] = useState(false)
+
+  // Navigation handlers
+  const navigateToChart = (chart: ChartType) => {
+    setActivePage('home')
+    setActiveTab('past')
+    setActiveChart(chart)
+    setMobileMenuOpen(false)
+  }
 
   // Get schedule for a specific session
   const getScheduleForSession = useCallback((session: SessionType): GameSchedule | undefined => {
@@ -194,7 +205,42 @@ export default function Home() {
     <div className="app-container">
       {/* App Header */}
       <header className="app-header">
-        <img src="/logo-1.png" alt="Banaras Matka Play" className="header-logo" />
+        <div className="header-left">
+          <img src="/logo-1.png" alt="Banaras Matka Play" className="header-logo" />
+
+          {/* Desktop Navigation */}
+          <nav className="header-nav">
+            <button
+              onClick={() => navigateToChart('jodi')}
+              className="nav-link"
+            >
+              <Grid3X3 size={16} />
+              Jodi Chart
+            </button>
+            <button
+              onClick={() => navigateToChart('panel')}
+              className="nav-link"
+            >
+              <BarChart3 size={16} />
+              Panel Chart
+            </button>
+            <button
+              onClick={() => { setActivePage('how-to-play'); setMobileMenuOpen(false) }}
+              className="nav-link"
+            >
+              <HelpCircle size={16} />
+              How to Play
+            </button>
+            <button
+              onClick={() => { setActivePage('disclaimer'); setMobileMenuOpen(false) }}
+              className="nav-link"
+            >
+              <AlertTriangle size={16} />
+              Disclaimer
+            </button>
+          </nav>
+        </div>
+
         <div className="header-right">
           <div className="header-time">
             <span className="time-display">
@@ -217,118 +263,220 @@ export default function Home() {
           <button onClick={toggleTheme} className="theme-toggle" aria-label="Toggle theme">
             {isDark ? <Sun size={20} /> : <Moon size={20} />}
           </button>
+
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="mobile-menu-btn"
+            aria-label="Toggle menu"
+          >
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
         </div>
       </header>
 
+      {/* Mobile Navigation Dropdown */}
+      {mobileMenuOpen && (
+        <div className="mobile-nav-dropdown">
+          <button
+            onClick={() => navigateToChart('jodi')}
+            className="mobile-nav-link"
+          >
+            <Grid3X3 size={18} />
+            Jodi Chart
+          </button>
+          <button
+            onClick={() => navigateToChart('panel')}
+            className="mobile-nav-link"
+          >
+            <BarChart3 size={18} />
+            Panel Chart
+          </button>
+          <button
+            onClick={() => { setActivePage('how-to-play'); setMobileMenuOpen(false) }}
+            className="mobile-nav-link"
+          >
+            <HelpCircle size={18} />
+            How to Play
+          </button>
+          <button
+            onClick={() => { setActivePage('disclaimer'); setMobileMenuOpen(false) }}
+            className="mobile-nav-link"
+          >
+            <AlertTriangle size={18} />
+            Disclaimer
+          </button>
+        </div>
+      )}
+
       {/* Main Content */}
       <main>
-        {/* Results Tab */}
-        {activeTab === 'results' && (
-          <div className="animate-fade-in">
-            <div className="results-grid">
-              {/* Morning Result Card */}
-              {isLoading ? (
-                <div className="result-card">
-                  <div className="result-card-header">
-                    <span className="time">--:--</span>
-                    <span className="title">LOADING...</span>
-                    <span className="time">--:--</span>
-                  </div>
-                  <div className="result-card-body">
-                    <span className="result-value">***</span>
-                    <span className="result-value jodi">**</span>
-                    <span className="result-value">***</span>
-                  </div>
+        {activePage === 'home' ? (
+          <>
+            {/* Results Tab */}
+            {activeTab === 'results' && (
+              <div className="animate-fade-in">
+                <div className="results-grid">
+                  {/* Morning Result Card */}
+                  {isLoading ? (
+                    <div className="result-card">
+                      <div className="result-card-header">
+                        <span className="time">--:--</span>
+                        <span className="title">LOADING...</span>
+                        <span className="time">--:--</span>
+                      </div>
+                      <div className="result-card-body">
+                        <span className="result-value">***</span>
+                        <span className="result-value jodi">**</span>
+                        <span className="result-value">***</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <CurrentResult result={morningResult} slot="morning" schedule={getScheduleForSession('morning')} currentTime={currentTime} />
+                  )}
+
+                  {/* Night Result Card */}
+                  {isLoading ? (
+                    <div className="result-card">
+                      <div className="result-card-header">
+                        <span className="time">--:--</span>
+                        <span className="title">LOADING...</span>
+                        <span className="time">--:--</span>
+                      </div>
+                      <div className="result-card-body">
+                        <span className="result-value">***</span>
+                        <span className="result-value jodi">**</span>
+                        <span className="result-value">***</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <CurrentResult result={nightResult} slot="night" schedule={getScheduleForSession('night')} currentTime={currentTime} isLive={!nightResult?.is_close_declared} />
+                  )}
                 </div>
-              ) : (
-                <CurrentResult result={morningResult} slot="morning" schedule={getScheduleForSession('morning')} currentTime={currentTime} />
-              )}
-
-              {/* Night Result Card */}
-              {isLoading ? (
-                <div className="result-card">
-                  <div className="result-card-header">
-                    <span className="time">--:--</span>
-                    <span className="title">LOADING...</span>
-                    <span className="time">--:--</span>
-                  </div>
-                  <div className="result-card-body">
-                    <span className="result-value">***</span>
-                    <span className="result-value jodi">**</span>
-                    <span className="result-value">***</span>
-                  </div>
-                </div>
-              ) : (
-                <CurrentResult result={nightResult} slot="night" schedule={getScheduleForSession('night')} currentTime={currentTime} isLive={!nightResult?.is_close_declared} />
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Schedule Tab */}
-        {activeTab === 'schedule' && (
-          <div className="animate-fade-in p-4">
-            <h2 className="section-title">
-              <Calendar size={20} className="text-[var(--primary-600)]" />
-              Game Schedule
-            </h2>
-            <GameTimeline currentTime={currentTime} />
-          </div>
-        )}
-
-        {/* Past Results Tab */}
-        {activeTab === 'past' && (
-          <div className="animate-fade-in">
-            {/* Chart Type Tabs */}
-            <div className="chart-tabs">
-              <button
-                onClick={() => setActiveChart('jodi')}
-                className={`chart-tab ${activeChart === 'jodi' ? 'active' : ''}`}
-              >
-                Jodi Chart
-              </button>
-              <button
-                onClick={() => setActiveChart('panel')}
-                className={`chart-tab ${activeChart === 'panel' ? 'active' : ''}`}
-              >
-                Panel Chart
-              </button>
-            </div>
-
-            {/* Chart Content */}
-            {activeChart === 'jodi' ? (
-              <JodiChart results={historicalResults} />
-            ) : (
-              <PanelChart results={historicalResults} />
+              </div>
             )}
+
+            {/* Past Results Tab */}
+            {activeTab === 'past' && (
+              <div className="animate-fade-in">
+                {/* Chart Type Tabs */}
+                <div className="chart-tabs">
+                  <button
+                    onClick={() => setActiveChart('jodi')}
+                    className={`chart-tab ${activeChart === 'jodi' ? 'active' : ''}`}
+                  >
+                    Jodi Chart
+                  </button>
+                  <button
+                    onClick={() => setActiveChart('panel')}
+                    className={`chart-tab ${activeChart === 'panel' ? 'active' : ''}`}
+                  >
+                    Panel Chart
+                  </button>
+                </div>
+
+                {/* Chart Content */}
+                {activeChart === 'jodi' ? (
+                  <JodiChart results={historicalResults} />
+                ) : (
+                  <PanelChart results={historicalResults} />
+                )}
+              </div>
+            )}
+          </>
+        ) : activePage === 'how-to-play' ? (
+          <div className="static-page animate-fade-in">
+            <button onClick={() => setActivePage('home')} className="back-btn">
+              ← Back to Home
+            </button>
+            <h1>How to Play</h1>
+            <div className="static-content">
+              <section>
+                <h2>🎲 Understanding the Game</h2>
+                <p>Banaras Matka is a number-based game where players predict numbers to win prizes. There are two sessions daily: <strong>Morning</strong> and <strong>Night</strong>.</p>
+              </section>
+
+              <section>
+                <h2>📊 Bet Types</h2>
+                <ul>
+                  <li><strong>Single (0-9):</strong> Pick a single digit from 0 to 9. Payout: 9x</li>
+                  <li><strong>Jodi (00-99):</strong> Pick a two-digit number from 00 to 99. Payout: 90x</li>
+                  <li><strong>Triple (000-999):</strong> Pick a three-digit number. Payout: 800x</li>
+                </ul>
+              </section>
+
+              <section>
+                <h2>⏰ Timing</h2>
+                <ul>
+                  <li><strong>Morning Game:</strong> Open result at 1:00 PM, Close result at 3:00 PM</li>
+                  <li><strong>Night Game:</strong> Open result at 6:00 PM, Close result at 8:00 PM</li>
+                </ul>
+              </section>
+
+              <section>
+                <h2>🎯 How Results Work</h2>
+                <p>Each session has two results: <strong>Open</strong> and <strong>Close</strong>. The Jodi is formed by combining the last digit of Open Sum with the last digit of Close Sum.</p>
+              </section>
+
+              <section>
+                <h2>📈 Using Charts</h2>
+                <ul>
+                  <li><strong>Jodi Chart:</strong> Shows historical Jodi results to help identify patterns</li>
+                  <li><strong>Panel Chart:</strong> Shows full Open-Jodi-Close combinations over time</li>
+                </ul>
+              </section>
+            </div>
+          </div>
+        ) : (
+          <div className="static-page animate-fade-in">
+            <button onClick={() => setActivePage('home')} className="back-btn">
+              ← Back to Home
+            </button>
+            <h1>Disclaimer</h1>
+            <div className="static-content">
+              <section>
+                <h2>⚠️ Legal Notice</h2>
+                <p>This website is for <strong>informational and entertainment purposes only</strong>. We do not encourage or promote gambling in any form.</p>
+              </section>
+
+              <section>
+                <h2>📋 Terms of Use</h2>
+                <ul>
+                  <li>Users must be 18 years or older to access this website</li>
+                  <li>Gambling may be illegal in your jurisdiction. Please check local laws before participating</li>
+                  <li>We are not responsible for any financial losses incurred</li>
+                  <li>All results displayed are for informational purposes only</li>
+                </ul>
+              </section>
+
+              <section>
+                <h2>🔒 Responsible Gaming</h2>
+                <p>If you or someone you know has a gambling problem, please seek help from a professional counselor or helpline.</p>
+              </section>
+            </div>
           </div>
         )}
       </main>
 
-      {/* Bottom Navigation */}
-      <nav className="bottom-nav">
-        <button
-          onClick={() => setActiveTab('results')}
-          className={`bottom-nav-item ${activeTab === 'results' ? 'active' : ''}`}
-        >
-          <Trophy />
-          <span>Results</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('schedule')}
-          className={`bottom-nav-item ${activeTab === 'schedule' ? 'active' : ''}`}
-        >
-          <Calendar />
-          <span>Schedule</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('past')}
-          className={`bottom-nav-item ${activeTab === 'past' ? 'active' : ''}`}
-        >
-          <FileText />
-          <span>Past Results</span>
-        </button>
-      </nav>
+      {/* Bottom Navigation - Only show on home page */}
+      {activePage === 'home' && (
+        <nav className="bottom-nav">
+          <button
+            onClick={() => setActiveTab('results')}
+            className={`bottom-nav-item ${activeTab === 'results' ? 'active' : ''}`}
+          >
+            <Trophy />
+            <span>Results</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('past')}
+            className={`bottom-nav-item ${activeTab === 'past' ? 'active' : ''}`}
+          >
+            <FileText />
+            <span>Past Results</span>
+          </button>
+        </nav>
+      )}
     </div>
   )
 }
