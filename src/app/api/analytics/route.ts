@@ -160,10 +160,11 @@ export async function GET(request: NextRequest) {
         // Pre-aggregate data for O(1) lookups
         const tripleData = getAggregatedData(liabilityData || [], 'triple', target)
         const singleData = getAggregatedData(liabilityData || [], 'single', target)
-        // Jodi data is only relevant if target is 'close' and we have an open single
-        const jodiData = (target === 'close' && session?.open_single)
-            ? getAggregatedData(liabilityData || [], 'jodi')
-            : new Map()
+
+        // Jodi data aggregation
+        // For CLOSE target: we calculate exact jodi (open_single + close_single)
+        // For OPEN target: we estimate max jodi risk (all jodis starting with open_single)
+        const jodiData = getAggregatedData(liabilityData || [], 'jodi')
 
         const results: any[] = []
 
@@ -189,8 +190,30 @@ export async function GET(request: NextRequest) {
                 totalBets += sData.bets
             }
 
-            // 3. Jodi Liability (Only for Close target)
-            if (target === 'close' && session?.open_single) {
+            // 3. Jodi Liability
+            if (target === 'open') {
+                // For OPEN target: Estimate MAX potential jodi payout
+                // If we pick this open single, any jodi starting with this digit could win
+                // Per SRS: "estimates the max potential payout for Jodis 00-09"
+                // We calculate the SUM of all jodi bets starting with this single
+                // (conservative approach - assumes we might pick any close single)
+                let maxJodiRisk = 0
+                let jodiRelatedBets = 0
+                for (let closeSingle = 0; closeSingle <= 9; closeSingle++) {
+                    const potentialJodi = single + closeSingle.toString()
+                    const jData = jodiData.get(potentialJodi)
+                    if (jData) {
+                        // Track the maximum jodi liability (worst case scenario)
+                        if (jData.liability > maxJodiRisk) {
+                            maxJodiRisk = jData.liability
+                        }
+                        jodiRelatedBets += jData.bets
+                    }
+                }
+                totalLiability += maxJodiRisk
+                totalBets += jodiRelatedBets
+            } else if (target === 'close' && session?.open_single) {
+                // For CLOSE target: Calculate exact jodi
                 const jodi = session.open_single + single
                 const jData = jodiData.get(jodi)
                 if (jData) {
@@ -213,29 +236,33 @@ export async function GET(request: NextRequest) {
             })
         }
 
-        // Filter Lists logic - Relaxed constraints for better suggestions
+        // ==========================================
+        // RECOMMENDATION LISTS (Per SRS Requirements)
+        // ==========================================
 
-        // 1. Target Match: Sort by closeness to target payout
-        const targetMatch = [...results]
+        // List A: Target Match - Filter by ±2% tolerance of slider value
+        const PAYOUT_TOLERANCE = 2 // ±2% tolerance
+        const targetMatch = results
+            .filter(r => Math.abs(r.payoutPercentage - targetPayout) <= PAYOUT_TOLERANCE)
             .sort((a, b) => Math.abs(a.payoutPercentage - targetPayout) - Math.abs(b.payoutPercentage - targetPayout))
             .slice(0, 10)
 
-        // 2. System Recommendations (Best Profit): Highest profit % (must have some liability to not be ghost)
+        // List B: System Recommendations - Top 5 lowest payout options (must have bets)
         const systemRecommendations = results
-            .filter(r => r.totalLiability > 0)
-            .sort((a, b) => b.profitPercentage - a.profitPercentage)
-            .slice(0, 10)
-
-        // 3. Low Bets: Lowest non-zero bets
-        const lowBets = results
             .filter(r => r.totalBets > 0)
-            .sort((a, b) => a.totalBets - b.totalBets)
-            .slice(0, 10)
+            .sort((a, b) => a.totalLiability - b.totalLiability)
+            .slice(0, 5)
 
-        // 4. Ghost (No Bets): Zero liability
+        // List C: Low Bets - Bottom 20th percentile by bet volume
+        const betsWithVolume = results.filter(r => r.totalBets > 0)
+        const sortedByBets = [...betsWithVolume].sort((a, b) => a.totalBets - b.totalBets)
+        const percentile20Count = Math.max(Math.ceil(sortedByBets.length * 0.2), 1)
+        const lowBets = sortedByBets.slice(0, Math.min(percentile20Count, 10))
+
+        // List D: No Bets (Ghost Numbers) - Zero liability on triple, single, AND jodi
         const noBets = results
-            .filter(r => r.totalLiability === 0)
-            .slice(0, 10) // First 10 is fine as they are all 0
+            .filter(r => r.totalBets === 0 && r.totalLiability === 0)
+            .slice(0, 10)
 
         return NextResponse.json({
             recommendations: {

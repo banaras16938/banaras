@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Slider } from '@/components/ui/Slider'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { useDebounce } from '@/hooks/useDebounce'
 import {
     DollarSign,
     RefreshCw,
@@ -17,7 +18,8 @@ import {
     Trophy,
     CheckCircle,
     Lock,
-    Clock
+    Clock,
+    Loader2
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { SessionType, BetTarget, ResultOption } from '@/types/types'
@@ -69,9 +71,11 @@ function timeToMinutes(time: string): number {
 
 export default function AdminDashboard() {
     const [loading, setLoading] = useState(true)
+    const [loadingRecommendations, setLoadingRecommendations] = useState(false)
     const [selectedSession, setSelectedSession] = useState<SessionType>('morning')
     const [selectedTarget, setSelectedTarget] = useState<BetTarget>('open')
     const [payoutSlider, setPayoutSlider] = useState(10)
+    const debouncedPayoutSlider = useDebounce(payoutSlider, 300) // Debounce slider for API calls
     const [morningSession, setMorningSession] = useState<GameSession | null>(null)
     const [nightSession, setNightSession] = useState<GameSession | null>(null)
     const [recommendations, setRecommendations] = useState<RecommendationsData>({
@@ -149,10 +153,11 @@ export default function AdminDashboard() {
         }
     }, [gameDate])
 
-    // Fetch recommendations - on slider/session/target change (lightweight)
+    // Fetch recommendations - on debounced slider/session/target change
     const fetchRecommendations = useCallback(async () => {
+        setLoadingRecommendations(true)
         try {
-            const response = await fetch(`/api/analytics?type=recommendations&date=${gameDate}&session=${selectedSession}&target=${selectedTarget}&targetPayout=${payoutSlider}`)
+            const response = await fetch(`/api/analytics?type=recommendations&date=${gameDate}&session=${selectedSession}&target=${selectedTarget}&targetPayout=${debouncedPayoutSlider}`)
             if (response.ok) {
                 const { recommendations: rec } = await response.json()
                 setRecommendations(rec || {
@@ -165,8 +170,10 @@ export default function AdminDashboard() {
             }
         } catch (error) {
             console.error('Failed to fetch recommendations:', error)
+        } finally {
+            setLoadingRecommendations(false)
         }
-    }, [gameDate, selectedSession, selectedTarget, payoutSlider])
+    }, [gameDate, selectedSession, selectedTarget, debouncedPayoutSlider])
 
     // Initial load - fetch both sessions and recommendations
     const fetchData = useCallback(async () => {
@@ -476,9 +483,14 @@ export default function AdminDashboard() {
                     max={30}
                     step={1}
                 />
-                <p className="text-xs text-gray-500 mt-2 text-center">
-                    Target: {payoutSlider}% payout → {100 - payoutSlider}% profit
-                </p>
+                <div className="flex items-center justify-center gap-2 mt-2">
+                    <p className="text-xs text-gray-500">
+                        Target: {payoutSlider}% payout → {100 - payoutSlider}% profit
+                    </p>
+                    {(payoutSlider !== debouncedPayoutSlider || loadingRecommendations) && (
+                        <Loader2 size={12} className="animate-spin text-cyan-400" />
+                    )}
+                </div>
             </div>
 
             {/* Recommendation Tabs */}
@@ -524,10 +536,20 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Result List */}
-                <div className="max-h-[300px] overflow-y-auto">
+                <div className="max-h-[300px] overflow-y-auto relative">
+                    {/* Loading Overlay */}
+                    {loadingRecommendations && (
+                        <div className="absolute inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center z-10">
+                            <div className="flex flex-col items-center gap-2">
+                                <Loader2 size={24} className="animate-spin text-cyan-400" />
+                                <span className="text-xs text-gray-400">Calculating...</span>
+                            </div>
+                        </div>
+                    )}
+
                     {getActiveList().length === 0 ? (
                         <div className="py-12 text-center text-gray-500">
-                            <p>No results in this category</p>
+                            <p>{loadingRecommendations ? 'Loading...' : 'No results in this category'}</p>
                         </div>
                     ) : (
                         <div className="divide-y divide-gray-700/50">
