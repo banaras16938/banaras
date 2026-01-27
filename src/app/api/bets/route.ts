@@ -287,6 +287,23 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: 'Missing required fields or empty bets array' }, { status: 400 })
     }
 
+    // SECURITY: Rate limiting - max 100 bets per request
+    const MAX_BETS_PER_REQUEST = 100
+    if (bets.length > MAX_BETS_PER_REQUEST) {
+        return NextResponse.json({
+            error: `Maximum ${MAX_BETS_PER_REQUEST} bets allowed per request. You sent ${bets.length}.`
+        }, { status: 400 })
+    }
+
+    // SECURITY: Calculate total amount to prevent abuse
+    const totalAmount = bets.reduce((sum: number, b: { amount?: number }) => sum + (Number(b.amount) || 0), 0)
+    const MAX_TOTAL_AMOUNT = 1000000 // 10 lakh limit per batch
+    if (totalAmount > MAX_TOTAL_AMOUNT) {
+        return NextResponse.json({
+            error: `Total bet amount exceeds limit. Maximum ₹${MAX_TOTAL_AMOUNT.toLocaleString()} per batch.`
+        }, { status: 400 })
+    }
+
     // Validate all bets first
     for (const bet of bets) {
         const { category, target, selectedNumber, amount } = bet

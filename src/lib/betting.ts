@@ -182,6 +182,77 @@ export async function placeBet(params: PlaceBetParams): Promise<{
     }
 }
 
+export interface BulkBetItem {
+    category: BetCategory
+    target: BetTarget
+    selectedNumber: string
+    amount: number
+}
+
+export interface BulkBetParams {
+    gameDate: string
+    sessionName: SessionType
+    bets: BulkBetItem[]
+    playerId?: string
+    isSelfBet?: boolean
+}
+
+/**
+ * Place multiple bets in a single API call (optimized for cart submission)
+ * Uses batch insert for better performance
+ */
+export async function placeBulkBets(params: BulkBetParams): Promise<{
+    success: boolean
+    error?: string
+    count?: number
+    bets?: Array<{ id: string }>
+}> {
+    // Client-side pre-validation
+    if (!params.bets || params.bets.length === 0) {
+        return { success: false, error: 'No bets to place' }
+    }
+
+    // Validate each bet
+    for (const bet of params.bets) {
+        const numValidation = validateBetNumber(bet.category, bet.selectedNumber)
+        if (!numValidation.isValid) {
+            return { success: false, error: numValidation.error }
+        }
+
+        const catValidation = validateCategoryTarget(bet.category, bet.target)
+        if (!catValidation.isValid) {
+            return { success: false, error: catValidation.error }
+        }
+
+        if (bet.amount < 10 || bet.amount % 10 !== 0) {
+            return { success: false, error: 'All amounts must be minimum 10 and multiples of 10' }
+        }
+    }
+
+    try {
+        const response = await fetch('/api/bets', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(params)
+        })
+
+        const data = await response.json()
+
+        if (!response.ok) {
+            return { success: false, error: data.error || 'Failed to place bets' }
+        }
+
+        return {
+            success: true,
+            count: data.count,
+            bets: data.bets
+        }
+    } catch (error) {
+        console.error('Place bulk bets error:', error)
+        return { success: false, error: 'Network error. Please try again.' }
+    }
+}
+
 /**
  * Get staff's bets
  */
