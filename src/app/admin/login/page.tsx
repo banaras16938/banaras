@@ -1,11 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { Button } from '@/components/ui/Button'
-import { Lock, User, Eye, EyeOff } from 'lucide-react'
-import { createClient } from '@/utils/supabase/client'
+import { Lock, User, Eye, EyeOff, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function AdminLogin() {
@@ -14,72 +13,80 @@ export default function AdminLogin() {
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
+    const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(null)
+    const [isLocked, setIsLocked] = useState(false)
+    const [lockoutTimer, setLockoutTimer] = useState(0)
+
+    // Countdown timer for lockout
+    useEffect(() => {
+        if (lockoutTimer > 0) {
+            const interval = setInterval(() => {
+                setLockoutTimer(prev => {
+                    if (prev <= 1) {
+                        setIsLocked(false)
+                        return 0
+                    }
+                    return prev - 1
+                })
+            }, 1000)
+            return () => clearInterval(interval)
+        }
+    }, [lockoutTimer])
+
+    const formatLockoutTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60)
+        const secs = seconds % 60
+        return `${mins}:${secs.toString().padStart(2, '0')}`
+    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+
+        if (isLocked) {
+            toast.error(`Account locked. Try again in ${formatLockoutTime(lockoutTimer)}`)
+            return
+        }
+
         setIsLoading(true)
 
         try {
-            const supabase = createClient()
-
-            const { error: signInError } = await supabase.auth.signInWithPassword({
-                email,
-                password
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password, role: 'admin' })
             })
 
-            if (signInError) {
-                toast.error(signInError.message)
-                return
-            }
+            const data = await response.json()
 
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) {
-                toast.error('Authentication failed')
-                return
-            }
+            if (!response.ok) {
+                // Handle lockout
+                if (response.status === 429 || data.locked) {
+                    setIsLocked(true)
+                    setLockoutTimer(data.remainingTime || 900)
+                    toast.error(data.error || 'Too many failed attempts')
+                    return
+                }
 
-            const { data: profile, error: profileError } = await supabase
-                .from('profiles')
-                .select('role, is_active')
-                .eq('id', user.id)
-                .single()
-
-            if (profileError) {
-                console.error('Profile fetch error:', profileError)
-                await supabase.auth.signOut()
-                if (profileError.code === 'PGRST116') {
-                    toast.error('Profile not found. Please contact support.')
+                // Show remaining attempts
+                if (data.attemptsRemaining !== undefined) {
+                    setAttemptsRemaining(data.attemptsRemaining)
+                    if (data.attemptsRemaining > 0) {
+                        toast.error(`${data.error}. ${data.attemptsRemaining} attempt${data.attemptsRemaining > 1 ? 's' : ''} remaining.`)
+                    } else {
+                        setIsLocked(true)
+                        setLockoutTimer(900) // 15 minutes
+                        toast.error('Account locked for 15 minutes')
+                    }
                 } else {
-                    toast.error(`Profile error: ${profileError.message}`)
+                    toast.error(data.error || 'Login failed')
                 }
                 return
             }
 
-            if (!profile) {
-                await supabase.auth.signOut()
-                toast.error('No profile found for this account')
-                return
-            }
-
-            if (!profile.is_active) {
-                await supabase.auth.signOut()
-                toast.error('Your account has been disabled')
-                return
-            }
-
-            if (profile.role !== 'admin') {
-                await supabase.auth.signOut()
-                toast.error('Access denied. Admin privileges required.')
-                return
-            }
-
-            await supabase
-                .from('profiles')
-                .update({ last_login: new Date().toISOString() })
-                .eq('id', user.id)
-
+            // Success
+            setAttemptsRemaining(null)
             toast.success('Login successful!')
-            router.push('/admin')
+            router.push(data.redirect || '/admin')
             router.refresh()
         } catch (err) {
             console.error('Login error:', err)
@@ -152,7 +159,8 @@ export default function AdminLogin() {
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         required
-                                        className="w-full pl-11 pr-12 py-3 bg-gray-900/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none transition-all"
+                                        disabled={isLocked}
+                                        className="w-full pl-11 pr-12 py-3 bg-gray-900/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                     />
                                     <button
                                         type="button"
@@ -169,13 +177,35 @@ export default function AdminLogin() {
                                 </div>
                             </div>
 
+                            {/* Lockout Warning */}
+                            {isLocked && (
+                                <div className="bg-red-900/30 border border-red-700 rounded-xl p-3 flex items-center gap-3">
+                                    <AlertTriangle className="text-red-400 flex-shrink-0" size={20} />
+                                    <div>
+                                        <p className="text-red-400 font-medium text-sm">Account Locked</p>
+                                        <p className="text-xs text-gray-400">Try again in {formatLockoutTime(lockoutTimer)}</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Attempts Warning */}
+                            {!isLocked && attemptsRemaining !== null && attemptsRemaining <= 2 && (
+                                <div className="bg-yellow-900/30 border border-yellow-700 rounded-xl p-3 flex items-center gap-3">
+                                    <AlertTriangle className="text-yellow-400 flex-shrink-0" size={20} />
+                                    <p className="text-yellow-400 text-sm">
+                                        {attemptsRemaining} attempt{attemptsRemaining !== 1 ? 's' : ''} remaining before lockout
+                                    </p>
+                                </div>
+                            )}
+
                             {/* Submit Button */}
                             <Button
                                 type="submit"
                                 className="w-full h-12 text-base font-semibold bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 rounded-xl shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 transition-all"
                                 isLoading={isLoading}
+                                disabled={isLocked}
                             >
-                                {isLoading ? 'Signing in...' : 'Sign In'}
+                                {isLocked ? `Locked (${formatLockoutTime(lockoutTimer)})` : isLoading ? 'Signing in...' : 'Sign In'}
                             </Button>
                         </form>
                     </div>
