@@ -306,6 +306,147 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ holidays })
     }
 
+    // ==========================================
+    // TYPE: HISAB-KITAB (Daily staff settlement view)
+    // ==========================================
+    if (type === 'hisab-kitab') {
+        if (profile.role !== 'admin') {
+            return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+        }
+
+        // Get today and yesterday dates
+        const today = new Date()
+        const yesterday = new Date(today)
+        yesterday.setDate(yesterday.getDate() - 1)
+
+        const todayStr = today.toISOString().split('T')[0]
+        const yesterdayStr = yesterday.toISOString().split('T')[0]
+
+        // Use provided date or default to today
+        const selectedDate = gameDate || todayStr
+
+        // Validate date is today or yesterday only
+        if (selectedDate !== todayStr && selectedDate !== yesterdayStr) {
+            return NextResponse.json({ error: 'Only today and yesterday data is available' }, { status: 400 })
+        }
+
+        // Get staff performance data for the selected date
+        const { data: performanceData, error } = await supabase
+            .from('view_staff_performance')
+            .select('*')
+            .eq('game_date', selectedDate)
+
+        if (error) {
+            return NextResponse.json({ error: error.message }, { status: 500 })
+        }
+
+        // Get staff names
+        const { data: staffProfiles } = await supabase
+            .from('profiles')
+            .select('id, name, email')
+            .eq('role', 'staff')
+
+        const staffMap = new Map(staffProfiles?.map(p => [p.id, p]) || [])
+
+        // Get bet counts for the selected date
+        const { data: sessions } = await supabase
+            .from('game_sessions')
+            .select('id')
+            .eq('game_date', selectedDate)
+
+        const sessionIds = sessions?.map(s => s.id) || []
+
+        let betStats = { total: 0, won: 0, lost: 0 }
+        if (sessionIds.length > 0) {
+            const { data: bets } = await supabase
+                .from('bets')
+                .select('status')
+                .in('game_session_id', sessionIds)
+
+            if (bets) {
+                betStats.total = bets.length
+                betStats.won = bets.filter(b => b.status === 'won').length
+                betStats.lost = bets.filter(b => b.status === 'lost').length
+            }
+        }
+
+        // Aggregate by staff with session breakdown
+        const staffBreakdown = new Map<string, {
+            staffId: string
+            staffEmail: string
+            staffName: string
+            morningCollection: number
+            morningPayout: number
+            morningProfit: number
+            nightCollection: number
+            nightPayout: number
+            nightProfit: number
+            totalCollection: number
+            totalPayout: number
+            totalProfit: number
+            totalBets: number
+        }>()
+
+        performanceData?.forEach(row => {
+            const staffInfo = staffMap.get(row.staff_id)
+            const existing = staffBreakdown.get(row.staff_id) || {
+                staffId: row.staff_id,
+                staffEmail: row.staff_email,
+                staffName: staffInfo?.name || row.staff_email,
+                morningCollection: 0,
+                morningPayout: 0,
+                morningProfit: 0,
+                nightCollection: 0,
+                nightPayout: 0,
+                nightProfit: 0,
+                totalCollection: 0,
+                totalPayout: 0,
+                totalProfit: 0,
+                totalBets: 0
+            }
+
+            const collection = Number(row.total_collection || 0)
+            const payout = Number(row.total_payouts_given || 0)
+            const profit = Number(row.profit || 0)
+            const bets = Number(row.total_bets_placed || 0)
+
+            if (row.session_name === 'morning') {
+                existing.morningCollection = collection
+                existing.morningPayout = payout
+                existing.morningProfit = profit
+            } else {
+                existing.nightCollection = collection
+                existing.nightPayout = payout
+                existing.nightProfit = profit
+            }
+
+            existing.totalCollection += collection
+            existing.totalPayout += payout
+            existing.totalProfit += profit
+            existing.totalBets += bets
+
+            staffBreakdown.set(row.staff_id, existing)
+        })
+
+        // Calculate overall summary
+        const staffList = Array.from(staffBreakdown.values())
+        const summary = {
+            totalCollection: staffList.reduce((sum, s) => sum + s.totalCollection, 0),
+            totalPayout: staffList.reduce((sum, s) => sum + s.totalPayout, 0),
+            netProfit: staffList.reduce((sum, s) => sum + s.totalProfit, 0),
+            totalBets: betStats.total,
+            wonBets: betStats.won,
+            lostBets: betStats.lost
+        }
+
+        return NextResponse.json({
+            date: selectedDate,
+            isToday: selectedDate === todayStr,
+            summary,
+            staffBreakdown: staffList.sort((a, b) => b.totalProfit - a.totalProfit)
+        })
+    }
+
     return NextResponse.json({ error: 'Invalid type parameter' }, { status: 400 })
 }
 
@@ -377,6 +518,18 @@ export async function POST(request: NextRequest) {
         }
 
         return NextResponse.json({ success: true })
+    }
+
+    // Verify PIN for hisab-kitab critical data
+    if (action === 'verify_pin') {
+        const { pin } = body
+        const STATIC_PIN = '6747'
+
+        if (pin === STATIC_PIN) {
+            return NextResponse.json({ success: true, verified: true })
+        } else {
+            return NextResponse.json({ success: false, verified: false, error: 'Invalid PIN' }, { status: 401 })
+        }
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })

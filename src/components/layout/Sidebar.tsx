@@ -151,6 +151,6 @@ export const staffSidebarLinks: SidebarLink[] = [
 export const adminSidebarLinks: SidebarLink[] = [
     { href: '/admin', icon: Home, label: 'Dashboard' },
     { href: '/admin/staff', icon: Users, label: 'Staff Management' },
-    { href: '/admin/analytics', icon: TrendingUp, label: 'Analytics' },
+    { href: '/admin/analytics', icon: TrendingUp, label: 'Hisab-Kitab' },
     { href: '/admin/games', icon: Ticket, label: 'Game Settings' },
 ]

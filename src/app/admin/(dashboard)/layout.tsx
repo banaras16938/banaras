@@ -24,7 +24,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         if (pathname === '/admin') return 'Admin Dashboard'
         if (pathname.includes('/admin/staff')) return 'Staff Management'
         if (pathname.includes('/admin/results')) return 'Result Management'
-        if (pathname.includes('/admin/analytics')) return 'Analytics'
+        if (pathname.includes('/admin/analytics')) return 'Hisab-Kitab'
         if (pathname.includes('/admin/games')) return 'Game Settings'
         return 'Admin Portal'
     }

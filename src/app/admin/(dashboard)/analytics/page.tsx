@@ -4,216 +4,128 @@ import { useEffect, useState, useCallback } from 'react'
 import { Card, CardHeader } from '@/components/ui'
 import { Badge } from '@/components/ui/Badge'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { Input, Select } from '@/components/ui/Input'
+import { Input } from '@/components/ui/Input'
 import {
+    Eye,
+    EyeOff,
+    RefreshCw,
     TrendingUp,
     TrendingDown,
-    DollarSign,
     Users,
+    Wallet,
     Trophy,
-    Calendar,
-    RefreshCw
+    X
 } from 'lucide-react'
 import { toast } from 'sonner'
 
-interface AnalyticsData {
-    staff_email: string
-    staff_id: string
-    game_date: string
-    session_name: string
-    total_bets_placed: number
-    total_collection: number
-    total_payouts_given: number
-    profit: number
+interface StaffData {
+    staffId: string
+    staffEmail: string
+    staffName: string
+    morningCollection: number
+    morningPayout: number
+    morningProfit: number
+    nightCollection: number
+    nightPayout: number
+    nightProfit: number
+    totalCollection: number
+    totalPayout: number
+    totalProfit: number
+    totalBets: number
 }
 
-interface AggregatedStats {
-    totalRevenue: number
+interface SummaryData {
+    totalCollection: number
     totalPayout: number
     netProfit: number
-    profitMargin: number
     totalBets: number
-    winners: number
+    wonBets: number
+    lostBets: number
 }
 
-interface DailyData {
+interface HisabKitabData {
     date: string
-    revenue: number
-    payout: number
-    profit: number
+    isToday: boolean
+    summary: SummaryData
+    staffBreakdown: StaffData[]
 }
 
-interface StaffPerformance {
-    email: string
-    name: string
-    bets: number
-    collection: number
-    payout: number
-    profit: number
-}
-
-interface GameTypeStats {
-    type: string
-    bets: number
-    collection: number
-    payout: number
-    profit: number
-}
-
-export default function AnalyticsPage() {
+export default function HisabKitabPage() {
     const [loading, setLoading] = useState(true)
-    const [dateRange, setDateRange] = useState<'7' | '30' | '90'>('30')
-    const [stats, setStats] = useState<AggregatedStats>({
-        totalRevenue: 0,
-        totalPayout: 0,
-        netProfit: 0,
-        profitMargin: 0,
-        totalBets: 0,
-        winners: 0
-    })
-    const [dailyData, setDailyData] = useState<DailyData[]>([])
-    const [staffPerformance, setStaffPerformance] = useState<StaffPerformance[]>([])
-    const [gameBreakdown, setGameBreakdown] = useState<GameTypeStats[]>([
-        { type: 'Single', bets: 0, collection: 0, payout: 0, profit: 0 },
-        { type: 'Jodi', bets: 0, collection: 0, payout: 0, profit: 0 },
-        { type: 'Triple', bets: 0, collection: 0, payout: 0, profit: 0 }
-    ])
+    const [data, setData] = useState<HisabKitabData | null>(null)
+    const [selectedDate, setSelectedDate] = useState<'today' | 'yesterday'>('today')
+    const [showCriticalData, setShowCriticalData] = useState(false)
+    const [showPinModal, setShowPinModal] = useState(false)
+    const [pin, setPin] = useState('')
+    const [pinError, setPinError] = useState('')
+    const [verifying, setVerifying] = useState(false)
 
-    const fetchAnalytics = useCallback(async () => {
+    const fetchData = useCallback(async () => {
         setLoading(true)
         try {
-            const response = await fetch('/api/analytics?type=summary')
+            const today = new Date()
+            const yesterday = new Date(today)
+            yesterday.setDate(yesterday.getDate() - 1)
+
+            const dateStr = selectedDate === 'today'
+                ? today.toISOString().split('T')[0]
+                : yesterday.toISOString().split('T')[0]
+
+            const response = await fetch(`/api/analytics?type=hisab-kitab&date=${dateStr}`)
+            const result = await response.json()
 
             if (!response.ok) {
-                throw new Error('Failed to fetch analytics')
+                throw new Error(result.error || 'Failed to fetch data')
             }
 
-            const { analytics }: { analytics: AnalyticsData[] } = await response.json()
-
-            if (!analytics || analytics.length === 0) {
-                setLoading(false)
-                return
-            }
-
-            // Calculate date cutoff
-            const daysBack = parseInt(dateRange)
-            const cutoffDate = new Date()
-            cutoffDate.setDate(cutoffDate.getDate() - daysBack)
-            const cutoffStr = cutoffDate.toISOString().split('T')[0]
-
-            const filteredData = analytics.filter(a => a.game_date >= cutoffStr)
-
-            // Calculate aggregated stats
-            const totalRevenue = filteredData.reduce((sum, a) => sum + Number(a.total_collection || 0), 0)
-            const totalPayout = filteredData.reduce((sum, a) => sum + Number(a.total_payouts_given || 0), 0)
-            const netProfit = totalRevenue - totalPayout
-            const totalBets = filteredData.reduce((sum, a) => sum + Number(a.total_bets_placed || 0), 0)
-
-            setStats({
-                totalRevenue,
-                totalPayout,
-                netProfit,
-                profitMargin: totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0,
-                totalBets,
-                winners: 0 // Would need additional query to get winners count
-            })
-
-            // Group by date for daily data
-            const dateGroups = new Map<string, { revenue: number; payout: number; profit: number }>()
-            filteredData.forEach(a => {
-                const existing = dateGroups.get(a.game_date) || { revenue: 0, payout: 0, profit: 0 }
-                dateGroups.set(a.game_date, {
-                    revenue: existing.revenue + Number(a.total_collection || 0),
-                    payout: existing.payout + Number(a.total_payouts_given || 0),
-                    profit: existing.profit + Number(a.profit || 0)
-                })
-            })
-
-            const sortedDates = Array.from(dateGroups.entries())
-                .sort((a, b) => b[0].localeCompare(a[0]))
-                .slice(0, 10)
-                .map(([date, data]) => ({
-                    date,
-                    ...data
-                }))
-
-            setDailyData(sortedDates)
-
-            // Group by staff
-            const staffGroups = new Map<string, StaffPerformance>()
-            filteredData.forEach(a => {
-                const existing = staffGroups.get(a.staff_id) || {
-                    email: a.staff_email,
-                    name: a.staff_email,
-                    bets: 0,
-                    collection: 0,
-                    payout: 0,
-                    profit: 0
-                }
-                staffGroups.set(a.staff_id, {
-                    ...existing,
-                    bets: existing.bets + Number(a.total_bets_placed || 0),
-                    collection: existing.collection + Number(a.total_collection || 0),
-                    payout: existing.payout + Number(a.total_payouts_given || 0),
-                    profit: existing.profit + Number(a.profit || 0)
-                })
-            })
-
-            const sortedStaff = Array.from(staffGroups.values())
-                .sort((a, b) => b.profit - a.profit)
-                .slice(0, 10)
-
-            setStaffPerformance(sortedStaff)
-
-            // Game type breakdown would need category-level data from bets
-            // For now, estimate based on typical distribution
-            const singleShare = 0.34
-            const jodiShare = 0.41
-            const tripleShare = 0.25
-
-            setGameBreakdown([
-                {
-                    type: 'Single',
-                    bets: Math.round(totalBets * singleShare),
-                    collection: Math.round(totalRevenue * singleShare),
-                    payout: Math.round(totalPayout * singleShare),
-                    profit: Math.round(netProfit * singleShare * 0.8)
-                },
-                {
-                    type: 'Jodi',
-                    bets: Math.round(totalBets * jodiShare),
-                    collection: Math.round(totalRevenue * jodiShare),
-                    payout: Math.round(totalPayout * jodiShare),
-                    profit: Math.round(netProfit * jodiShare * 1.2)
-                },
-                {
-                    type: 'Triple',
-                    bets: Math.round(totalBets * tripleShare),
-                    collection: Math.round(totalRevenue * tripleShare),
-                    payout: Math.round(totalPayout * tripleShare),
-                    profit: Math.round(netProfit * tripleShare)
-                }
-            ])
-
+            setData(result)
         } catch (error) {
-            console.error('Analytics fetch error:', error)
-            toast.error('Failed to load analytics')
+            toast.error(error instanceof Error ? error.message : 'Failed to load data')
+            setData(null)
         } finally {
             setLoading(false)
         }
-    }, [dateRange])
+    }, [selectedDate])
 
     useEffect(() => {
-        fetchAnalytics()
-    }, [fetchAnalytics])
+        fetchData()
+    }, [fetchData])
+
+    const handlePinSubmit = async () => {
+        if (pin.length !== 4) {
+            setPinError('Enter 4-digit PIN')
+            return
+        }
+
+        setVerifying(true)
+        setPinError('')
+
+        try {
+            const response = await fetch('/api/analytics', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'verify_pin', pin })
+            })
+
+            const result = await response.json()
+
+            if (result.verified) {
+                setShowCriticalData(true)
+                setShowPinModal(false)
+                setPin('')
+                toast.success('Critical data unlocked')
+            } else {
+                setPinError('Wrong PIN')
+            }
+        } catch {
+            setPinError('Verification failed')
+        } finally {
+            setVerifying(false)
+        }
+    }
 
     const formatCurrency = (amount: number) => {
-        if (amount >= 100000) {
-            return `₹${(amount / 100000).toFixed(1)}L`
-        } else if (amount >= 1000) {
-            return `₹${(amount / 1000).toFixed(0)}K`
-        }
-        return `₹${amount.toLocaleString()}`
+        return `₹${amount.toLocaleString('en-IN')}`
     }
 
     if (loading) {
@@ -226,116 +138,246 @@ export default function AnalyticsPage() {
 
     return (
         <div className="space-y-6 animate-fade-in">
+            {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Analytics Dashboard</h1>
+                    <h1 className="text-2xl font-bold text-white">Hisab-Kitab</h1>
                     <p className="text-gray-400">
-                        Comprehensive profit and performance analysis
+                        Daily staff settlement & profit overview
                     </p>
                 </div>
                 <div className="flex gap-3">
-                    <Select
-                        value={dateRange}
-                        onChange={(e) => setDateRange(e.target.value as typeof dateRange)}
-                        options={[
-                            { value: '7', label: 'Last 7 Days' },
-                            { value: '30', label: 'Last 30 Days' },
-                            { value: '90', label: 'Last 90 Days' }
-                        ]}
-                    />
+                    {/* Date Toggle */}
+                    <div className="flex rounded-lg overflow-hidden border border-gray-700">
+                        <button
+                            onClick={() => setSelectedDate('today')}
+                            className={`px-4 py-2 text-sm font-medium transition-colors ${selectedDate === 'today'
+                                ? 'bg-purple-600 text-white'
+                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                }`}
+                        >
+                            Today
+                        </button>
+                        <button
+                            onClick={() => setSelectedDate('yesterday')}
+                            className={`px-4 py-2 text-sm font-medium transition-colors ${selectedDate === 'yesterday'
+                                ? 'bg-purple-600 text-white'
+                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                }`}
+                        >
+                            Yesterday
+                        </button>
+                    </div>
                     <button
-                        onClick={fetchAnalytics}
-                        className="btn btn-secondary flex items-center gap-2"
+                        onClick={fetchData}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                        disabled={loading}
                     >
-                        <RefreshCw size={16} />
+                        <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
                         Refresh
                     </button>
                 </div>
             </div>
 
-            {/* Overview Stats */}
-            <div className="grid md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {/* Date Display */}
+            {data && (
+                <p className="text-sm text-gray-500">
+                    Showing data for: <span className="text-white font-medium">{data.date}</span>
+                </p>
+            )}
+
+            {/* Summary Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                {/* Always Visible */}
                 <Card className="text-center">
-                    <DollarSign className="mx-auto text-[var(--accent-cyan)] mb-2" size={24} />
-                    <p className="text-xs text-[var(--text-muted)]">Total Revenue</p>
-                    <p className="text-xl font-bold">{formatCurrency(stats.totalRevenue)}</p>
+                    <Users className="mx-auto text-blue-400 mb-2" size={24} />
+                    <p className="text-xs text-gray-400">Total Bets</p>
+                    <p className="text-xl font-bold text-white">{data?.summary.totalBets || 0}</p>
                 </Card>
                 <Card className="text-center">
-                    <TrendingDown className="mx-auto text-[var(--status-error)] mb-2" size={24} />
-                    <p className="text-xs text-[var(--text-muted)]">Total Payout</p>
-                    <p className="text-xl font-bold">{formatCurrency(stats.totalPayout)}</p>
+                    <Wallet className="mx-auto text-cyan-400 mb-2" size={24} />
+                    <p className="text-xs text-gray-400">Total Collection</p>
+                    {showCriticalData ? (
+                        <p className="text-xl font-bold text-cyan-400">
+                            {formatCurrency(data?.summary.totalCollection || 0)}
+                        </p>
+                    ) : (
+                        <button
+                            onClick={() => setShowPinModal(true)}
+                            className="text-xl font-bold text-gray-600 flex items-center justify-center gap-2 mx-auto hover:text-gray-400 transition-colors"
+                        >
+                            ****
+                            <Eye size={16} />
+                        </button>
+                    )}
+                </Card>
+
+                {/* Critical Data - PIN Protected */}
+                <Card className="text-center relative">
+                    <TrendingDown className="mx-auto text-red-400 mb-2" size={24} />
+                    <p className="text-xs text-gray-400">Total Payout</p>
+                    {showCriticalData ? (
+                        <p className="text-xl font-bold text-red-400">
+                            {formatCurrency(data?.summary.totalPayout || 0)}
+                        </p>
+                    ) : (
+                        <button
+                            onClick={() => setShowPinModal(true)}
+                            className="text-xl font-bold text-gray-600 flex items-center justify-center gap-2 mx-auto hover:text-gray-400 transition-colors"
+                        >
+                            ****
+                            <Eye size={16} />
+                        </button>
+                    )}
+                </Card>
+                <Card className="text-center relative">
+                    <TrendingUp className="mx-auto text-green-400 mb-2" size={24} />
+                    <p className="text-xs text-gray-400">Net Profit</p>
+                    {showCriticalData ? (
+                        <p className={`text-xl font-bold ${(data?.summary.netProfit || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {formatCurrency(data?.summary.netProfit || 0)}
+                        </p>
+                    ) : (
+                        <button
+                            onClick={() => setShowPinModal(true)}
+                            className="text-xl font-bold text-gray-600 flex items-center justify-center gap-2 mx-auto hover:text-gray-400 transition-colors"
+                        >
+                            ****
+                            <Eye size={16} />
+                        </button>
+                    )}
                 </Card>
                 <Card className="text-center">
-                    <TrendingUp className="mx-auto text-[var(--status-success)] mb-2" size={24} />
-                    <p className="text-xs text-[var(--text-muted)]">Net Profit</p>
-                    <p className="text-xl font-bold text-[var(--status-success)]">
-                        {formatCurrency(stats.netProfit)}
-                    </p>
+                    <Trophy className="mx-auto text-yellow-400 mb-2" size={24} />
+                    <p className="text-xs text-gray-400">Won / Lost</p>
+                    {showCriticalData ? (
+                        <p className="text-xl font-bold text-white">
+                            <span className="text-green-400">{data?.summary.wonBets || 0}</span>
+                            {' / '}
+                            <span className="text-red-400">{data?.summary.lostBets || 0}</span>
+                        </p>
+                    ) : (
+                        <button
+                            onClick={() => setShowPinModal(true)}
+                            className="text-xl font-bold text-gray-600 flex items-center justify-center gap-2 mx-auto hover:text-gray-400 transition-colors"
+                        >
+                            ** / **
+                            <Eye size={16} />
+                        </button>
+                    )}
                 </Card>
                 <Card className="text-center">
-                    <Trophy className="mx-auto text-[var(--accent-yellow)] mb-2" size={24} />
-                    <p className="text-xs text-[var(--text-muted)]">Profit Margin</p>
-                    <p className="text-xl font-bold">{stats.profitMargin.toFixed(1)}%</p>
-                </Card>
-                <Card className="text-center">
-                    <Calendar className="mx-auto text-[var(--accent-pink)] mb-2" size={24} />
-                    <p className="text-xs text-[var(--text-muted)]">Total Bets</p>
-                    <p className="text-xl font-bold">{stats.totalBets.toLocaleString()}</p>
-                </Card>
-                <Card className="text-center">
-                    <Users className="mx-auto text-[var(--accent-green)] mb-2" size={24} />
-                    <p className="text-xs text-[var(--text-muted)]">Active Staff</p>
-                    <p className="text-xl font-bold">{staffPerformance.length}</p>
+                    <p className="text-xs text-gray-400 mb-2">Active Staff</p>
+                    <p className="text-2xl font-bold text-purple-400">{data?.staffBreakdown.length || 0}</p>
                 </Card>
             </div>
 
-            {/* Daily Breakdown */}
+            {/* Critical Data Toggle */}
+            {showCriticalData && (
+                <div className="flex justify-end">
+                    <button
+                        onClick={() => setShowCriticalData(false)}
+                        className="text-sm text-gray-400 hover:text-white flex items-center gap-1"
+                    >
+                        <EyeOff size={14} />
+                        Hide sensitive data
+                    </button>
+                </div>
+            )}
+
+            {/* Staff Performance Table */}
             <Card>
                 <CardHeader
-                    title="Daily Performance"
-                    subtitle="Revenue, payout, and profit by date"
+                    title="Staff Performance"
+                    subtitle="Session-wise collection, payout, and profit"
                 />
-                <div className="table-container">
-                    <table className="table">
+                <div className="table-container overflow-x-auto">
+                    <table className="table min-w-[900px]">
                         <thead>
                             <tr>
-                                <th>Date</th>
-                                <th>Revenue</th>
-                                <th>Payout</th>
-                                <th>Net Profit</th>
-                                <th>Margin</th>
-                                <th>Trend</th>
+                                <th>Staff</th>
+                                <th className="text-center" colSpan={2}>Morning</th>
+                                <th className="text-center" colSpan={2}>Night</th>
+                                <th className="text-center" colSpan={2}>Day Total</th>
+                                <th className="text-center">Settlement</th>
+                            </tr>
+                            <tr className="text-xs text-gray-500">
+                                <th></th>
+                                <th>Collection</th>
+                                <th>Profit</th>
+                                <th>Collection</th>
+                                <th>Profit</th>
+                                <th>Collection</th>
+                                <th>Profit</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
-                            {dailyData.length === 0 ? (
+                            {!data?.staffBreakdown.length ? (
                                 <tr>
-                                    <td colSpan={6} className="text-center py-8 text-[var(--text-muted)]">
-                                        No data available for this period
+                                    <td colSpan={8} className="text-center py-8 text-gray-500">
+                                        No staff data for this date
                                     </td>
                                 </tr>
                             ) : (
-                                dailyData.map((day, index) => {
-                                    const margin = day.revenue > 0 ? ((day.profit / day.revenue) * 100).toFixed(1) : '0.0'
-                                    const prevProfit = dailyData[index + 1]?.profit || day.profit
-                                    const trend = day.profit > prevProfit ? 'up' : day.profit < prevProfit ? 'down' : 'neutral'
-
+                                data.staffBreakdown.map((staff) => {
+                                    // Settlement = Profit (what admin takes from staff)
+                                    const settlement = staff.totalProfit
                                     return (
-                                        <tr key={day.date}>
-                                            <td className="font-medium">{day.date}</td>
-                                            <td>{formatCurrency(day.revenue)}</td>
-                                            <td className="text-[var(--status-error)]">
-                                                -{formatCurrency(day.payout)}
-                                            </td>
-                                            <td className="text-[var(--status-success)] font-medium">
-                                                +{formatCurrency(day.profit)}
-                                            </td>
+                                        <tr key={staff.staffId}>
                                             <td>
-                                                <Badge variant="success">{margin}%</Badge>
+                                                <div>
+                                                    <p className="font-medium text-white">{staff.staffName}</p>
+                                                    <p className="text-xs text-gray-500">{staff.staffEmail}</p>
+                                                </div>
                                             </td>
-                                            <td>
-                                                {trend === 'up' && <TrendingUp size={18} className="text-[var(--status-success)]" />}
-                                                {trend === 'down' && <TrendingDown size={18} className="text-[var(--status-error)]" />}
+                                            <td className="text-center">{formatCurrency(staff.morningCollection)}</td>
+                                            <td className="text-center">
+                                                {showCriticalData ? (
+                                                    <span className={staff.morningProfit >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                                        {formatCurrency(staff.morningProfit)}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-gray-600">****</span>
+                                                )}
+                                            </td>
+                                            <td className="text-center">{formatCurrency(staff.nightCollection)}</td>
+                                            <td className="text-center">
+                                                {showCriticalData ? (
+                                                    <span className={staff.nightProfit >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                                        {formatCurrency(staff.nightProfit)}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-gray-600">****</span>
+                                                )}
+                                            </td>
+                                            <td className="text-center font-medium">{formatCurrency(staff.totalCollection)}</td>
+                                            <td className="text-center">
+                                                {showCriticalData ? (
+                                                    <span className={`font-medium ${staff.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                        {formatCurrency(staff.totalProfit)}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-gray-600">****</span>
+                                                )}
+                                            </td>
+                                            <td className="text-center">
+                                                {showCriticalData ? (
+                                                    <Badge
+                                                        variant={settlement >= 0 ? 'success' : 'error'}
+                                                        className="font-mono"
+                                                    >
+                                                        {settlement >= 0 ? '↑ Take ' : '↓ Give '}
+                                                        {formatCurrency(Math.abs(settlement))}
+                                                    </Badge>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => setShowPinModal(true)}
+                                                        className="text-gray-600 hover:text-gray-400"
+                                                    >
+                                                        <Eye size={16} />
+                                                    </button>
+                                                )}
                                             </td>
                                         </tr>
                                     )
@@ -346,95 +388,54 @@ export default function AnalyticsPage() {
                 </div>
             </Card>
 
-            <div className="grid lg:grid-cols-2 gap-6">
-                {/* Game Type Breakdown */}
-                <Card>
-                    <CardHeader
-                        title="Game Type Breakdown"
-                        subtitle="Performance by game type"
-                    />
-                    <div className="space-y-4">
-                        {gameBreakdown.map((game) => {
-                            const margin = game.collection > 0 ? ((game.profit / game.collection) * 100).toFixed(1) : '0.0'
-                            const totalProfit = gameBreakdown.reduce((a, b) => a + b.profit, 0)
-                            const profitPercentage = totalProfit > 0 ? (game.profit / totalProfit) * 100 : 0
-
-                            return (
-                                <div key={game.type} className="p-4 rounded-lg bg-[var(--bg-surface)]">
-                                    <div className="flex justify-between items-center mb-3">
-                                        <div>
-                                            <p className="font-medium">{game.type}</p>
-                                            <p className="text-xs text-[var(--text-muted)]">{game.bets.toLocaleString()} bets</p>
-                                        </div>
-                                        <Badge variant="success">{margin}% margin</Badge>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-[var(--text-muted)]">Collection: {formatCurrency(game.collection)}</span>
-                                        <span className="text-[var(--status-success)]">Profit: {formatCurrency(game.profit)}</span>
-                                    </div>
-                                    <div className="mt-2 h-2 bg-[var(--bg-dark)] rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full bg-gradient-to-r from-[var(--primary-500)] to-[var(--accent-cyan)]"
-                                            style={{ width: `${profitPercentage}%` }}
-                                        />
-                                    </div>
-                                </div>
-                            )
-                        })}
+            {/* PIN Modal */}
+            {showPinModal && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+                    <div className="bg-gray-900 rounded-xl p-6 w-full max-w-sm mx-4 border border-gray-700">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-semibold text-white">Enter PIN</h3>
+                            <button
+                                onClick={() => {
+                                    setShowPinModal(false)
+                                    setPin('')
+                                    setPinError('')
+                                }}
+                                className="text-gray-400 hover:text-white"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <p className="text-sm text-gray-400 mb-4">
+                            Enter 4-digit PIN to view critical financial data
+                        </p>
+                        <Input
+                            type="password"
+                            placeholder="****"
+                            value={pin}
+                            onChange={(e) => {
+                                setPin(e.target.value.replace(/\D/g, '').slice(0, 4))
+                                setPinError('')
+                            }}
+                            className="text-center text-2xl tracking-widest font-mono"
+                            maxLength={4}
+                            autoFocus
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') handlePinSubmit()
+                            }}
+                        />
+                        {pinError && (
+                            <p className="text-red-400 text-sm mt-2 text-center">{pinError}</p>
+                        )}
+                        <button
+                            onClick={handlePinSubmit}
+                            disabled={verifying || pin.length !== 4}
+                            className="w-full mt-4 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:text-gray-500 text-white py-3 rounded-lg font-medium transition-colors"
+                        >
+                            {verifying ? 'Verifying...' : 'Unlock'}
+                        </button>
                     </div>
-                </Card>
-
-                {/* Staff Performance */}
-                <Card>
-                    <CardHeader
-                        title="Staff Performance"
-                        subtitle="Top performing staff members"
-                    />
-                    <div className="table-container">
-                        <table className="table">
-                            <thead>
-                                <tr>
-                                    <th>Staff</th>
-                                    <th>Bets</th>
-                                    <th>Collection</th>
-                                    <th>Profit</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {staffPerformance.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={4} className="text-center py-8 text-[var(--text-muted)]">
-                                            No staff data available
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    staffPerformance.map((staff, index) => (
-                                        <tr key={staff.email}>
-                                            <td>
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${index === 0 ? 'bg-[var(--accent-yellow)]/20 text-[var(--accent-yellow)]' :
-                                                        index === 1 ? 'bg-[var(--text-muted)]/20 text-[var(--text-muted)]' :
-                                                            index === 2 ? 'bg-[var(--accent-orange)]/20 text-[var(--accent-orange)]' :
-                                                                'bg-[var(--bg-surface)] text-[var(--text-muted)]'
-                                                        }`}>
-                                                        {index + 1}
-                                                    </span>
-                                                    <span className="font-medium truncate max-w-[120px]">{staff.email}</span>
-                                                </div>
-                                            </td>
-                                            <td>{staff.bets.toLocaleString()}</td>
-                                            <td>{formatCurrency(staff.collection)}</td>
-                                            <td className="text-[var(--status-success)]">
-                                                {formatCurrency(staff.profit)}
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </Card>
-            </div>
+                </div>
+            )}
         </div>
     )
 }
