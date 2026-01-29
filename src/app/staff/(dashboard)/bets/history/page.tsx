@@ -5,7 +5,7 @@ import { Card, CardHeader } from '@/components/ui'
 import { Input, Select } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { BetCategory, BetTarget, SessionType, PAYOUT_MULTIPLIERS } from '@/types/types'
+import { BetCategory, BetTarget, SessionType } from '@/types/types'
 import { Search, Calendar, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -89,13 +89,7 @@ export default function BetHistoryPage() {
         return matchesSearch && matchesType && isWithinDateRange
     })
 
-    // Calculate summary stats
-    const totalBets = filteredBets.reduce((sum, bet) => sum + Number(bet.amount), 0)
-    const totalPotentialPayout = filteredBets.reduce((sum, bet) => {
-        return sum + Number(bet.amount) * PAYOUT_MULTIPLIERS[bet.category]
-    }, 0)
-    const wonBets = filteredBets.filter(b => b.status === 'won')
-    const totalWinnings = wonBets.reduce((sum, bet) => sum + Number(bet.winning_amount), 0)
+
 
     const formatTime = (dateStr: string) => {
         const date = new Date(dateStr)
@@ -175,27 +169,6 @@ export default function BetHistoryPage() {
                 </div>
             </Card>
 
-            {/* Summary Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="text-center">
-                    <p className="text-sm text-gray-400">Total Bets</p>
-                    <p className="text-2xl font-bold text-white">{filteredBets.length}</p>
-                </Card>
-                <Card className="text-center">
-                    <p className="text-sm text-gray-400">Total Amount</p>
-                    <p className="text-2xl font-bold text-white">₹{totalBets.toLocaleString()}</p>
-                </Card>
-                <Card className="text-center">
-                    <p className="text-sm text-gray-400">Potential Payout</p>
-                    <p className="text-2xl font-bold text-cyan-400">₹{totalPotentialPayout.toLocaleString()}</p>
-                </Card>
-                <Card className="text-center">
-                    <p className="text-sm text-gray-400">Winners</p>
-                    <p className="text-2xl font-bold text-green-400">
-                        {wonBets.length} <span className="text-sm font-normal text-gray-300">(₹{totalWinnings.toLocaleString()})</span>
-                    </p>
-                </Card>
-            </div>
 
             {/* Bets Table */}
             <Card>
