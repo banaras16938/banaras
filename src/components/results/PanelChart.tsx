@@ -1,17 +1,76 @@
 'use client'
 
-import { useState } from 'react'
-import { GameResult, SessionType } from '@/types/types'
+import { useState, useMemo } from 'react'
+import { GameResult, SessionType, GameSchedule } from '@/types/types'
 
 interface PanelChartProps {
     results: GameResult[]
+    schedules?: GameSchedule[]
+    currentTime?: Date
 }
 
-export function PanelChart({ results }: PanelChartProps) {
+// Helper to check if a result should be visible based on schedule
+function shouldShowResult(result: GameResult, schedules: GameSchedule[] | undefined, currentTime: Date): {
+    showOpen: boolean
+    showClose: boolean
+} {
+    const schedule = schedules?.find(s => s.session_name === result.session_name)
+
+    if (!schedule) {
+        // If no schedule, check the is_declared flags only (for past dates)
+        return {
+            showOpen: result.is_open_declared,
+            showClose: result.is_close_declared
+        }
+    }
+
+    // For today's results, check schedule times
+    const today = new Date().toISOString().split('T')[0]
+    if (result.game_date !== today) {
+        // Past/future days - just use declared flags
+        return {
+            showOpen: result.is_open_declared,
+            showClose: result.is_close_declared
+        }
+    }
+
+    // Today - check if current time is past the scheduled reveal time
+    const parseTime = (timeStr: string): Date => {
+        const [hours, minutes] = timeStr.split(':').map(Number)
+        const time = new Date(currentTime)
+        time.setHours(hours, minutes, 0, 0)
+        return time
+    }
+
+    const openResultTime = parseTime(schedule.open_result_time)
+    const closeResultTime = parseTime(schedule.close_result_time)
+
+    return {
+        showOpen: result.is_open_declared && currentTime >= openResultTime,
+        showClose: result.is_close_declared && currentTime >= closeResultTime
+    }
+}
+
+export function PanelChart({ results, schedules, currentTime = new Date() }: PanelChartProps) {
     const [selectedSession, setSelectedSession] = useState<SessionType>('morning')
 
-    // Filter results by selected session
-    const filteredResults = results.filter(r => r.session_name === selectedSession)
+    // Filter results by selected session and apply time-based visibility
+    const filteredResults = useMemo(() => {
+        return results
+            .filter(r => r.session_name === selectedSession)
+            .map(result => {
+                const visibility = shouldShowResult(result, schedules, currentTime)
+                return {
+                    ...result,
+                    // Only show results if scheduled time has passed
+                    open_triple: visibility.showOpen ? result.open_triple : null,
+                    open_single: visibility.showOpen ? result.open_single : null,
+                    close_triple: visibility.showClose ? result.close_triple : null,
+                    close_single: visibility.showClose ? result.close_single : null,
+                    jodi_result: visibility.showClose ? result.jodi_result : null
+                }
+            })
+    }, [results, selectedSession, schedules, currentTime])
 
     const weekDays = ['DATE', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
 

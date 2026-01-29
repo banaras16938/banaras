@@ -377,9 +377,9 @@ export default function Home() {
 
                 {/* Chart Content */}
                 {activeChart === 'jodi' ? (
-                  <JodiChart results={historicalResults} />
+                  <JodiChart results={historicalResults} schedules={schedules} currentTime={currentTime} />
                 ) : (
-                  <PanelChart results={historicalResults} />
+                  <PanelChart results={historicalResults} schedules={schedules} currentTime={currentTime} />
                 )}
               </div>
             )}

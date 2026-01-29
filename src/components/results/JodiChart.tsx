@@ -1,17 +1,76 @@
 'use client'
 
-import { useState } from 'react'
-import { GameResult, SessionType } from '@/types/types'
+import { useState, useMemo } from 'react'
+import { GameResult, SessionType, GameSchedule } from '@/types/types'
 
 interface JodiChartProps {
     results: GameResult[]
+    schedules?: GameSchedule[]
+    currentTime?: Date
 }
 
-export function JodiChart({ results }: JodiChartProps) {
+// Helper to check if a result should be visible based on schedule
+function shouldShowResult(result: GameResult, schedules: GameSchedule[] | undefined, currentTime: Date): {
+    showOpen: boolean
+    showClose: boolean
+    showJodi: boolean
+} {
+    const schedule = schedules?.find(s => s.session_name === result.session_name)
+
+    if (!schedule) {
+        // If no schedule, check the is_declared flags only (for past dates)
+        return {
+            showOpen: result.is_open_declared,
+            showClose: result.is_close_declared,
+            showJodi: result.is_close_declared // Jodi requires close to be declared
+        }
+    }
+
+    // For today's results, check schedule times
+    const today = new Date().toISOString().split('T')[0]
+    if (result.game_date !== today) {
+        // Past/future days - just use declared flags
+        return {
+            showOpen: result.is_open_declared,
+            showClose: result.is_close_declared,
+            showJodi: result.is_close_declared
+        }
+    }
+
+    // Today - check if current time is past the scheduled reveal time
+    const parseTime = (timeStr: string): Date => {
+        const [hours, minutes] = timeStr.split(':').map(Number)
+        const time = new Date(currentTime)
+        time.setHours(hours, minutes, 0, 0)
+        return time
+    }
+
+    const openResultTime = parseTime(schedule.open_result_time)
+    const closeResultTime = parseTime(schedule.close_result_time)
+
+    return {
+        showOpen: result.is_open_declared && currentTime >= openResultTime,
+        showClose: result.is_close_declared && currentTime >= closeResultTime,
+        showJodi: result.is_close_declared && currentTime >= closeResultTime
+    }
+}
+
+export function JodiChart({ results, schedules, currentTime = new Date() }: JodiChartProps) {
     const [selectedSession, setSelectedSession] = useState<SessionType>('morning')
 
-    // Filter results by selected session
-    const filteredResults = results.filter(r => r.session_name === selectedSession)
+    // Filter results by selected session and apply time-based visibility
+    const filteredResults = useMemo(() => {
+        return results
+            .filter(r => r.session_name === selectedSession)
+            .map(result => {
+                const visibility = shouldShowResult(result, schedules, currentTime)
+                return {
+                    ...result,
+                    // Only show jodi if it should be visible
+                    jodi_result: visibility.showJodi ? result.jodi_result : null
+                }
+            })
+    }, [results, selectedSession, schedules, currentTime])
 
     // Group results by week for display
     const weekDays = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']

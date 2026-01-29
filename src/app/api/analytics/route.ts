@@ -523,13 +523,69 @@ export async function POST(request: NextRequest) {
     // Verify PIN for hisab-kitab critical data
     if (action === 'verify_pin') {
         const { pin } = body
-        const STATIC_PIN = '6747'
 
-        if (pin === STATIC_PIN) {
+        // Get PIN from database
+        const { data: pinSetting } = await supabase
+            .from('admin_settings')
+            .select('value')
+            .eq('key', 'hisab_kitab_pin')
+            .single()
+
+        const storedPin = pinSetting?.value || '6747' // Fallback to default
+
+        if (pin === storedPin) {
             return NextResponse.json({ success: true, verified: true })
         } else {
             return NextResponse.json({ success: false, verified: false, error: 'Invalid PIN' }, { status: 401 })
         }
+    }
+
+    // Update PIN for hisab-kitab
+    if (action === 'update_pin') {
+        const { currentPin, newPin } = body
+
+        if (!newPin || newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
+            return NextResponse.json({ error: 'PIN must be exactly 4 digits' }, { status: 400 })
+        }
+
+        // Get current PIN from database
+        const { data: pinSetting } = await supabase
+            .from('admin_settings')
+            .select('value')
+            .eq('key', 'hisab_kitab_pin')
+            .single()
+
+        const storedPin = pinSetting?.value || '6747'
+
+        // Verify current PIN
+        if (currentPin !== storedPin) {
+            return NextResponse.json({ error: 'Current PIN is incorrect' }, { status: 401 })
+        }
+
+        // Update PIN
+        const { error } = await supabase
+            .from('admin_settings')
+            .upsert({ key: 'hisab_kitab_pin', value: newPin, updated_at: new Date().toISOString() })
+
+        if (error) {
+            return NextResponse.json({ error: error.message }, { status: 500 })
+        }
+
+        return NextResponse.json({ success: true })
+    }
+
+    // Get PIN (masked for security, just returns if PIN is set)
+    if (action === 'get_pin_status') {
+        const { data: pinSetting } = await supabase
+            .from('admin_settings')
+            .select('value, updated_at')
+            .eq('key', 'hisab_kitab_pin')
+            .single()
+
+        return NextResponse.json({
+            hasPin: !!pinSetting?.value,
+            lastUpdated: pinSetting?.updated_at || null
+        })
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })

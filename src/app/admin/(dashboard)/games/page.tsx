@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { Clock, DollarSign, Save, RefreshCw, Calendar, Trash2, Plus, Edit2 } from 'lucide-react'
+import { Clock, DollarSign, Save, RefreshCw, Calendar, Trash2, Plus, Edit2, Lock } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface GameSchedule {
@@ -57,6 +57,12 @@ export default function GameSettingsPage() {
     const [showScheduleModal, setShowScheduleModal] = useState(false)
     const [editingSchedule, setEditingSchedule] = useState<GameSchedule | null>(null)
     const [isSavingSchedule, setIsSavingSchedule] = useState(false)
+
+    // PIN management
+    const [currentPin, setCurrentPin] = useState('')
+    const [newPin, setNewPin] = useState('')
+    const [confirmPin, setConfirmPin] = useState('')
+    const [isSavingPin, setIsSavingPin] = useState(false)
 
     const fetchData = useCallback(async () => {
         setLoading(true)
@@ -441,6 +447,90 @@ export default function GameSettingsPage() {
                             </div>
                         ))
                     )}
+                </div>
+            </Card>
+
+            {/* PIN Management */}
+            <Card>
+                <CardHeader
+                    title="Hisab-Kitab PIN"
+                    subtitle="Change the PIN used to view sensitive financial data"
+                    action={<Lock className="text-purple-400" size={20} />}
+                />
+
+                <div className="space-y-4">
+                    <div className="grid md:grid-cols-3 gap-4">
+                        <Input
+                            label="Current PIN"
+                            type="password"
+                            value={currentPin}
+                            onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                            placeholder="****"
+                            maxLength={4}
+                        />
+                        <Input
+                            label="New PIN"
+                            type="password"
+                            value={newPin}
+                            onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                            placeholder="****"
+                            maxLength={4}
+                        />
+                        <Input
+                            label="Confirm New PIN"
+                            type="password"
+                            value={confirmPin}
+                            onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                            placeholder="****"
+                            maxLength={4}
+                        />
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <Button
+                            onClick={async () => {
+                                if (newPin.length !== 4) {
+                                    toast.error('PIN must be 4 digits')
+                                    return
+                                }
+                                if (newPin !== confirmPin) {
+                                    toast.error('New PINs do not match')
+                                    return
+                                }
+                                setIsSavingPin(true)
+                                try {
+                                    const response = await fetch('/api/analytics', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            action: 'update_pin',
+                                            currentPin,
+                                            newPin
+                                        })
+                                    })
+                                    const data = await response.json()
+                                    if (!response.ok) {
+                                        throw new Error(data.error || 'Failed to update PIN')
+                                    }
+                                    toast.success('PIN updated successfully!')
+                                    setCurrentPin('')
+                                    setNewPin('')
+                                    setConfirmPin('')
+                                } catch (error) {
+                                    toast.error(error instanceof Error ? error.message : 'Failed to update PIN')
+                                } finally {
+                                    setIsSavingPin(false)
+                                }
+                            }}
+                            isLoading={isSavingPin}
+                            icon={<Save size={16} />}
+                            disabled={!currentPin || !newPin || !confirmPin}
+                        >
+                            Change PIN
+                        </Button>
+                        <p className="text-xs text-gray-500">
+                            Default PIN is 6747. Change it to something secure.
+                        </p>
+                    </div>
                 </div>
             </Card>
 
