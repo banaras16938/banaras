@@ -14,7 +14,8 @@ import {
     LucideIcon,
     Users,
     X,
-    Menu
+    Menu,
+    Calculator
 } from 'lucide-react'
 
 interface SidebarLink {
@@ -152,5 +153,6 @@ export const adminSidebarLinks: SidebarLink[] = [
     { href: '/admin', icon: Home, label: 'Dashboard' },
     { href: '/admin/staff', icon: Users, label: 'Staff Management' },
     { href: '/admin/analytics', icon: TrendingUp, label: 'Hisab-Kitab' },
+    { href: '/admin/cross-checking', icon: Calculator, label: 'Cross Checking' },
     { href: '/admin/games', icon: Ticket, label: 'Game Settings' },
 ]

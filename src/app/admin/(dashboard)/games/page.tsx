@@ -251,7 +251,7 @@ export default function GameSettingsPage() {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-white">Game Settings</h1>
-                    <p className="text-gray-400">
+                    <p className="text-gray-200">
                         Configure game timings, payouts, and holidays
                     </p>
                 </div>
@@ -276,7 +276,7 @@ export default function GameSettingsPage() {
                     {schedules.map((schedule) => (
                         <div key={schedule.session_name} className="p-4 rounded-lg bg-[var(--bg-surface)]">
                             <div className="flex items-center justify-between mb-4">
-                                <h3 className="font-semibold text-lg capitalize">
+                                <h3 className="font-semibold text-lg capitalize text-white">
                                     {schedule.session_name} Game
                                 </h3>
                                 <Button
@@ -291,31 +291,31 @@ export default function GameSettingsPage() {
 
                             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <div>
-                                    <p className="text-xs text-[var(--text-muted)] mb-1">Betting Starts</p>
-                                    <p className="font-mono text-lg">{formatTime(schedule.start_time)}</p>
+                                    <p className="text-xs text-gray-200 mb-1">Betting Starts</p>
+                                    <p className="font-mono text-lg text-white">{formatTime(schedule.start_time)}</p>
                                 </div>
 
                                 <div>
-                                    <p className="text-xs text-[var(--text-muted)] mb-1">Open Lock Time</p>
-                                    <p className="font-mono">
+                                    <p className="text-xs text-gray-200 mb-1">Open Lock Time</p>
+                                    <p className="font-mono text-white">
                                         {formatTime(schedule.open_bet_freeze_time)}
                                     </p>
                                 </div>
 
                                 <div>
-                                    <p className="text-xs text-[var(--text-muted)] mb-1">Open Result Time</p>
+                                    <p className="text-xs text-gray-200 mb-1">Open Result Time</p>
                                     <Badge variant="info">{formatTime(schedule.open_result_time)}</Badge>
                                 </div>
 
                                 <div>
-                                    <p className="text-xs text-[var(--text-muted)] mb-1">Close Lock Time</p>
-                                    <p className="font-mono">
+                                    <p className="text-xs text-gray-200 mb-1">Close Lock Time</p>
+                                    <p className="font-mono text-white">
                                         {formatTime(schedule.close_bet_freeze_time)}
                                     </p>
                                 </div>
 
                                 <div>
-                                    <p className="text-xs text-[var(--text-muted)] mb-1">Close Result Time</p>
+                                    <p className="text-xs text-gray-200 mb-1">Close Result Time</p>
                                     <Badge variant="success">{formatTime(schedule.close_result_time)}</Badge>
                                 </div>
                             </div>
@@ -335,49 +335,49 @@ export default function GameSettingsPage() {
                 <div className="space-y-6">
                     <div className="grid md:grid-cols-3 gap-6">
                         <div className="p-4 rounded-lg bg-[var(--bg-surface)] text-center">
-                            <p className="text-sm text-[var(--text-muted)] mb-2">Single (0-9)</p>
+                            <p className="text-sm text-gray-200 mb-2">Single (0-9)</p>
                             <div className="flex items-center justify-center gap-2">
-                                <span className="text-[var(--text-muted)]">₹10 →</span>
+                                <span className="text-gray-200">₹10 →</span>
                                 <Input
                                     type="number"
                                     value={editingSingle}
                                     onChange={(e) => setEditingSingle(Number(e.target.value))}
-                                    className="w-24 text-center font-bold text-lg"
+                                    className="w-24 text-center font-bold text-lg text-white"
                                 />
                             </div>
-                            <p className="text-xs text-[var(--text-muted)] mt-2">
+                            <p className="text-xs text-gray-200 mt-2">
                                 Multiplier: {(editingSingle / 10).toFixed(1)}x
                             </p>
                         </div>
 
                         <div className="p-4 rounded-lg bg-[var(--bg-surface)] text-center">
-                            <p className="text-sm text-[var(--text-muted)] mb-2">Jodi (00-99)</p>
+                            <p className="text-sm text-gray-200 mb-2">Jodi (00-99)</p>
                             <div className="flex items-center justify-center gap-2">
-                                <span className="text-[var(--text-muted)]">₹10 →</span>
+                                <span className="text-gray-200">₹10 →</span>
                                 <Input
                                     type="number"
                                     value={editingJodi}
                                     onChange={(e) => setEditingJodi(Number(e.target.value))}
-                                    className="w-24 text-center font-bold text-lg"
+                                    className="w-24 text-center font-bold text-lg text-white"
                                 />
                             </div>
-                            <p className="text-xs text-[var(--text-muted)] mt-2">
+                            <p className="text-xs text-gray-200 mt-2">
                                 Multiplier: {(editingJodi / 10).toFixed(1)}x
                             </p>
                         </div>
 
                         <div className="p-4 rounded-lg bg-[var(--bg-surface)] text-center">
-                            <p className="text-sm text-[var(--text-muted)] mb-2">Triple (000-999)</p>
+                            <p className="text-sm text-gray-200 mb-2">Triple (000-999)</p>
                             <div className="flex items-center justify-center gap-2">
-                                <span className="text-[var(--text-muted)]">₹10 →</span>
+                                <span className="text-gray-200">₹10 →</span>
                                 <Input
                                     type="number"
                                     value={editingTriple}
                                     onChange={(e) => setEditingTriple(Number(e.target.value))}
-                                    className="w-24 text-center font-bold text-lg"
+                                    className="w-24 text-center font-bold text-lg text-white"
                                 />
                             </div>
-                            <p className="text-xs text-[var(--text-muted)] mt-2">
+                            <p className="text-xs text-gray-200 mt-2">
                                 Multiplier: {(editingTriple / 10).toFixed(1)}x
                             </p>
                         </div>
@@ -420,7 +420,7 @@ export default function GameSettingsPage() {
 
                 <div className="space-y-2">
                     {holidays.length === 0 ? (
-                        <p className="text-center py-8 text-[var(--text-muted)]">
+                        <p className="text-center py-8 text-gray-400">
                             No holidays configured
                         </p>
                     ) : (
@@ -432,9 +432,9 @@ export default function GameSettingsPage() {
                                 <div className="flex items-center gap-3">
                                     <Calendar size={18} className="text-[var(--accent-pink)]" />
                                     <div>
-                                        <p className="font-medium">{holiday.holiday_date}</p>
+                                        <p className="font-medium text-white">{holiday.holiday_date}</p>
                                         {holiday.description && (
-                                            <p className="text-xs text-[var(--text-muted)]">{holiday.description}</p>
+                                            <p className="text-xs text-gray-300">{holiday.description}</p>
                                         )}
                                     </div>
                                 </div>
@@ -460,30 +460,39 @@ export default function GameSettingsPage() {
 
                 <div className="space-y-4">
                     <div className="grid md:grid-cols-3 gap-4">
-                        <Input
-                            label="Current PIN"
-                            type="password"
-                            value={currentPin}
-                            onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                            placeholder="****"
-                            maxLength={4}
-                        />
-                        <Input
-                            label="New PIN"
-                            type="password"
-                            value={newPin}
-                            onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                            placeholder="****"
-                            maxLength={4}
-                        />
-                        <Input
-                            label="Confirm New PIN"
-                            type="password"
-                            value={confirmPin}
-                            onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                            placeholder="****"
-                            maxLength={4}
-                        />
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-200">Current PIN</label>
+                            <Input
+                                type="password"
+                                value={currentPin}
+                                onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                                placeholder="****"
+                                maxLength={4}
+                                className="text-white"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-200">New PIN</label>
+                            <Input
+                                type="password"
+                                value={newPin}
+                                onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                                placeholder="****"
+                                maxLength={4}
+                                className="text-white"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-200">Confirm New PIN</label>
+                            <Input
+                                type="password"
+                                value={confirmPin}
+                                onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                                placeholder="****"
+                                maxLength={4}
+                                className="text-white"
+                            />
+                        </div>
                     </div>
                     <div className="flex items-center gap-4">
                         <Button
@@ -527,7 +536,7 @@ export default function GameSettingsPage() {
                         >
                             Change PIN
                         </Button>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-gray-200">
                             Default PIN is 6747. Change it to something secure.
                         </p>
                     </div>
@@ -544,24 +553,24 @@ export default function GameSettingsPage() {
                 <div className="grid md:grid-cols-3 gap-4">
                     <div className="p-4 rounded-lg bg-[var(--bg-surface)] flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-[var(--text-muted)]">Database</p>
-                            <p className="font-medium">Supabase</p>
+                            <p className="text-sm text-gray-200">Database</p>
+                            <p className="font-medium text-white">Supabase</p>
                         </div>
                         <Badge variant="success" dot>Connected</Badge>
                     </div>
 
                     <div className="p-4 rounded-lg bg-[var(--bg-surface)] flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-[var(--text-muted)]">Schedules</p>
-                            <p className="font-medium">{schedules.length} Sessions</p>
+                            <p className="text-sm text-gray-200">Schedules</p>
+                            <p className="font-medium text-white">{schedules.length} Sessions</p>
                         </div>
                         <Badge variant="info">Active</Badge>
                     </div>
 
                     <div className="p-4 rounded-lg bg-[var(--bg-surface)] flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-[var(--text-muted)]">Holidays</p>
-                            <p className="font-medium">{holidays.length} Configured</p>
+                            <p className="text-sm text-gray-200">Holidays</p>
+                            <p className="font-medium text-white">{holidays.length} Configured</p>
                         </div>
                         <Badge variant="default">{holidays.length > 0 ? 'Set' : 'None'}</Badge>
                     </div>
