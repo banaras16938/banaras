@@ -353,6 +353,90 @@ export default function Home() {
                     <CurrentResult result={nightResult} slot="night" schedule={getScheduleForSession('night')} currentTime={currentTime} isLive={!nightResult?.is_close_declared} />
                   )}
                 </div>
+
+                {/* Trust Content Section */}
+                <div className="mt-8 px-4 md:px-6">
+                  <h2 className="text-xl md:text-2xl font-extrabold text-gray-900 dark:text-white text-center mb-6">
+                    Why Choose Banaras Matka?
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
+                    <div className="bg-purple-50 dark:bg-gray-900 border border-purple-200 dark:border-purple-600 rounded-2xl p-5 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-purple-500">
+                      <span className="text-4xl block mb-3">🏆</span>
+                      <h3 className="text-base font-bold text-purple-700 dark:text-yellow-400 mb-2">Leading Result Provider</h3>
+                      <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">Banaras is one of India's most trusted Satta Matka result providers with years of reliable service.</p>
+                    </div>
+                    <div className="bg-purple-50 dark:bg-gray-900 border border-purple-200 dark:border-purple-600 rounded-2xl p-5 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-purple-500">
+                      <span className="text-4xl block mb-3">⚡</span>
+                      <h3 className="text-base font-bold text-purple-700 dark:text-yellow-400 mb-2">Live & Fast Updates</h3>
+                      <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">Get real-time matka results, charts, and guessing tips with the fastest updates in the market.</p>
+                    </div>
+                    <div className="bg-purple-50 dark:bg-gray-900 border border-purple-200 dark:border-purple-600 rounded-2xl p-5 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-purple-500">
+                      <span className="text-4xl block mb-3">📊</span>
+                      <h3 className="text-base font-bold text-purple-700 dark:text-yellow-400 mb-2">Comprehensive Charts</h3>
+                      <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">Access detailed Jodi Charts and Panel Charts to analyze patterns and make informed decisions.</p>
+                    </div>
+                    <div className="bg-purple-50 dark:bg-gray-900 border border-purple-200 dark:border-purple-600 rounded-2xl p-5 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-purple-500">
+                      <span className="text-4xl block mb-3">🔒</span>
+                      <h3 className="text-base font-bold text-purple-700 dark:text-yellow-400 mb-2">100% Transparent</h3>
+                      <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">We operate with complete transparency. All results are declared on time with no manipulation.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* FAQ Section */}
+                <div className="mt-8 px-4 md:px-6 max-w-4xl mx-auto">
+                  <div className="mb-10">
+                    <h2 className="text-2xl md:text-3xl font-extrabold text-purple-700 dark:text-yellow-400 mb-6">
+                      Frequently Asked Questions
+                    </h2>
+                    <div className="space-y-4">
+                      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-purple-600 overflow-hidden">
+                        <div className="p-4">
+                          <h4 className="font-bold text-gray-900 dark:text-yellow-400 mb-2">🔒 Is Banaras Matka web application safe and secure?</h4>
+                          <p className="text-sm text-gray-900 dark:text-white">For more than 10 years in this industry, we serve accurate results, 24×7 customer support, 100% user confidentiality and user safety. You can trust our web application.</p>
+                        </div>
+                      </div>
+                      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-purple-600 overflow-hidden">
+                        <div className="p-4">
+                          <h4 className="font-bold text-gray-900 dark:text-yellow-400 mb-2">📱 Can I play matka on mobile devices?</h4>
+                          <p className="text-sm text-gray-900 dark:text-white">Yes, our website is fully mobile-friendly and works seamlessly on smartphones and tablets for convenient gaming on the go.</p>
+                        </div>
+                      </div>
+                      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-purple-600 overflow-hidden">
+                        <div className="p-4">
+                          <h4 className="font-bold text-gray-900 dark:text-yellow-400 mb-2">🎲 What is Satta Matka?</h4>
+                          <p className="text-sm text-gray-900 dark:text-white">Satta Matka is a popular number-based lottery game that originated in India. It has evolved into a major online market where players predict numbers to win exciting prizes.</p>
+                        </div>
+                      </div>
+                      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-purple-600 overflow-hidden">
+                        <div className="p-4">
+                          <h4 className="font-bold text-gray-900 dark:text-yellow-400 mb-2">⚡ Why are the results accurate on Banaras Matka?</h4>
+                          <p className="text-sm text-gray-900 dark:text-white">We are directly connected to the official matka markets. Our automated system ensures 100% accuracy and the fastest result updates without any manual errors or manipulation.</p>
+                        </div>
+                      </div>
+                      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-purple-600 overflow-hidden">
+                        <div className="p-4">
+                          <h4 className="font-bold text-gray-900 dark:text-yellow-400 mb-2">📊 How can I check the latest Satta Matka results?</h4>
+                          <p className="text-sm text-gray-900 dark:text-white">You can check live results for the Banaras market directly on our homepage. We update our charts instantly as soon as the official results are declared.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Disclaimer Section */}
+                <div className="mt-8 mx-4 md:mx-6 p-5 bg-amber-50 dark:bg-gray-900 border-2 border-amber-500 dark:border-yellow-500 rounded-2xl max-w-4xl md:mx-auto">
+                  <h3 className="text-base font-extrabold text-amber-900 dark:text-yellow-400 mb-3 flex items-center gap-2">
+                    ⚠️ Disclaimer
+                  </h3>
+                  <p className="text-sm leading-relaxed text-amber-950 dark:text-gray-100">
+                    Purchase of online lottery using this website is prohibited in the territories where lotteries are banned.
+                    Playing online matka below 18 years is strictly prohibited and not acceptable.
+                    If you have any complaints or concerns, please call us on the given phone number.
+                    This website is intended for entertainment and informational purposes only.
+                    Please gamble responsibly and check your local laws before participating.
+                  </p>
+                </div>
               </div>
             )}
 
@@ -459,24 +543,25 @@ export default function Home() {
       </main>
 
       {/* Bottom Navigation - Only show on home page */}
-      {activePage === 'home' && (
-        <nav className="bottom-nav">
-          <button
-            onClick={() => setActiveTab('results')}
-            className={`bottom-nav-item ${activeTab === 'results' ? 'active' : ''}`}
-          >
-            <Trophy />
-            <span>Results</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('past')}
-            className={`bottom-nav-item ${activeTab === 'past' ? 'active' : ''}`}
-          >
-            <FileText />
-            <span>Past Results</span>
-          </button>
-        </nav>
-      )}
+      {
+        activePage === 'home' && (
+          <nav className="bottom-nav">
+            <button
+              onClick={() => setActiveTab('results')}
+              className={`bottom-nav-item ${activeTab === 'results' ? 'active' : ''}`}
+            >
+              <Trophy />
+              <span>Results</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('past')}
+              className={`bottom-nav-item ${activeTab === 'past' ? 'active' : ''}`}
+            >
+              <FileText />
+              <span>Past Results</span>
+            </button>
+          </nav>
+        )}
     </div>
   )
 }
