@@ -207,18 +207,40 @@ export default function AdminDashboard() {
 
     // Handle result selection
     const handleSelectResult = (option: ResultOption) => {
-        if (selectedTarget === 'open' && !canDeclareOpen) {
-            toast.error('Open result already declared')
-            return
+        const targetKey = selectedTarget as DeclarationTarget
+        const window = LOCK_WINDOWS[selectedSession][targetKey]
+
+        if (selectedTarget === 'open') {
+            // Check if open already declared
+            if (isOpenDeclared) {
+                toast.error('Open result already declared')
+                return
+            }
+            // Check time window
+            if (openLockStatus.isBeforeWindow) {
+                toast.error(`Too early! Open result declaration starts at ${window.start}`)
+                return
+            }
         }
-        if (selectedTarget === 'close' && !canDeclareClose) {
+
+        if (selectedTarget === 'close') {
+            // Check if open must be declared first
             if (!isOpenDeclared) {
                 toast.error('Declare Open result first')
-            } else {
-                toast.error('Close result already declared')
+                return
             }
-            return
+            // Check if close already declared
+            if (isCloseDeclared) {
+                toast.error('Close result already declared')
+                return
+            }
+            // Check time window
+            if (closeLockStatus.isBeforeWindow) {
+                toast.error(`Too early! Close result declaration starts at ${window.start}`)
+                return
+            }
         }
+
         setSelectedResult(option)
         setShowConfirmModal(true)
     }
@@ -512,7 +534,7 @@ export default function AdminDashboard() {
                             }`}
                     >
                         <Zap size={16} />
-                        <span>Best</span>
+                        <span>Leverage</span>
                         <span className="text-[10px]">({recommendations.systemRecommendations.length})</span>
                     </button>
                     <button

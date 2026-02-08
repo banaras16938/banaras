@@ -247,11 +247,12 @@ export async function GET(request: NextRequest) {
             .sort((a, b) => Math.abs(a.payoutPercentage - targetPayout) - Math.abs(b.payoutPercentage - targetPayout))
             .slice(0, 10)
 
-        // List B: System Recommendations - Top 5 lowest payout options (must have bets)
-        const systemRecommendations = results
-            .filter(r => r.totalBets > 0)
-            .sort((a, b) => a.totalLiability - b.totalLiability)
-            .slice(0, 5)
+        // List B: Leverage Results - ±10% of target payout (fallback when exact match not found)
+        const LEVERAGE_TOLERANCE = 10 // ±10% leverage
+        const leverageResults = results
+            .filter(r => Math.abs(r.payoutPercentage - targetPayout) <= LEVERAGE_TOLERANCE)
+            .sort((a, b) => Math.abs(a.payoutPercentage - targetPayout) - Math.abs(b.payoutPercentage - targetPayout))
+            .slice(0, 10)
 
         // List C: Low Bets - Bottom 20th percentile by bet volume
         const betsWithVolume = results.filter(r => r.totalBets > 0)
@@ -259,16 +260,46 @@ export async function GET(request: NextRequest) {
         const percentile20Count = Math.max(Math.ceil(sortedByBets.length * 0.2), 1)
         const lowBets = sortedByBets.slice(0, Math.min(percentile20Count, 10))
 
-        // List D: No Bets (Ghost Numbers) - Zero liability on triple, single, AND jodi
+        // List D: Ghost Numbers - Zero bets on TRIPLE and JODI only (singles ignored)
+        // A number is ghost if no one bet on the triple AND no one bet on jodi that would match
         const noBets = results
-            .filter(r => r.totalBets === 0 && r.totalLiability === 0)
+            .filter(r => {
+                const triple = r.triple
+                const single = r.single.toString()
+
+                // Check if triple has zero bets
+                const tData = tripleData.get(triple)
+                const hasTripleBets = tData && tData.bets > 0
+
+                // Check jodi bets
+                let hasJodiBets = false
+                if (target === 'open') {
+                    // For OPEN: check if any jodi starting with this single has bets
+                    for (let closeSingle = 0; closeSingle <= 9; closeSingle++) {
+                        const potentialJodi = single + closeSingle.toString()
+                        const jData = jodiData.get(potentialJodi)
+                        if (jData && jData.bets > 0) {
+                            hasJodiBets = true
+                            break
+                        }
+                    }
+                } else if (target === 'close' && session?.open_single) {
+                    // For CLOSE: check exact jodi
+                    const jodi = session.open_single + single
+                    const jData = jodiData.get(jodi)
+                    hasJodiBets = !!(jData && jData.bets > 0)
+                }
+
+                // Ghost = no triple bets AND no jodi bets
+                return !hasTripleBets && !hasJodiBets
+            })
             .slice(0, 10)
 
         return NextResponse.json({
             recommendations: {
                 totalCollection,
                 targetMatch,
-                systemRecommendations,
+                systemRecommendations: leverageResults, // Renamed for compatibility
                 lowBets,
                 noBets
             }
