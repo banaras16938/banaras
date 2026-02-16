@@ -371,6 +371,7 @@ body {
   width: 100%;
   border-collapse: collapse;
   background: var(--bg-card);
+  border: 1px solid var(--border-light);
 }
 
 .chart-table th {
@@ -380,6 +381,11 @@ body {
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
+  border-right: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.chart-table th:last-child {
+  border-right: none;
 }
 
 .chart-table td {
@@ -389,6 +395,11 @@ body {
   font-weight: 600;
   color: var(--text-primary);
   border-bottom: 1px solid var(--border-light);
+  border-right: 1px solid var(--border-light);
+}
+
+.chart-table td:last-child {
+  border-right: none;
 }
 
 .chart-table tr:nth-child(even) td {

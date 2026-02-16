@@ -73,7 +73,7 @@ export function JodiChart({ results, schedules, currentTime = new Date() }: Jodi
     }, [results, selectedSession, schedules, currentTime])
 
     // Group results by week for display
-    const weekDays = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
+    const weekDays = ['DATE', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
 
     // Get last 4 weeks of results for display
     const getWeeklyResults = () => {
@@ -86,7 +86,11 @@ export function JodiChart({ results, schedules, currentTime = new Date() }: Jodi
         )
 
         // Group results by week (starting Monday)
-        const weeksMap = new Map<string, (string | null)[]>()
+        const weeksMap = new Map<string, {
+            monday: Date,
+            sunday: Date,
+            jodis: (string | null)[]
+        }>()
 
         sortedResults.forEach((result) => {
             if (result.jodi_result) {
@@ -95,19 +99,34 @@ export function JodiChart({ results, schedules, currentTime = new Date() }: Jodi
                 const dayOfWeek = (date.getDay() + 6) % 7 // Monday = 0
                 const monday = new Date(date)
                 monday.setDate(date.getDate() - dayOfWeek)
+                const sunday = new Date(monday)
+                sunday.setDate(monday.getDate() + 6)
                 const weekKey = monday.toISOString().split('T')[0]
 
                 if (!weeksMap.has(weekKey)) {
-                    weeksMap.set(weekKey, Array(7).fill(null))
+                    weeksMap.set(weekKey, {
+                        monday,
+                        sunday,
+                        jodis: Array(7).fill(null)
+                    })
                 }
 
                 const week = weeksMap.get(weekKey)!
-                week[dayOfWeek] = result.jodi_result
+                week.jodis[dayOfWeek] = result.jodi_result
             }
         })
 
-        // Convert to array and take last 6 weeks
-        return Array.from(weeksMap.values()).slice(0, 6)
+        // Convert to array format with date ranges and take last 6 weeks
+        return Array.from(weeksMap.values())
+            .slice(0, 6)
+            .map(week => {
+                const formatDate = (d: Date) =>
+                    `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`
+                return {
+                    dateRange: `${formatDate(week.monday)} to ${formatDate(week.sunday)}`,
+                    jodis: week.jodis
+                }
+            })
     }
 
 
@@ -155,7 +174,10 @@ export function JodiChart({ results, schedules, currentTime = new Date() }: Jodi
                         <tbody>
                             {weeklyData.map((week, weekIndex) => (
                                 <tr key={weekIndex}>
-                                    {week.map((jodi, dayIndex) => (
+                                    <td className="text-xs font-medium whitespace-nowrap">
+                                        {week.dateRange}
+                                    </td>
+                                    {week.jodis.map((jodi, dayIndex) => (
                                         <td key={dayIndex}>{jodi || '**'}</td>
                                     ))}
                                 </tr>
