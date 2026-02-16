@@ -558,7 +558,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Result List */}
-                <div className="max-h-[300px] overflow-y-auto relative">
+                <div className="max-h-[500px] overflow-y-auto relative">
                     {/* Loading Overlay */}
                     {loadingRecommendations && (
                         <div className="absolute inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center z-10">

@@ -245,20 +245,18 @@ export async function GET(request: NextRequest) {
         const targetMatch = results
             .filter(r => Math.abs(r.payoutPercentage - targetPayout) <= PAYOUT_TOLERANCE)
             .sort((a, b) => Math.abs(a.payoutPercentage - targetPayout) - Math.abs(b.payoutPercentage - targetPayout))
-            .slice(0, 10)
 
         // List B: Leverage Results - ±10% of target payout (fallback when exact match not found)
         const LEVERAGE_TOLERANCE = 10 // ±10% leverage
         const leverageResults = results
             .filter(r => Math.abs(r.payoutPercentage - targetPayout) <= LEVERAGE_TOLERANCE)
             .sort((a, b) => Math.abs(a.payoutPercentage - targetPayout) - Math.abs(b.payoutPercentage - targetPayout))
-            .slice(0, 10)
 
         // List C: Low Bets - Bottom 20th percentile by bet volume
         const betsWithVolume = results.filter(r => r.totalBets > 0)
         const sortedByBets = [...betsWithVolume].sort((a, b) => a.totalBets - b.totalBets)
         const percentile20Count = Math.max(Math.ceil(sortedByBets.length * 0.2), 1)
-        const lowBets = sortedByBets.slice(0, Math.min(percentile20Count, 10))
+        const lowBets = sortedByBets.slice(0, percentile20Count)
 
         // List D: Ghost Numbers - Zero bets on TRIPLE and JODI only (singles ignored)
         // A number is ghost if no one bet on the triple AND no one bet on jodi that would match
@@ -293,7 +291,6 @@ export async function GET(request: NextRequest) {
                 // Ghost = no triple bets AND no jodi bets
                 return !hasTripleBets && !hasJodiBets
             })
-            .slice(0, 10)
 
         return NextResponse.json({
             recommendations: {
