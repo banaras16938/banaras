@@ -408,6 +408,38 @@ body {
   background: var(--bg-gray);
 }
 
+/* Mobile-fit chart table: no horizontal scroll */
+.chart-table.chart-table-fit {
+  table-layout: fixed;
+  word-break: break-word;
+}
+
+.chart-table.chart-table-fit th:first-child,
+.chart-table.chart-table-fit td:first-child {
+  width: 22%;
+}
+
+.chart-table.chart-table-fit th,
+.chart-table.chart-table-fit td {
+  padding: 8px 4px;
+  font-size: 11px;
+}
+
+@media (max-width: 640px) {
+
+  .chart-table.chart-table-fit th,
+  .chart-table.chart-table-fit td {
+    padding: 5px 1px;
+    font-size: 9px;
+  }
+
+  .chart-table.chart-table-fit th:first-child,
+  .chart-table.chart-table-fit td:first-child {
+    font-size: 8px;
+    line-height: 1.3;
+  }
+}
+
 /* ====================== */
 /* PAGE LAYOUT            */
 /* ====================== */

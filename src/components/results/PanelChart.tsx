@@ -131,9 +131,10 @@ export function PanelChart({ results, schedules, currentTime = new Date() }: Pan
             .slice(0, 6)
             .map(week => {
                 const formatDate = (d: Date) =>
-                    `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`
+                    `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear().toString().slice(-2)}`
                 return {
-                    dateRange: `${formatDate(week.monday)} to ${formatDate(week.sunday)}`,
+                    startDate: formatDate(week.monday),
+                    endDate: formatDate(week.sunday),
                     panels: week.panels
                 }
             })
@@ -171,8 +172,8 @@ export function PanelChart({ results, schedules, currentTime = new Date() }: Pan
                     <p className="text-[var(--text-muted)]">No panel results available yet.</p>
                 </div>
             ) : (
-                <div className="overflow-x-auto">
-                    <table className="chart-table">
+                <div>
+                    <table className="chart-table chart-table-fit">
                         <thead>
                             <tr>
                                 {weekDays.map(day => (
@@ -183,8 +184,9 @@ export function PanelChart({ results, schedules, currentTime = new Date() }: Pan
                         <tbody>
                             {panelData.map((week, weekIndex) => (
                                 <tr key={weekIndex}>
-                                    <td className="text-xs font-medium whitespace-nowrap">
-                                        {week.dateRange}
+                                    <td className="text-xs font-medium">
+                                        <div>{week.startDate}</div>
+                                        <div>{week.endDate}</div>
                                     </td>
                                     {week.panels.map((panel, dayIndex) => (
                                         <td key={dayIndex} className="text-center">

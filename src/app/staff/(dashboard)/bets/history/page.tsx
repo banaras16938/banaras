@@ -132,11 +132,7 @@ export default function BetHistoryPage() {
 
     useEffect(() => { fetchHistory() }, [fetchHistory])
 
-    // Auto-refresh every 30 seconds
-    useEffect(() => {
-        const interval = setInterval(() => fetchHistory(), 30000)
-        return () => clearInterval(interval)
-    }, [fetchHistory])
+
 
     // Reset sub tab when switching main tab
     useEffect(() => { setSubTab('all') }, [mainTab])
@@ -231,8 +227,8 @@ export default function BetHistoryPage() {
                 <button
                     onClick={() => setMainTab('positions')}
                     className={`flex-1 py-3.5 font-semibold text-sm transition-all relative ${mainTab === 'positions'
-                            ? 'bg-cyan-500/20 text-cyan-400 border-b-2 border-cyan-400'
-                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                        ? 'bg-cyan-500/20 text-cyan-400 border-b-2 border-cyan-400'
+                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                         }`}
                 >
                     <span className="flex items-center justify-center gap-2">
@@ -248,8 +244,8 @@ export default function BetHistoryPage() {
                 <button
                     onClick={() => setMainTab('orders')}
                     className={`flex-1 py-3.5 font-semibold text-sm transition-all relative ${mainTab === 'orders'
-                            ? 'bg-indigo-500/20 text-indigo-400 border-b-2 border-indigo-400'
-                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                        ? 'bg-indigo-500/20 text-indigo-400 border-b-2 border-indigo-400'
+                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                         }`}
                 >
                     <span className="flex items-center justify-center gap-2">
@@ -273,10 +269,10 @@ export default function BetHistoryPage() {
                             key={tab.key}
                             onClick={() => setSubTab(tab.key)}
                             className={`flex-shrink-0 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${subTab === tab.key
-                                    ? mainTab === 'positions'
-                                        ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-                                        : 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
-                                    : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-gray-700'
+                                ? mainTab === 'positions'
+                                    ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                                    : 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
+                                : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-gray-700'
                                 }`}
                         >
                             {tab.label}
