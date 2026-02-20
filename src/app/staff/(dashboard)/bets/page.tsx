@@ -65,6 +65,7 @@ export default function PlaceBetPage() {
 
     // Jodi Selection: selected jodis with their amounts
     const [jodiSelections, setJodiSelections] = useState<Record<string, string>>({})
+    const [jodiSearch, setJodiSearch] = useState('')
 
     // Triple Selection: selected triples with their amounts (like jodi)
     const [tripleSelections, setTripleSelections] = useState<Record<string, string>>({})
@@ -674,9 +675,23 @@ export default function PlaceBetPage() {
                     {/* === JODI TAB === */}
                     {activeTab === 'jodi' && (
                         <div className="space-y-3">
+                            {/* Jodi Search */}
+                            <div className="relative">
+                                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    placeholder="Search jodi number..."
+                                    value={jodiSearch}
+                                    onChange={(e) => setJodiSearch(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                                    className="w-full pl-9 pr-3 py-2.5 bg-gray-900 border border-gray-600 rounded-lg text-white text-sm font-mono focus:border-indigo-500 focus:outline-none placeholder-gray-500"
+                                />
+                            </div>
                             <div className="h-48 overflow-y-auto bg-gray-900 rounded-lg border border-gray-700">
                                 {Array.from({ length: 100 }, (_, i) => {
                                     const jodi = i.toString().padStart(2, '0')
+                                    if (jodiSearch && !jodi.includes(jodiSearch)) return null
                                     const isSelected = jodiSelections[jodi] !== undefined
                                     return (
                                         <button

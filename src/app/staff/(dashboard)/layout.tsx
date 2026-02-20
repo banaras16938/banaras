@@ -60,7 +60,7 @@ export default function StaffLayout({ children }: { children: ReactNode }) {
 
     return (
         <StaffContext.Provider value={staffInfo}>
-            <div className="min-h-screen bg-gray-950">
+            <div className="min-h-screen bg-gray-950 overflow-x-hidden">
                 <Sidebar
                     title="Banaras Matka Play"
                     logoSrc="/logo-1.png"

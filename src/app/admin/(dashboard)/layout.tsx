@@ -30,7 +30,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     }
 
     return (
-        <div className="min-h-screen bg-gray-950">
+        <div className="min-h-screen bg-gray-950 overflow-x-hidden">
             <Sidebar
                 title="Admin Portal"
                 logoSrc="/logo-1.png"
