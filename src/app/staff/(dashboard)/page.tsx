@@ -3,20 +3,26 @@
 import { useState, useEffect, useCallback } from 'react'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { CurrentResult } from '@/components/results/CurrentResult'
-import { Ticket, RefreshCw } from 'lucide-react'
+import { JodiChart } from '@/components/results/JodiChart'
+import { PanelChart } from '@/components/results/PanelChart'
+import { Ticket, RefreshCw, Grid3X3, BarChart3 } from 'lucide-react'
 import Link from 'next/link'
 import { GameResult } from '@/types/types'
 import { useStaffName } from './layout'
 import { useSchedules } from '@/hooks/useSchedules'
 import { toast } from 'sonner'
 
+type ChartType = 'jodi' | 'panel'
+
 export default function StaffDashboard() {
     const [morningResult, setMorningResult] = useState<GameResult | null>(null)
     const [nightResult, setNightResult] = useState<GameResult | null>(null)
+    const [historicalResults, setHistoricalResults] = useState<GameResult[]>([])
     const [resultsLoading, setResultsLoading] = useState(true)
     const [currentTime, setCurrentTime] = useState(new Date())
+    const [activeChart, setActiveChart] = useState<ChartType>('jodi')
     const staffName = useStaffName()
-    const { getScheduleForSession } = useSchedules()
+    const { schedules, getScheduleForSession } = useSchedules()
 
     const fetchResults = useCallback(async () => {
         setResultsLoading(true)
@@ -36,6 +42,7 @@ export default function StaffDashboard() {
 
                 setMorningResult(todayMorning || null)
                 setNightResult(todayNight || null)
+                setHistoricalResults(data.results)
             }
         } catch (error) {
             toast.error('Failed to load results')
@@ -164,6 +171,48 @@ export default function StaffDashboard() {
                         />
                     </div>
                 )}
+            </div>
+
+            {/* Charts Section */}
+            <div className="space-y-4">
+                <h2 className="text-xl font-bold text-white">Charts</h2>
+
+                {/* Chart Tab Switcher */}
+                <div className="flex rounded-xl overflow-hidden border border-gray-700 w-fit">
+                    <button
+                        onClick={() => setActiveChart('jodi')}
+                        className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium transition-all ${activeChart === 'jodi'
+                                ? 'bg-indigo-500 text-white'
+                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                            }`}
+                    >
+                        <Grid3X3 size={16} />
+                        Jodi Chart
+                    </button>
+                    <button
+                        onClick={() => setActiveChart('panel')}
+                        className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium transition-all ${activeChart === 'panel'
+                                ? 'bg-indigo-500 text-white'
+                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                            }`}
+                    >
+                        <BarChart3 size={16} />
+                        Panel Chart
+                    </button>
+                </div>
+
+                {/* Chart Content */}
+                <div className="bg-gray-800/80 backdrop-blur border border-gray-700 rounded-xl p-4 overflow-hidden">
+                    {resultsLoading ? (
+                        <div className="flex items-center justify-center py-12">
+                            <LoadingSpinner size="md" />
+                        </div>
+                    ) : activeChart === 'jodi' ? (
+                        <JodiChart results={historicalResults} schedules={schedules} currentTime={currentTime} />
+                    ) : (
+                        <PanelChart results={historicalResults} schedules={schedules} currentTime={currentTime} />
+                    )}
+                </div>
             </div>
         </div>
     )

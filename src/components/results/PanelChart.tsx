@@ -84,6 +84,12 @@ export function PanelChart({ results, schedules, currentTime = new Date() }: Pan
             new Date(b.game_date).getTime() - new Date(a.game_date).getTime()
         )
 
+        // Helper to calculate single from triple
+        const calculateSingle = (triple: string): string => {
+            const sum = triple.split('').reduce((acc, d) => acc + parseInt(d), 0)
+            return (sum % 10).toString()
+        }
+
         // Group results by week (starting Monday)
         const weeksMap = new Map<string, {
             monday: Date,
@@ -110,9 +116,12 @@ export function PanelChart({ results, schedules, currentTime = new Date() }: Pan
             }
 
             const week = weeksMap.get(weekKey)!
+            const openSingle = result.open_triple ? calculateSingle(result.open_triple) : '*'
+            const closeSingle = result.close_triple ? calculateSingle(result.close_triple) : '*'
+
             week.panels[dayOfWeek] = {
                 open: result.open_triple || '***',
-                jodi: result.jodi_result || '**',
+                jodi: result.jodi_result || `${openSingle}${closeSingle}`,
                 close: result.close_triple || '***'
             }
         })
