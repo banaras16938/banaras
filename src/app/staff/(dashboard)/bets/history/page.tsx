@@ -35,15 +35,16 @@ interface BetEntry {
 }
 
 // Sub-tab filter keys
-type SubTab = 'all' | 'morning_open' | 'morning_close' | 'night_open' | 'night_close' | 'jodi'
+type SubTab = 'all' | 'morning_open' | 'morning_close' | 'morning_jodi' | 'night_open' | 'night_close' | 'night_jodi'
 
 const SUB_TABS: { key: SubTab; label: string; short: string }[] = [
     { key: 'all', label: 'All', short: 'All' },
     { key: 'morning_open', label: 'Morn Open', short: 'M-O' },
     { key: 'morning_close', label: 'Morn Close', short: 'M-C' },
+    { key: 'morning_jodi', label: 'Morn Jodi', short: 'M-J' },
     { key: 'night_open', label: 'Night Open', short: 'N-O' },
     { key: 'night_close', label: 'Night Close', short: 'N-C' },
-    { key: 'jodi', label: 'Jodi', short: 'Jodi' },
+    { key: 'night_jodi', label: 'Night Jodi', short: 'N-J' },
 ]
 
 // ==========================================
@@ -52,7 +53,8 @@ const SUB_TABS: { key: SubTab; label: string; short: string }[] = [
 
 function filterBySubTab(bets: BetEntry[], tab: SubTab): BetEntry[] {
     if (tab === 'all') return bets
-    if (tab === 'jodi') return bets.filter(b => b.target === 'jodi_full')
+    if (tab === 'morning_jodi') return bets.filter(b => b.target === 'jodi_full' && b.game_session?.session_name === 'morning')
+    if (tab === 'night_jodi') return bets.filter(b => b.target === 'jodi_full' && b.game_session?.session_name === 'night')
     const [session, target] = tab.split('_') as [SessionType, 'open' | 'close']
     return bets.filter(b =>
         b.game_session?.session_name === session && b.target === target
@@ -152,19 +154,42 @@ export default function BetHistoryPage() {
         return { totalInvested, totalWon, pnl, pendingAmount }
     }, [positions, orders])
 
+    // Per-game-type stats
+    const gameTypeStats = useMemo(() => {
+        const allBets = [...positions, ...orders]
+        const types: { key: BetCategory; label: string; color: string }[] = [
+            { key: 'single', label: 'Single', color: 'blue' },
+            { key: 'jodi', label: 'Jodi', color: 'purple' },
+            { key: 'triple', label: 'Triple', color: 'amber' },
+        ]
+        return types.map(t => {
+            const bets = allBets.filter(b => b.category === t.key)
+            return {
+                ...t,
+                count: bets.length,
+                amount: bets.reduce((s, b) => s + Number(b.amount), 0),
+            }
+        })
+    }, [positions, orders])
+
     // Sub-tab counts
     const subTabCounts = useMemo(() => {
         const counts: Record<SubTab, number> = {
             all: activeBets.length,
             morning_open: 0,
             morning_close: 0,
+            morning_jodi: 0,
             night_open: 0,
             night_close: 0,
-            jodi: 0,
+            night_jodi: 0,
         }
         for (const b of activeBets) {
-            if (b.target === 'jodi_full') { counts.jodi++; continue }
             const session = b.game_session?.session_name
+            if (b.target === 'jodi_full') {
+                if (session === 'morning') counts.morning_jodi++
+                else if (session === 'night') counts.night_jodi++
+                continue
+            }
             if (session === 'morning' && b.target === 'open') counts.morning_open++
             else if (session === 'morning' && b.target === 'close') counts.morning_close++
             else if (session === 'night' && b.target === 'open') counts.night_open++
@@ -220,6 +245,35 @@ export default function BetHistoryPage() {
                         {stats.pnl >= 0 ? '+' : ''}₹{stats.pnl.toLocaleString()}
                     </p>
                 </div>
+            </div>
+
+            {/* Per Game Type Summary */}
+            <div className="grid grid-cols-3 gap-2">
+                {gameTypeStats.map(gt => (
+                    <div key={gt.key} className={`bg-gray-800/80 border rounded-xl p-3 overflow-hidden relative ${gt.color === 'blue' ? 'border-blue-500/30' :
+                        gt.color === 'purple' ? 'border-purple-500/30' :
+                            'border-amber-500/30'
+                        }`}>
+                        {/* Top accent strip */}
+                        <div className={`absolute top-0 left-0 right-0 h-0.5 ${gt.color === 'blue' ? 'bg-blue-500' :
+                            gt.color === 'purple' ? 'bg-purple-500' :
+                                'bg-amber-500'
+                            }`} />
+                        <div className="mb-2">
+                            <span className="text-xs font-semibold text-white">{gt.label}</span>
+                        </div>
+                        <div className="space-y-1">
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] text-gray-500">Bets</span>
+                                <span className="text-xs font-bold text-white font-mono">{gt.count}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] text-gray-500">Amount</span>
+                                <span className="text-xs font-bold text-white font-mono">₹{gt.amount.toLocaleString()}</span>
+                            </div>
+                        </div>
+                    </div>
+                ))}
             </div>
 
             {/* Main Tabs: Positions / Orders */}

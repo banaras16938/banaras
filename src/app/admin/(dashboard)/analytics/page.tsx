@@ -14,7 +14,10 @@ import {
     Users,
     Wallet,
     Trophy,
-    X
+    X,
+    ChevronDown,
+    ChevronUp,
+    IndianRupee
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -59,6 +62,7 @@ export default function HisabKitabPage() {
     const [pin, setPin] = useState('')
     const [pinError, setPinError] = useState('')
     const [verifying, setVerifying] = useState(false)
+    const [expandedStaff, setExpandedStaff] = useState<Set<string>>(new Set())
 
     const fetchData = useCallback(async () => {
         setLoading(true)
@@ -124,8 +128,28 @@ export default function HisabKitabPage() {
         }
     }
 
-    const formatCurrency = (amount: number) => {
-        return `₹${amount.toLocaleString('en-IN')}`
+    const fmt = (amount: number) => `₹${amount.toLocaleString('en-IN')}`
+
+    const toggleStaff = (staffId: string) => {
+        setExpandedStaff(prev => {
+            const next = new Set(prev)
+            if (next.has(staffId)) next.delete(staffId)
+            else next.add(staffId)
+            return next
+        })
+    }
+
+    const showOrLock = (value: React.ReactNode) => {
+        if (showCriticalData) return value
+        return (
+            <button
+                onClick={() => setShowPinModal(true)}
+                className="text-gray-600 hover:text-gray-400 transition-colors flex items-center gap-1"
+            >
+                <span>****</span>
+                <Eye size={14} />
+            </button>
+        )
     }
 
     if (loading) {
@@ -143,11 +167,11 @@ export default function HisabKitabPage() {
                 <div>
                     <h1 className="text-2xl font-bold text-white">Hisab-Kitab</h1>
                     <p className="text-gray-400">
-                        Daily staff settlement & profit overview
+                        Daily staff settlement &amp; profit overview
+                        {data && <span className="ml-2 text-gray-500">• {data.date}</span>}
                     </p>
                 </div>
                 <div className="flex gap-3">
-                    {/* Date Toggle */}
                     <div className="flex rounded-lg overflow-hidden border border-gray-700">
                         <button
                             onClick={() => setSelectedDate('today')}
@@ -174,219 +198,223 @@ export default function HisabKitabPage() {
                         disabled={loading}
                     >
                         <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-                        Refresh
                     </button>
                 </div>
             </div>
 
-            {/* Date Display */}
-            {data && (
-                <p className="text-sm text-gray-500">
-                    Showing data for: <span className="text-white font-medium">{data.date}</span>
-                </p>
-            )}
-
-            {/* Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                {/* Always Visible */}
-                <Card className="text-center">
-                    <Users className="mx-auto text-blue-400 mb-2" size={24} />
-                    <p className="text-xs text-gray-400">Total Bets</p>
+            {/* Overall Summary */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-gray-800/80 border border-gray-700 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Users size={16} className="text-blue-400" />
+                        <span className="text-xs text-gray-400">Total Bets</span>
+                    </div>
                     <p className="text-xl font-bold text-white">{data?.summary.totalBets || 0}</p>
-                </Card>
-                <Card className="text-center">
-                    <Wallet className="mx-auto text-cyan-400 mb-2" size={24} />
-                    <p className="text-xs text-gray-400">Total Collection</p>
-                    {showCriticalData ? (
-                        <p className="text-xl font-bold text-cyan-400">
-                            {formatCurrency(data?.summary.totalCollection || 0)}
+                    {showCriticalData && data && (
+                        <p className="text-xs text-gray-500 mt-1">
+                            <span className="text-emerald-400">{data.summary.wonBets} won</span>
+                            {' • '}
+                            <span className="text-red-400">{data.summary.lostBets} lost</span>
                         </p>
-                    ) : (
-                        <button
-                            onClick={() => setShowPinModal(true)}
-                            className="text-xl font-bold text-gray-600 flex items-center justify-center gap-2 mx-auto hover:text-gray-400 transition-colors"
-                        >
-                            ****
-                            <Eye size={16} />
-                        </button>
                     )}
-                </Card>
+                </div>
 
-                {/* Critical Data - PIN Protected */}
-                <Card className="text-center relative">
-                    <TrendingDown className="mx-auto text-red-400 mb-2" size={24} />
-                    <p className="text-xs text-gray-400">Total Payout</p>
-                    {showCriticalData ? (
-                        <p className="text-xl font-bold text-red-400">
-                            {formatCurrency(data?.summary.totalPayout || 0)}
-                        </p>
-                    ) : (
-                        <button
-                            onClick={() => setShowPinModal(true)}
-                            className="text-xl font-bold text-gray-600 flex items-center justify-center gap-2 mx-auto hover:text-gray-400 transition-colors"
-                        >
-                            ****
-                            <Eye size={16} />
-                        </button>
+                <div className="bg-gray-800/80 border border-gray-700 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Wallet size={16} className="text-cyan-400" />
+                        <span className="text-xs text-gray-400">Collection</span>
+                    </div>
+                    {showOrLock(
+                        <p className="text-xl font-bold text-cyan-400">{fmt(data?.summary.totalCollection || 0)}</p>
                     )}
-                </Card>
-                <Card className="text-center relative">
-                    <TrendingUp className="mx-auto text-green-400 mb-2" size={24} />
-                    <p className="text-xs text-gray-400">Net Profit</p>
-                    {showCriticalData ? (
-                        <p className={`text-xl font-bold ${(data?.summary.netProfit || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {formatCurrency(data?.summary.netProfit || 0)}
-                        </p>
-                    ) : (
-                        <button
-                            onClick={() => setShowPinModal(true)}
-                            className="text-xl font-bold text-gray-600 flex items-center justify-center gap-2 mx-auto hover:text-gray-400 transition-colors"
-                        >
-                            ****
-                            <Eye size={16} />
-                        </button>
+                </div>
+
+                <div className="bg-gray-800/80 border border-gray-700 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                        <TrendingDown size={16} className="text-red-400" />
+                        <span className="text-xs text-gray-400">Payout</span>
+                    </div>
+                    {showOrLock(
+                        <p className="text-xl font-bold text-red-400">{fmt(data?.summary.totalPayout || 0)}</p>
                     )}
-                </Card>
-                <Card className="text-center">
-                    <Trophy className="mx-auto text-yellow-400 mb-2" size={24} />
-                    <p className="text-xs text-gray-400">Won / Lost</p>
-                    {showCriticalData ? (
-                        <p className="text-xl font-bold text-white">
-                            <span className="text-green-400">{data?.summary.wonBets || 0}</span>
-                            {' / '}
-                            <span className="text-red-400">{data?.summary.lostBets || 0}</span>
+                </div>
+
+                <div className={`bg-gray-800/80 border rounded-xl p-4 ${showCriticalData && data
+                        ? data.summary.netProfit >= 0
+                            ? 'border-emerald-500/30'
+                            : 'border-red-500/30'
+                        : 'border-gray-700'
+                    }`}>
+                    <div className="flex items-center gap-2 mb-1">
+                        <TrendingUp size={16} className={
+                            showCriticalData && data
+                                ? data.summary.netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'
+                                : 'text-gray-400'
+                        } />
+                        <span className="text-xs text-gray-400">Net Profit</span>
+                    </div>
+                    {showOrLock(
+                        <p className={`text-xl font-bold ${(data?.summary.netProfit || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {(data?.summary.netProfit || 0) >= 0 ? '+' : ''}{fmt(data?.summary.netProfit || 0)}
                         </p>
-                    ) : (
-                        <button
-                            onClick={() => setShowPinModal(true)}
-                            className="text-xl font-bold text-gray-600 flex items-center justify-center gap-2 mx-auto hover:text-gray-400 transition-colors"
-                        >
-                            ** / **
-                            <Eye size={16} />
-                        </button>
                     )}
-                </Card>
-                <Card className="text-center">
-                    <p className="text-xs text-gray-400 mb-2">Active Staff</p>
-                    <p className="text-2xl font-bold text-purple-400">{data?.staffBreakdown.length || 0}</p>
-                </Card>
+                </div>
             </div>
 
-            {/* Critical Data Toggle */}
+            {/* Toggle critical data */}
             {showCriticalData && (
                 <div className="flex justify-end">
                     <button
                         onClick={() => setShowCriticalData(false)}
-                        className="text-sm text-gray-400 hover:text-white flex items-center gap-1"
+                        className="text-xs text-gray-500 hover:text-white flex items-center gap-1 transition-colors"
                     >
-                        <EyeOff size={14} />
+                        <EyeOff size={12} />
                         Hide sensitive data
                     </button>
                 </div>
             )}
 
-            {/* Staff Performance Table */}
-            <Card>
-                <CardHeader
-                    title="Staff Performance"
-                    subtitle="Session-wise collection, payout, and profit"
-                />
-                <div className="table-container overflow-x-auto">
-                    <table className="table min-w-[900px]">
-                        <thead>
-                            <tr>
-                                <th>Staff</th>
-                                <th className="text-center" colSpan={2}>Morning</th>
-                                <th className="text-center" colSpan={2}>Night</th>
-                                <th className="text-center" colSpan={2}>Day Total</th>
-                                <th className="text-center">Settlement</th>
-                            </tr>
-                            <tr className="text-xs text-gray-500">
-                                <th></th>
-                                <th>Collection</th>
-                                <th>Profit</th>
-                                <th>Collection</th>
-                                <th>Profit</th>
-                                <th>Collection</th>
-                                <th>Profit</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {!data?.staffBreakdown.length ? (
-                                <tr>
-                                    <td colSpan={8} className="text-center py-8 text-gray-500">
-                                        No staff data for this date
-                                    </td>
-                                </tr>
-                            ) : (
-                                data.staffBreakdown.map((staff) => {
-                                    // Settlement = Profit (what admin takes from staff)
-                                    const settlement = staff.totalProfit
-                                    return (
-                                        <tr key={staff.staffId}>
-                                            <td>
-                                                <div>
-                                                    <p className="font-medium text-white">{staff.staffName}</p>
-                                                    <p className="text-xs text-gray-500">{staff.staffEmail}</p>
+            {/* Staff Cards */}
+            <div>
+                <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                    <Users size={18} className="text-purple-400" />
+                    Staff Settlement
+                    <span className="text-sm text-gray-500 font-normal">({data?.staffBreakdown.length || 0} staff)</span>
+                </h2>
+
+                {!data?.staffBreakdown.length ? (
+                    <div className="bg-gray-800/50 border border-gray-700 rounded-xl py-12 text-center text-gray-500">
+                        No staff data for this date
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {data.staffBreakdown.map(staff => {
+                            const isExpanded = expandedStaff.has(staff.staffId)
+                            const settlement = staff.totalProfit
+                            const staffSettlementLabel = settlement >= 0
+                                ? `Staff gives ₹${Math.abs(settlement).toLocaleString('en-IN')}`
+                                : `Admin pays ₹${Math.abs(settlement).toLocaleString('en-IN')}`
+
+                            return (
+                                <div
+                                    key={staff.staffId}
+                                    className="bg-gray-800/80 border border-gray-700 rounded-xl overflow-hidden"
+                                >
+                                    {/* Staff Header - always visible */}
+                                    <button
+                                        onClick={() => toggleStaff(staff.staffId)}
+                                        className="w-full p-4 flex items-center justify-between hover:bg-gray-700/30 transition-colors"
+                                    >
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center flex-shrink-0">
+                                                <span className="text-white font-bold text-sm">
+                                                    {(staff.staffName || 'S').charAt(0).toUpperCase()}
+                                                </span>
+                                            </div>
+                                            <div className="text-left min-w-0">
+                                                <p className="text-white font-medium text-sm truncate">{staff.staffName}</p>
+                                                <p className="text-gray-500 text-xs">{staff.totalBets} bets</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-3">
+                                            {showCriticalData ? (
+                                                <Badge
+                                                    variant={settlement >= 0 ? 'success' : 'error'}
+                                                    className="font-mono text-xs"
+                                                >
+                                                    {settlement >= 0 ? '↑ Take' : '↓ Give'}{' '}
+                                                    {fmt(Math.abs(settlement))}
+                                                </Badge>
+                                            ) : (
+                                                <span className="text-gray-600 text-sm">****</span>
+                                            )}
+                                            {isExpanded ? (
+                                                <ChevronUp size={16} className="text-gray-400" />
+                                            ) : (
+                                                <ChevronDown size={16} className="text-gray-400" />
+                                            )}
+                                        </div>
+                                    </button>
+
+                                    {/* Expanded Details */}
+                                    {isExpanded && (
+                                        <div className="border-t border-gray-700">
+                                            {/* Session Rows */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-700">
+                                                {/* Morning */}
+                                                <SessionBlock
+                                                    label="☀️ Morning"
+                                                    collection={staff.morningCollection}
+                                                    payout={staff.morningPayout}
+                                                    profit={staff.morningProfit}
+                                                    showCritical={showCriticalData}
+                                                    onUnlock={() => setShowPinModal(true)}
+                                                    fmt={fmt}
+                                                />
+                                                {/* Night */}
+                                                <SessionBlock
+                                                    label="🌙 Night"
+                                                    collection={staff.nightCollection}
+                                                    payout={staff.nightPayout}
+                                                    profit={staff.nightProfit}
+                                                    showCritical={showCriticalData}
+                                                    onUnlock={() => setShowPinModal(true)}
+                                                    fmt={fmt}
+                                                />
+                                            </div>
+
+                                            {/* Totals Footer */}
+                                            <div className="border-t border-gray-700 p-4 bg-gray-900/50">
+                                                <div className="grid grid-cols-3 gap-4 text-center">
+                                                    <div>
+                                                        <p className="text-[10px] text-gray-500 uppercase">Total Collection</p>
+                                                        <p className="text-sm font-bold text-white font-mono">{fmt(staff.totalCollection)}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[10px] text-gray-500 uppercase">Total Payout</p>
+                                                        {showCriticalData ? (
+                                                            <p className="text-sm font-bold text-red-400 font-mono">{fmt(staff.totalPayout)}</p>
+                                                        ) : (
+                                                            <p className="text-sm text-gray-600">****</p>
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[10px] text-gray-500 uppercase">Settlement</p>
+                                                        {showCriticalData ? (
+                                                            <p className={`text-sm font-bold font-mono ${settlement >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                {settlement >= 0 ? '+' : ''}{fmt(settlement)}
+                                                            </p>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => setShowPinModal(true)}
+                                                                className="text-sm text-gray-600 hover:text-gray-400 flex items-center gap-1 mx-auto"
+                                                            >
+                                                                ****
+                                                                <Eye size={12} />
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </td>
-                                            <td className="text-center">{formatCurrency(staff.morningCollection)}</td>
-                                            <td className="text-center">
-                                                {showCriticalData ? (
-                                                    <span className={staff.morningProfit >= 0 ? 'text-green-400' : 'text-red-400'}>
-                                                        {formatCurrency(staff.morningProfit)}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-gray-600">****</span>
+
+                                                {/* Settlement Explanation */}
+                                                {showCriticalData && (
+                                                    <div className={`mt-3 text-center text-xs py-2 px-3 rounded-lg ${settlement >= 0
+                                                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                                            : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                                        }`}>
+                                                        {staffSettlementLabel}
+                                                    </div>
                                                 )}
-                                            </td>
-                                            <td className="text-center">{formatCurrency(staff.nightCollection)}</td>
-                                            <td className="text-center">
-                                                {showCriticalData ? (
-                                                    <span className={staff.nightProfit >= 0 ? 'text-green-400' : 'text-red-400'}>
-                                                        {formatCurrency(staff.nightProfit)}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-gray-600">****</span>
-                                                )}
-                                            </td>
-                                            <td className="text-center font-medium">{formatCurrency(staff.totalCollection)}</td>
-                                            <td className="text-center">
-                                                {showCriticalData ? (
-                                                    <span className={`font-medium ${staff.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                        {formatCurrency(staff.totalProfit)}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-gray-600">****</span>
-                                                )}
-                                            </td>
-                                            <td className="text-center">
-                                                {showCriticalData ? (
-                                                    <Badge
-                                                        variant={settlement >= 0 ? 'success' : 'error'}
-                                                        className="font-mono"
-                                                    >
-                                                        {settlement >= 0 ? '↑ Take ' : '↓ Give '}
-                                                        {formatCurrency(Math.abs(settlement))}
-                                                    </Badge>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => setShowPinModal(true)}
-                                                        className="text-gray-600 hover:text-gray-400"
-                                                    >
-                                                        <Eye size={16} />
-                                                    </button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    )
-                                })
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </Card>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
+            </div>
 
             {/* PIN Modal */}
             {showPinModal && (
@@ -436,6 +464,55 @@ export default function HisabKitabPage() {
                     </div>
                 </div>
             )}
+        </div>
+    )
+}
+
+// ==========================================
+// Session Block Component
+// ==========================================
+function SessionBlock({
+    label, collection, payout, profit, showCritical, onUnlock, fmt
+}: {
+    label: string
+    collection: number
+    payout: number
+    profit: number
+    showCritical: boolean
+    onUnlock: () => void
+    fmt: (n: number) => string
+}) {
+    return (
+        <div className="p-4 space-y-2">
+            <p className="text-sm font-medium text-gray-300 mb-2">{label}</p>
+            <div className="space-y-1.5">
+                <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-500">Collection</span>
+                    <span className="text-xs font-bold text-white font-mono">{fmt(collection)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-500">Payout</span>
+                    {showCritical ? (
+                        <span className="text-xs font-bold text-red-400 font-mono">{fmt(payout)}</span>
+                    ) : (
+                        <button onClick={onUnlock} className="text-xs text-gray-600 hover:text-gray-400 flex items-center gap-1">
+                            **** <Eye size={10} />
+                        </button>
+                    )}
+                </div>
+                <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-500">Profit</span>
+                    {showCritical ? (
+                        <span className={`text-xs font-bold font-mono ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {profit >= 0 ? '+' : ''}{fmt(profit)}
+                        </span>
+                    ) : (
+                        <button onClick={onUnlock} className="text-xs text-gray-600 hover:text-gray-400 flex items-center gap-1">
+                            **** <Eye size={10} />
+                        </button>
+                    )}
+                </div>
+            </div>
         </div>
     )
 }
