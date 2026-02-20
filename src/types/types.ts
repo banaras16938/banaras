@@ -145,6 +145,14 @@ export interface ResultOption {
     totalLiability: number
     payoutPercentage: number
     profitPercentage: number
+    // Per-category breakdown
+    tripleBets: number
+    tripleLiability: number
+    singleBets: number
+    singleLiability: number
+    jodiBets: number
+    jodiLiability: number
+    jodiNumbers: string[]
 }
 
 // Result Recommendations (4 Lists per SRS)

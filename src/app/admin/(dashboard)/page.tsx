@@ -19,7 +19,13 @@ import {
     CheckCircle,
     Lock,
     Clock,
-    Loader2
+    Loader2,
+    Hash,
+    Layers,
+    Grid3X3,
+    ChevronDown,
+    ChevronUp,
+    IndianRupee
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { SessionType, BetTarget, ResultOption } from '@/types/types'
@@ -35,12 +41,24 @@ interface GameSession {
     jodi_result: string | null
 }
 
+interface BetStats {
+    singleCount: number
+    singleAmount: number
+    tripleCount: number
+    tripleAmount: number
+    jodiCount: number
+    jodiAmount: number
+    totalPending: number
+}
+
 interface RecommendationsData {
     totalCollection: number
+    targetCollection: number
     targetMatch: ResultOption[]
     systemRecommendations: ResultOption[]
     lowBets: ResultOption[]
     noBets: ResultOption[]
+    betStats: BetStats
 }
 
 // Lock window timings from SRS
@@ -63,11 +81,12 @@ const LOCK_WINDOWS: Record<SessionType, Record<DeclarationTarget, LockWindow>> =
     }
 }
 
-// Helper to convert HH:MM to minutes since midnight
 function timeToMinutes(time: string): number {
     const [h, m] = time.split(':').map(Number)
     return h * 60 + m
 }
+
+const fmt = (n: number) => `₹${n.toLocaleString('en-IN')}`
 
 export default function AdminDashboard() {
     const [loading, setLoading] = useState(true)
@@ -75,17 +94,20 @@ export default function AdminDashboard() {
     const [selectedSession, setSelectedSession] = useState<SessionType>('morning')
     const [selectedTarget, setSelectedTarget] = useState<BetTarget>('open')
     const [payoutSlider, setPayoutSlider] = useState(10)
-    const debouncedPayoutSlider = useDebounce(payoutSlider, 300) // Debounce slider for API calls
+    const debouncedPayoutSlider = useDebounce(payoutSlider, 300)
     const [morningSession, setMorningSession] = useState<GameSession | null>(null)
     const [nightSession, setNightSession] = useState<GameSession | null>(null)
     const [recommendations, setRecommendations] = useState<RecommendationsData>({
         totalCollection: 0,
+        targetCollection: 0,
         targetMatch: [],
         systemRecommendations: [],
         lowBets: [],
-        noBets: []
+        noBets: [],
+        betStats: { singleCount: 0, singleAmount: 0, tripleCount: 0, tripleAmount: 0, jodiCount: 0, jodiAmount: 0, totalPending: 0 }
     })
     const [selectedResult, setSelectedResult] = useState<ResultOption | null>(null)
+    const [expandedResult, setExpandedResult] = useState<string | null>(null)
     const [showConfirmModal, setShowConfirmModal] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [activeTab, setActiveTab] = useState<'target' | 'profit' | 'low' | 'ghost'>('target')
@@ -109,33 +131,30 @@ export default function AdminDashboard() {
     }, [])
 
     const currentSession = selectedSession === 'morning' ? morningSession : nightSession
-
-    // Check if result already declared
     const isOpenDeclared = currentSession?.open_triple != null
     const isCloseDeclared = currentSession?.close_triple != null
 
-    // Check if within lock window for result declaration
     const getLockWindowStatus = useCallback((session: SessionType, target: DeclarationTarget) => {
         const window = LOCK_WINDOWS[session][target]
         const nowMinutes = timeToMinutes(currentTime)
         const startMinutes = timeToMinutes(window.start)
         const endMinutes = timeToMinutes(window.end)
 
-        const isInWindow = nowMinutes >= startMinutes && nowMinutes < endMinutes
-        const isPastWindow = nowMinutes >= endMinutes
-        const isBeforeWindow = nowMinutes < startMinutes
-
-        return { isInWindow, isPastWindow, isBeforeWindow, window }
+        return {
+            isInWindow: nowMinutes >= startMinutes && nowMinutes < endMinutes,
+            isPastWindow: nowMinutes >= endMinutes,
+            isBeforeWindow: nowMinutes < startMinutes,
+            window
+        }
     }, [currentTime])
 
     const openLockStatus = getLockWindowStatus(selectedSession, 'open')
     const closeLockStatus = getLockWindowStatus(selectedSession, 'close')
 
-    // Can declare based on both time and declaration status
     const canDeclareOpen = !isOpenDeclared && (openLockStatus.isInWindow || openLockStatus.isPastWindow)
     const canDeclareClose = isOpenDeclared && !isCloseDeclared && (closeLockStatus.isInWindow || closeLockStatus.isPastWindow)
 
-    // Fetch sessions - only on mount and after declaring result
+    // Fetch sessions
     const fetchSessions = useCallback(async () => {
         try {
             const response = await fetch(`/api/results?date=${gameDate}`)
@@ -153,7 +172,7 @@ export default function AdminDashboard() {
         }
     }, [gameDate])
 
-    // Fetch recommendations - on debounced slider/session/target change
+    // Fetch recommendations
     const fetchRecommendations = useCallback(async () => {
         setLoadingRecommendations(true)
         try {
@@ -162,10 +181,12 @@ export default function AdminDashboard() {
                 const { recommendations: rec } = await response.json()
                 setRecommendations(rec || {
                     totalCollection: 0,
+                    targetCollection: 0,
                     targetMatch: [],
                     systemRecommendations: [],
                     lowBets: [],
-                    noBets: []
+                    noBets: [],
+                    betStats: { singleCount: 0, singleAmount: 0, tripleCount: 0, tripleAmount: 0, jodiCount: 0, jodiAmount: 0, totalPending: 0 }
                 })
             }
         } catch (error) {
@@ -175,7 +196,7 @@ export default function AdminDashboard() {
         }
     }, [gameDate, selectedSession, selectedTarget, debouncedPayoutSlider])
 
-    // Initial load - fetch both sessions and recommendations
+    // Initial load
     const fetchData = useCallback(async () => {
         setLoading(true)
         try {
@@ -188,64 +209,48 @@ export default function AdminDashboard() {
         }
     }, [fetchSessions, fetchRecommendations])
 
-    // Initial data load
     useEffect(() => {
         fetchData()
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
-    // Refetch recommendations when slider/session/target changes (no loading spinner)
+    // Refetch when params change
     useEffect(() => {
         fetchRecommendations()
     }, [fetchRecommendations])
 
-    // Calculate single from triple
+    // AUTO-REFRESH every 30 seconds
+    useEffect(() => {
+        const interval = setInterval(() => {
+            fetchRecommendations()
+        }, 30000)
+        return () => clearInterval(interval)
+    }, [fetchRecommendations])
+
     const calculateSingle = (triple: string): string => {
         const sum = triple.split('').reduce((acc, d) => acc + parseInt(d), 0)
         return (sum % 10).toString()
     }
 
-    // Handle result selection
     const handleSelectResult = (option: ResultOption) => {
         const targetKey = selectedTarget as DeclarationTarget
         const window = LOCK_WINDOWS[selectedSession][targetKey]
 
         if (selectedTarget === 'open') {
-            // Check if open already declared
-            if (isOpenDeclared) {
-                toast.error('Open result already declared')
-                return
-            }
-            // Check time window
-            if (openLockStatus.isBeforeWindow) {
-                toast.error(`Too early! Open result declaration starts at ${window.start}`)
-                return
-            }
+            if (isOpenDeclared) { toast.error('Open result already declared'); return }
+            if (openLockStatus.isBeforeWindow) { toast.error(`Too early! Open result declaration starts at ${window.start}`); return }
         }
 
         if (selectedTarget === 'close') {
-            // Check if open must be declared first
-            if (!isOpenDeclared) {
-                toast.error('Declare Open result first')
-                return
-            }
-            // Check if close already declared
-            if (isCloseDeclared) {
-                toast.error('Close result already declared')
-                return
-            }
-            // Check time window
-            if (closeLockStatus.isBeforeWindow) {
-                toast.error(`Too early! Close result declaration starts at ${window.start}`)
-                return
-            }
+            if (!isOpenDeclared) { toast.error('Declare Open result first'); return }
+            if (isCloseDeclared) { toast.error('Close result already declared'); return }
+            if (closeLockStatus.isBeforeWindow) { toast.error(`Too early! Close result declaration starts at ${window.start}`); return }
         }
 
         setSelectedResult(option)
         setShowConfirmModal(true)
     }
 
-    // Declare result
     const handleDeclareResult = async () => {
         if (!selectedResult) return
 
@@ -272,7 +277,6 @@ export default function AdminDashboard() {
             setShowConfirmModal(false)
             setSelectedResult(null)
 
-            // Auto-switch to close after declaring open
             if (selectedTarget === 'open') {
                 setSelectedTarget('close')
             }
@@ -285,7 +289,6 @@ export default function AdminDashboard() {
         }
     }
 
-    // Get active list
     const getActiveList = (): ResultOption[] => {
         switch (activeTab) {
             case 'target': return recommendations.targetMatch
@@ -296,9 +299,7 @@ export default function AdminDashboard() {
         }
     }
 
-    // Estimated payout/profit based on slider
-    const estimatedPayout = Math.round(recommendations.totalCollection * payoutSlider / 100)
-    const estimatedProfit = recommendations.totalCollection - estimatedPayout
+    const stats = recommendations.betStats
 
     if (loading) {
         return (
@@ -309,7 +310,7 @@ export default function AdminDashboard() {
     }
 
     return (
-        <div className="space-y-4 md:space-y-6">
+        <div className="space-y-4 md:space-y-5">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
@@ -327,12 +328,11 @@ export default function AdminDashboard() {
                         className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gray-800 text-white border border-gray-700 rounded-lg hover:bg-gray-700 transition-all text-sm"
                     >
                         <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-                        Refresh
                     </button>
                 </div>
             </div>
 
-            {/* Lock Window Status Banner */}
+            {/* Lock Window Status */}
             <div className="bg-gray-800/80 backdrop-blur border border-gray-700 rounded-xl p-4">
                 <div className="grid grid-cols-2 gap-4 text-center">
                     <div className={`p-3 rounded-lg border ${isOpenDeclared ? 'bg-green-500/10 border-green-500/30' :
@@ -342,16 +342,11 @@ export default function AdminDashboard() {
                         }`}>
                         <p className="text-xs text-gray-400 mb-1">OPEN DECLARATION</p>
                         {isOpenDeclared ? (
-                            <p className="text-sm font-medium text-green-400 flex items-center justify-center gap-1">
-                                <CheckCircle size={14} /> Declared
-                            </p>
+                            <p className="text-sm font-medium text-green-400 flex items-center justify-center gap-1"><CheckCircle size={14} /> Declared</p>
                         ) : openLockStatus.isInWindow ? (
                             <p className="text-sm font-bold text-cyan-400">ACTIVE NOW</p>
                         ) : openLockStatus.isBeforeWindow ? (
-                            <p className="text-xs text-gray-400">
-                                <Lock size={12} className="inline mr-1" />
-                                Opens at {LOCK_WINDOWS[selectedSession].open.start}
-                            </p>
+                            <p className="text-xs text-gray-400"><Lock size={12} className="inline mr-1" />Opens at {LOCK_WINDOWS[selectedSession].open.start}</p>
                         ) : (
                             <p className="text-sm text-yellow-400">Ready to Declare</p>
                         )}
@@ -364,18 +359,13 @@ export default function AdminDashboard() {
                         }`}>
                         <p className="text-xs text-gray-400 mb-1">CLOSE DECLARATION</p>
                         {isCloseDeclared ? (
-                            <p className="text-sm font-medium text-green-400 flex items-center justify-center gap-1">
-                                <CheckCircle size={14} /> Declared
-                            </p>
+                            <p className="text-sm font-medium text-green-400 flex items-center justify-center gap-1"><CheckCircle size={14} /> Declared</p>
                         ) : !isOpenDeclared ? (
                             <p className="text-xs text-gray-500">Waiting for Open</p>
                         ) : closeLockStatus.isInWindow ? (
                             <p className="text-sm font-bold text-cyan-400">ACTIVE NOW</p>
                         ) : closeLockStatus.isBeforeWindow ? (
-                            <p className="text-xs text-gray-400">
-                                <Lock size={12} className="inline mr-1" />
-                                Opens at {LOCK_WINDOWS[selectedSession].close.start}
-                            </p>
+                            <p className="text-xs text-gray-400"><Lock size={12} className="inline mr-1" />Opens at {LOCK_WINDOWS[selectedSession].close.start}</p>
                         ) : (
                             <p className="text-sm text-yellow-400">Ready to Declare</p>
                         )}
@@ -386,7 +376,6 @@ export default function AdminDashboard() {
             {/* Session & Target Selection */}
             <div className="bg-gray-800/80 backdrop-blur border border-gray-700 rounded-xl p-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Session Toggle */}
                     <div>
                         <p className="text-xs text-gray-400 mb-2">SELECT SESSION</p>
                         <div className="flex rounded-lg overflow-hidden border border-gray-700">
@@ -397,7 +386,7 @@ export default function AdminDashboard() {
                                     : 'bg-gray-900 text-gray-400 hover:bg-gray-800'
                                     }`}
                             >
-                                Morning
+                                ☀️ Morning
                                 {morningSession?.close_triple && <CheckCircle size={14} className="inline ml-2" />}
                             </button>
                             <button
@@ -407,13 +396,12 @@ export default function AdminDashboard() {
                                     : 'bg-gray-900 text-gray-400 hover:bg-gray-800'
                                     }`}
                             >
-                                Night
+                                🌙 Night
                                 {nightSession?.close_triple && <CheckCircle size={14} className="inline ml-2" />}
                             </button>
                         </div>
                     </div>
 
-                    {/* Target Toggle */}
                     <div>
                         <p className="text-xs text-gray-400 mb-2">SELECT TARGET</p>
                         <div className="flex rounded-lg overflow-hidden border border-gray-700">
@@ -425,8 +413,7 @@ export default function AdminDashboard() {
                                     : 'bg-gray-900 text-gray-400 hover:bg-gray-800'
                                     } ${isOpenDeclared ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
-                                Open
-                                {isOpenDeclared && <Lock size={12} className="inline ml-1" />}
+                                Open {isOpenDeclared && <Lock size={12} className="inline ml-1" />}
                             </button>
                             <button
                                 onClick={() => setSelectedTarget('close')}
@@ -436,8 +423,7 @@ export default function AdminDashboard() {
                                     : 'bg-gray-900 text-gray-400 hover:bg-gray-800'
                                     } ${(!isOpenDeclared || isCloseDeclared) ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
-                                Close
-                                {isCloseDeclared && <Lock size={12} className="inline ml-1" />}
+                                Close {isCloseDeclared && <Lock size={12} className="inline ml-1" />}
                             </button>
                         </div>
                     </div>
@@ -452,9 +438,7 @@ export default function AdminDashboard() {
                                 <p className={`text-2xl font-mono font-bold ${currentSession.open_triple ? 'text-cyan-400' : 'text-gray-600'}`}>
                                     {currentSession.open_triple || '***'}
                                 </p>
-                                {currentSession.open_single && (
-                                    <p className="text-xs text-gray-400">Single: {currentSession.open_single}</p>
-                                )}
+                                {currentSession.open_single && <p className="text-xs text-gray-400">Single: {currentSession.open_single}</p>}
                             </div>
                             <div className="text-center px-6 border-x border-gray-700">
                                 <p className="text-xs text-gray-500">JODI</p>
@@ -467,31 +451,53 @@ export default function AdminDashboard() {
                                 <p className={`text-2xl font-mono font-bold ${currentSession.close_triple ? 'text-green-400' : 'text-gray-600'}`}>
                                     {currentSession.close_triple || '***'}
                                 </p>
-                                {currentSession.close_single && (
-                                    <p className="text-xs text-gray-400">Single: {currentSession.close_single}</p>
-                                )}
+                                {currentSession.close_single && <p className="text-xs text-gray-400">Single: {currentSession.close_single}</p>}
                             </div>
                         </div>
                     </div>
                 )}
             </div>
 
-            {/* Stats Summary */}
-            <div className="grid grid-cols-3 gap-3">
-                <div className="bg-gray-800/80 border border-gray-700 rounded-xl p-3 text-center">
-                    <DollarSign className="mx-auto text-cyan-400 mb-1" size={20} />
-                    <p className="text-xs text-gray-400">Collection</p>
-                    <p className="text-lg font-bold text-white">₹{recommendations.totalCollection.toLocaleString()}</p>
+            {/* Enhanced KPIs */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {/* Target Collection */}
+                <div className="bg-gray-800/80 border border-gray-700 rounded-xl p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                        <IndianRupee size={14} className="text-cyan-400" />
+                        <span className="text-[10px] text-gray-500 uppercase">{selectedTarget} Collection</span>
+                    </div>
+                    <p className="text-lg font-bold text-white font-mono">{fmt(recommendations.targetCollection || 0)}</p>
+                    <p className="text-[10px] text-gray-500">Total: {fmt(recommendations.totalCollection)}</p>
                 </div>
-                <div className="bg-gray-800/80 border border-gray-700 rounded-xl p-3 text-center">
-                    <TrendingDown className="mx-auto text-red-400 mb-1" size={20} />
-                    <p className="text-xs text-gray-400">Est. Payout</p>
-                    <p className="text-lg font-bold text-red-400">₹{estimatedPayout.toLocaleString()}</p>
+
+                {/* Single Bets */}
+                <div className="bg-gray-800/80 border border-gray-700 rounded-xl p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Hash size={14} className="text-blue-400" />
+                        <span className="text-[10px] text-gray-500 uppercase">Single Bets</span>
+                    </div>
+                    <p className="text-lg font-bold text-white font-mono">{fmt(stats.singleAmount)}</p>
+                    <p className="text-[10px] text-gray-500">{stats.singleCount} bets • ×9 payout</p>
                 </div>
-                <div className="bg-gray-800/80 border border-gray-700 rounded-xl p-3 text-center">
-                    <Trophy className="mx-auto text-green-400 mb-1" size={20} />
-                    <p className="text-xs text-gray-400">Est. Profit</p>
-                    <p className="text-lg font-bold text-green-400">₹{estimatedProfit.toLocaleString()}</p>
+
+                {/* Triple Bets */}
+                <div className="bg-gray-800/80 border border-gray-700 rounded-xl p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Layers size={14} className="text-amber-400" />
+                        <span className="text-[10px] text-gray-500 uppercase">Triple Bets</span>
+                    </div>
+                    <p className="text-lg font-bold text-white font-mono">{fmt(stats.tripleAmount)}</p>
+                    <p className="text-[10px] text-gray-500">{stats.tripleCount} bets • ×800 payout</p>
+                </div>
+
+                {/* Jodi Bets */}
+                <div className="bg-gray-800/80 border border-gray-700 rounded-xl p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Grid3X3 size={14} className="text-purple-400" />
+                        <span className="text-[10px] text-gray-500 uppercase">Jodi Bets</span>
+                    </div>
+                    <p className="text-lg font-bold text-white font-mono">{fmt(stats.jodiAmount)}</p>
+                    <p className="text-[10px] text-gray-500">{stats.jodiCount} bets • ×90 payout</p>
                 </div>
             </div>
 
@@ -505,13 +511,21 @@ export default function AdminDashboard() {
                     max={30}
                     step={1}
                 />
-                <div className="flex items-center justify-center gap-2 mt-2">
+                <div className="flex items-center justify-between mt-2">
                     <p className="text-xs text-gray-500">
-                        Target: {payoutSlider}% payout → {100 - payoutSlider}% profit
+                        Target: <span className="text-white font-medium">{payoutSlider}%</span> payout → <span className="text-emerald-400 font-medium">{100 - payoutSlider}%</span> profit
                     </p>
-                    {(payoutSlider !== debouncedPayoutSlider || loadingRecommendations) && (
-                        <Loader2 size={12} className="animate-spin text-cyan-400" />
-                    )}
+                    <div className="flex items-center gap-2">
+                        {(recommendations.targetCollection || 0) > 0 && (
+                            <p className="text-xs text-gray-500">
+                                Pay: <span className="text-red-400">{fmt(Math.round((recommendations.targetCollection || 0) * payoutSlider / 100))}</span>
+                                {' '}Keep: <span className="text-emerald-400">{fmt(Math.round((recommendations.targetCollection || 0) * (100 - payoutSlider) / 100))}</span>
+                            </p>
+                        )}
+                        {(payoutSlider !== debouncedPayoutSlider || loadingRecommendations) && (
+                            <Loader2 size={12} className="animate-spin text-cyan-400" />
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -521,17 +535,15 @@ export default function AdminDashboard() {
                 <div className="flex border-b border-gray-700 overflow-x-auto">
                     <button
                         onClick={() => setActiveTab('target')}
-                        className={`flex-1 min-w-[80px] py-3 px-2 text-xs font-medium transition-all flex flex-col items-center gap-1 ${activeTab === 'target' ? 'bg-cyan-500/10 text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400'
-                            }`}
+                        className={`flex-1 min-w-[80px] py-3 px-2 text-xs font-medium transition-all flex flex-col items-center gap-1 ${activeTab === 'target' ? 'bg-cyan-500/10 text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400'}`}
                     >
                         <Target size={16} />
-                        <span>Target</span>
+                        <span>Exact</span>
                         <span className="text-[10px]">({recommendations.targetMatch.length})</span>
                     </button>
                     <button
                         onClick={() => setActiveTab('profit')}
-                        className={`flex-1 min-w-[80px] py-3 px-2 text-xs font-medium transition-all flex flex-col items-center gap-1 ${activeTab === 'profit' ? 'bg-yellow-500/10 text-yellow-400 border-b-2 border-yellow-400' : 'text-gray-400'
-                            }`}
+                        className={`flex-1 min-w-[80px] py-3 px-2 text-xs font-medium transition-all flex flex-col items-center gap-1 ${activeTab === 'profit' ? 'bg-yellow-500/10 text-yellow-400 border-b-2 border-yellow-400' : 'text-gray-400'}`}
                     >
                         <Zap size={16} />
                         <span>Leverage</span>
@@ -539,8 +551,7 @@ export default function AdminDashboard() {
                     </button>
                     <button
                         onClick={() => setActiveTab('low')}
-                        className={`flex-1 min-w-[80px] py-3 px-2 text-xs font-medium transition-all flex flex-col items-center gap-1 ${activeTab === 'low' ? 'bg-pink-500/10 text-pink-400 border-b-2 border-pink-400' : 'text-gray-400'
-                            }`}
+                        className={`flex-1 min-w-[80px] py-3 px-2 text-xs font-medium transition-all flex flex-col items-center gap-1 ${activeTab === 'low' ? 'bg-pink-500/10 text-pink-400 border-b-2 border-pink-400' : 'text-gray-400'}`}
                     >
                         <TrendingDown size={16} />
                         <span>Low</span>
@@ -548,8 +559,7 @@ export default function AdminDashboard() {
                     </button>
                     <button
                         onClick={() => setActiveTab('ghost')}
-                        className={`flex-1 min-w-[80px] py-3 px-2 text-xs font-medium transition-all flex flex-col items-center gap-1 ${activeTab === 'ghost' ? 'bg-green-500/10 text-green-400 border-b-2 border-green-400' : 'text-gray-400'
-                            }`}
+                        className={`flex-1 min-w-[80px] py-3 px-2 text-xs font-medium transition-all flex flex-col items-center gap-1 ${activeTab === 'ghost' ? 'bg-green-500/10 text-green-400 border-b-2 border-green-400' : 'text-gray-400'}`}
                     >
                         <Ghost size={16} />
                         <span>Ghost</span>
@@ -558,7 +568,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Result List */}
-                <div className="max-h-[500px] overflow-y-auto relative">
+                <div className="max-h-[600px] overflow-y-auto relative">
                     {/* Loading Overlay */}
                     {loadingRecommendations && (
                         <div className="absolute inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center z-10">
@@ -571,32 +581,107 @@ export default function AdminDashboard() {
 
                     {getActiveList().length === 0 ? (
                         <div className="py-12 text-center text-gray-500">
-                            <p>{loadingRecommendations ? 'Loading...' : 'No results in this category'}</p>
+                            {loadingRecommendations ? 'Loading...' : (
+                                activeTab === 'target'
+                                    ? `No exact match for ${payoutSlider}% payout. Try the Leverage tab for ±10% range.`
+                                    : 'No results in this category'
+                            )}
                         </div>
                     ) : (
                         <div className="divide-y divide-gray-700/50">
-                            {getActiveList().map((result) => (
-                                <button
-                                    key={result.triple}
-                                    onClick={() => handleSelectResult(result)}
-                                    className="w-full p-4 flex items-center justify-between hover:bg-gray-700/30 transition-colors"
-                                >
-                                    <div className="flex items-center gap-4">
-                                        <div>
-                                            <p className="font-mono text-xl font-bold text-cyan-400">{result.triple}</p>
-                                            <p className="text-xs text-gray-500">Single: {result.single}</p>
+                            {getActiveList().map((result) => {
+                                const isExpanded = expandedResult === result.triple
+                                return (
+                                    <div key={result.triple}>
+                                        {/* Main Row */}
+                                        <div className="flex items-center">
+                                            {/* Expand toggle */}
+                                            <button
+                                                onClick={() => setExpandedResult(isExpanded ? null : result.triple)}
+                                                className="p-4 text-gray-500 hover:text-white transition-colors"
+                                            >
+                                                {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                            </button>
+
+                                            {/* Click to select */}
+                                            <button
+                                                onClick={() => handleSelectResult(result)}
+                                                className="flex-1 py-4 pr-4 flex items-center justify-between hover:bg-gray-700/20 transition-colors"
+                                            >
+                                                <div className="flex items-center gap-4">
+                                                    <div>
+                                                        <p className="font-mono text-xl font-bold text-cyan-400">{result.triple}</p>
+                                                        <p className="text-xs text-gray-500">Single: {result.single}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className={`text-sm font-bold ${result.profitPercentage > 90 ? 'text-green-400' : result.profitPercentage < 70 ? 'text-red-400' : 'text-white'}`}>
+                                                        {result.payoutPercentage.toFixed(1)}% payout
+                                                    </p>
+                                                    <p className="text-xs text-gray-500">
+                                                        Liability: {fmt(Math.round(result.totalLiability))}
+                                                    </p>
+                                                </div>
+                                            </button>
                                         </div>
+
+                                        {/* Expanded Detail */}
+                                        {isExpanded && (
+                                            <div className="px-4 pb-4 ml-10 space-y-2 animate-fade-in">
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    {/* Triple detail */}
+                                                    <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3">
+                                                        <div className="flex items-center gap-1.5 mb-2">
+                                                            <Layers size={12} className="text-amber-400" />
+                                                            <span className="text-[10px] text-gray-400 uppercase">Triple ({result.triple})</span>
+                                                        </div>
+                                                        <p className="text-sm font-bold text-white font-mono">{fmt(result.tripleBets)}</p>
+                                                        <p className="text-[10px] text-amber-400">Liability: {fmt(Math.round(result.tripleLiability))}</p>
+                                                        <p className="text-[10px] text-gray-500">×800</p>
+                                                    </div>
+
+                                                    {/* Single detail */}
+                                                    <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-3">
+                                                        <div className="flex items-center gap-1.5 mb-2">
+                                                            <Hash size={12} className="text-blue-400" />
+                                                            <span className="text-[10px] text-gray-400 uppercase">Single ({result.single})</span>
+                                                        </div>
+                                                        <p className="text-sm font-bold text-white font-mono">{fmt(result.singleBets)}</p>
+                                                        <p className="text-[10px] text-blue-400">Liability: {fmt(Math.round(result.singleLiability))}</p>
+                                                        <p className="text-[10px] text-gray-500">×9</p>
+                                                    </div>
+
+                                                    {/* Jodi detail */}
+                                                    <div className="bg-purple-500/5 border border-purple-500/20 rounded-lg p-3">
+                                                        <div className="flex items-center gap-1.5 mb-2">
+                                                            <Grid3X3 size={12} className="text-purple-400" />
+                                                            <span className="text-[10px] text-gray-400 uppercase">Jodi</span>
+                                                        </div>
+                                                        <p className="text-sm font-bold text-white font-mono">{fmt(result.jodiBets)}</p>
+                                                        <p className="text-[10px] text-purple-400">Liability: {fmt(Math.round(result.jodiLiability))}</p>
+                                                        <p className="text-[10px] text-gray-500 truncate" title={result.jodiNumbers?.join(', ')}>
+                                                            {result.jodiNumbers?.length > 3
+                                                                ? `${result.jodiNumbers.slice(0, 3).join(', ')}...`
+                                                                : result.jodiNumbers?.join(', ')
+                                                            }
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                {/* Profit line */}
+                                                <div className="flex justify-between items-center bg-gray-900/50 rounded-lg px-3 py-2">
+                                                    <span className="text-xs text-gray-400">Net after this result</span>
+                                                    <span className={`text-sm font-bold font-mono ${(recommendations.targetCollection - result.totalLiability) >= 0
+                                                            ? 'text-emerald-400' : 'text-red-400'
+                                                        }`}>
+                                                        {(recommendations.targetCollection - result.totalLiability) >= 0 ? '+' : ''}
+                                                        {fmt(Math.round(recommendations.targetCollection - result.totalLiability))}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="text-right">
-                                        <p className={`text-sm font-medium ${result.profitPercentage > 90 ? 'text-green-400' : 'text-white'}`}>
-                                            {result.profitPercentage.toFixed(1)}% profit
-                                        </p>
-                                        <p className="text-xs text-gray-500">
-                                            Bets: ₹{result.totalBets.toLocaleString()}
-                                        </p>
-                                    </div>
-                                </button>
-                            ))}
+                                )
+                            })}
                         </div>
                     )}
                 </div>
@@ -629,17 +714,36 @@ export default function AdminDashboard() {
                             </p>
                         </div>
 
+                        {/* Per-category breakdown in modal */}
+                        <div className="grid grid-cols-3 gap-2">
+                            <div className="bg-gray-900 rounded-lg p-3 text-center">
+                                <p className="text-[10px] text-gray-500">TRIPLE (×800)</p>
+                                <p className="text-sm font-bold text-amber-400">{fmt(Math.round(selectedResult.tripleLiability))}</p>
+                                <p className="text-[10px] text-gray-500">from {fmt(selectedResult.tripleBets)}</p>
+                            </div>
+                            <div className="bg-gray-900 rounded-lg p-3 text-center">
+                                <p className="text-[10px] text-gray-500">SINGLE (×9)</p>
+                                <p className="text-sm font-bold text-blue-400">{fmt(Math.round(selectedResult.singleLiability))}</p>
+                                <p className="text-[10px] text-gray-500">from {fmt(selectedResult.singleBets)}</p>
+                            </div>
+                            <div className="bg-gray-900 rounded-lg p-3 text-center">
+                                <p className="text-[10px] text-gray-500">JODI (×90)</p>
+                                <p className="text-sm font-bold text-purple-400">{fmt(Math.round(selectedResult.jodiLiability))}</p>
+                                <p className="text-[10px] text-gray-500">from {fmt(selectedResult.jodiBets)}</p>
+                            </div>
+                        </div>
+
                         <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-gray-900">
                             <div>
-                                <p className="text-xs text-gray-500">Estimated Payout</p>
+                                <p className="text-xs text-gray-500">Total Liability</p>
                                 <p className="text-lg font-bold text-red-400">
-                                    ₹{Math.round(selectedResult.totalLiability).toLocaleString()}
+                                    {fmt(Math.round(selectedResult.totalLiability))}
                                 </p>
                             </div>
                             <div className="text-right">
                                 <p className="text-xs text-gray-500">Estimated Profit</p>
-                                <p className="text-lg font-bold text-green-400">
-                                    ₹{Math.round(recommendations.totalCollection - selectedResult.totalLiability).toLocaleString()}
+                                <p className={`text-lg font-bold ${(recommendations.targetCollection - selectedResult.totalLiability) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                    {fmt(Math.round(recommendations.targetCollection - selectedResult.totalLiability))}
                                 </p>
                             </div>
                         </div>

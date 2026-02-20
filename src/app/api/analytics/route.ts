@@ -116,189 +116,210 @@ export async function GET(request: NextRequest) {
             .eq('session_name', sessionName)
             .single()
 
-        // Get liability data
-        const { data: liabilityData } = await supabase
-            .from('view_liability_report')
-            .select('*')
-            .eq('game_date', gameDate)
-            .eq('session_name', sessionName)
-
-        // Get total collection for this session
-        const { data: bets } = await supabase
-            .from('bets')
-            .select('amount')
-            .eq('game_session_id', session?.id || '')
-
-        const totalCollection = bets?.reduce((sum, b) => sum + Number(b.amount), 0) || 0
-
-        // Helper to aggregate liability data
-        // Uses Map for O(1) lookup instead of array filtering O(N)
-        const getAggregatedData = (
-            data: any[],
-            category: string,
-            targetFilter?: string
-        ): Map<string, { liability: number, bets: number }> => {
-            const map = new Map()
-
-            const filtered = data.filter(d =>
-                d.category === category &&
-                (!targetFilter || d.target === targetFilter)
-            )
-
-            filtered.forEach(d => {
-                const key = d.selected_number
-                const current = map.get(key) || { liability: 0, bets: 0 }
-                map.set(key, {
-                    liability: current.liability + Number(d.potential_liability || 0),
-                    bets: current.bets + Number(d.total_bet_amount || 0)
-                })
+        if (!session) {
+            return NextResponse.json({
+                recommendations: {
+                    totalCollection: 0,
+                    targetMatch: [],
+                    systemRecommendations: [],
+                    lowBets: [],
+                    noBets: [],
+                    betStats: { singleCount: 0, singleAmount: 0, tripleCount: 0, tripleAmount: 0, jodiCount: 0, jodiAmount: 0, totalPending: 0 }
+                }
             })
-
-            return map
         }
 
-        // Pre-aggregate data for O(1) lookups
-        const tripleData = getAggregatedData(liabilityData || [], 'triple', target)
-        const singleData = getAggregatedData(liabilityData || [], 'single', target)
+        // Get payout config
+        const { data: configData } = await supabase
+            .from('game_config')
+            .select('*')
+            .single()
+        const payoutSingle = Number(configData?.payout_single || 9)
+        const payoutJodi = Number(configData?.payout_jodi || 90)
+        const payoutTriple = Number(configData?.payout_triple || 800)
 
-        // Jodi data aggregation
-        // For CLOSE target: we calculate exact jodi (open_single + close_single)
-        // For OPEN target: we estimate max jodi risk (all jodis starting with open_single)
-        const jodiData = getAggregatedData(liabilityData || [], 'jodi')
+        // Fetch ALL pending bets for this session
+        const { data: allBets } = await supabase
+            .from('bets')
+            .select('amount, category, target, selected_number, status')
+            .eq('game_session_id', session.id)
+            .eq('status', 'pending')
 
+        const bets = allBets || []
+
+        // ==========================================
+        // TARGET-SPECIFIC COLLECTION
+        // ==========================================
+        // For OPEN declaration: only count open-target bets
+        // For CLOSE declaration: count close + jodi_full bets
+        let targetCollection = 0
+        if (target === 'open') {
+            targetCollection = bets
+                .filter(b => b.target === 'open')
+                .reduce((s, b) => s + Number(b.amount), 0)
+        } else {
+            targetCollection = bets
+                .filter(b => b.target === 'close' || b.target === 'jodi_full')
+                .reduce((s, b) => s + Number(b.amount), 0)
+        }
+
+        // Also compute total collection (all pending bets) for reference
+        const totalCollection = bets.reduce((s, b) => s + Number(b.amount), 0)
+
+        // ==========================================
+        // BET STATS for KPIs
+        // ==========================================
+        const targetBets = bets.filter(b => {
+            if (target === 'open') return b.target === 'open'
+            return b.target === 'close' || b.target === 'jodi_full'
+        })
+        const betStats = {
+            singleCount: targetBets.filter(b => b.category === 'single').length,
+            singleAmount: targetBets.filter(b => b.category === 'single').reduce((s, b) => s + Number(b.amount), 0),
+            tripleCount: targetBets.filter(b => b.category === 'triple').length,
+            tripleAmount: targetBets.filter(b => b.category === 'triple').reduce((s, b) => s + Number(b.amount), 0),
+            jodiCount: targetBets.filter(b => b.category === 'jodi').length,
+            jodiAmount: targetBets.filter(b => b.category === 'jodi').reduce((s, b) => s + Number(b.amount), 0),
+            totalPending: targetBets.length,
+        }
+
+        // ==========================================
+        // PRE-AGGREGATE BET DATA for O(1) lookups
+        // ==========================================
+        // triple bets by number + target
+        const tripleBetMap = new Map<string, number>()
+        // single bets by number + target
+        const singleBetMap = new Map<string, number>()
+        // jodi bets by number
+        const jodiBetMap = new Map<string, number>()
+
+        for (const b of bets) {
+            const amt = Number(b.amount)
+            if (b.category === 'triple' && b.target === target) {
+                tripleBetMap.set(b.selected_number, (tripleBetMap.get(b.selected_number) || 0) + amt)
+            } else if (b.category === 'single' && b.target === target) {
+                singleBetMap.set(b.selected_number, (singleBetMap.get(b.selected_number) || 0) + amt)
+            } else if (b.category === 'jodi' && b.target === 'jodi_full') {
+                jodiBetMap.set(b.selected_number, (jodiBetMap.get(b.selected_number) || 0) + amt)
+            }
+        }
+
+        // ==========================================
+        // CALCULATE ALL 1000 TRIPLES
+        // ==========================================
         const results: any[] = []
 
-        // Calculate metrics for all 1000 triples
         for (let i = 0; i < 1000; i++) {
             const triple = i.toString().padStart(3, '0')
-            const single = calculateSingle(triple).toString()
+            const singleDigit = calculateSingle(triple)
+            const single = singleDigit.toString()
 
-            let totalLiability = 0
-            let totalBets = 0
+            // 1. Triple liability
+            const tripleBetAmt = tripleBetMap.get(triple) || 0
+            const tripleLiab = tripleBetAmt * payoutTriple
 
-            // 1. Triple Liability
-            const tData = tripleData.get(triple)
-            if (tData) {
-                totalLiability += tData.liability
-                totalBets += tData.bets
-            }
+            // 2. Single liability
+            const singleBetAmt = singleBetMap.get(single) || 0
+            const singleLiab = singleBetAmt * payoutSingle
 
-            // 2. Single Liability
-            const sData = singleData.get(single)
-            if (sData) {
-                totalLiability += sData.liability
-                totalBets += sData.bets
-            }
+            // 3. Jodi liability + exposed jodi numbers
+            let jodiBetAmt = 0
+            let jodiLiab = 0
+            const jodiNumbers: string[] = []
 
-            // 3. Jodi Liability
             if (target === 'open') {
-                // For OPEN target: Estimate MAX potential jodi payout
-                // If we pick this open single, any jodi starting with this digit could win
-                // Per SRS: "estimates the max potential payout for Jodis 00-09"
-                // We calculate the SUM of all jodi bets starting with this single
-                // (conservative approach - assumes we might pick any close single)
-                let maxJodiRisk = 0
-                let jodiRelatedBets = 0
-                for (let closeSingle = 0; closeSingle <= 9; closeSingle++) {
-                    const potentialJodi = single + closeSingle.toString()
-                    const jData = jodiData.get(potentialJodi)
-                    if (jData) {
-                        // Track the maximum jodi liability (worst case scenario)
-                        if (jData.liability > maxJodiRisk) {
-                            maxJodiRisk = jData.liability
-                        }
-                        jodiRelatedBets += jData.bets
-                    }
+                // Open: jodi could be single + any close digit (0-9)
+                // Use MAX single jodi risk (worst case)
+                let maxJodiLiab = 0
+                for (let c = 0; c <= 9; c++) {
+                    const potentialJodi = single + c.toString()
+                    jodiNumbers.push(potentialJodi)
+                    const jAmt = jodiBetMap.get(potentialJodi) || 0
+                    jodiBetAmt += jAmt
+                    const jLiab = jAmt * payoutJodi
+                    if (jLiab > maxJodiLiab) maxJodiLiab = jLiab
                 }
-                totalLiability += maxJodiRisk
-                totalBets += jodiRelatedBets
-            } else if (target === 'close' && session?.open_single) {
-                // For CLOSE target: Calculate exact jodi
-                const jodi = session.open_single + single
-                const jData = jodiData.get(jodi)
-                if (jData) {
-                    totalLiability += jData.liability
-                    totalBets += jData.bets
+                jodiLiab = maxJodiLiab
+            } else if (target === 'close' && session.open_single) {
+                // Close: exact jodi = open_single + derived single
+                const exactJodi = session.open_single + single
+                jodiNumbers.push(exactJodi)
+                jodiBetAmt = jodiBetMap.get(exactJodi) || 0
+                jodiLiab = jodiBetAmt * payoutJodi
+            } else if (target === 'close' && !session.open_single) {
+                // Close but open not declared yet: all jodis ending with this single
+                for (let o = 0; o <= 9; o++) {
+                    const potentialJodi = o.toString() + single
+                    jodiNumbers.push(potentialJodi)
+                    const jAmt = jodiBetMap.get(potentialJodi) || 0
+                    jodiBetAmt += jAmt
+                    const jLiab = jAmt * payoutJodi
+                    if (jLiab > jodiLiab) jodiLiab = jLiab
                 }
             }
 
-            const payoutPercentage = totalCollection > 0
-                ? (totalLiability / totalCollection) * 100
+            const totalLiability = tripleLiab + singleLiab + jodiLiab
+            const totalBetsAmt = tripleBetAmt + singleBetAmt + jodiBetAmt
+
+            const payoutPercentage = targetCollection > 0
+                ? (totalLiability / targetCollection) * 100
                 : 0
 
             results.push({
                 triple,
-                single: parseInt(single),
-                totalBets,
+                single: singleDigit,
+                totalBets: totalBetsAmt,
                 totalLiability,
                 payoutPercentage: Math.round(payoutPercentage * 100) / 100,
-                profitPercentage: Math.round((100 - payoutPercentage) * 100) / 100
+                profitPercentage: Math.round((100 - payoutPercentage) * 100) / 100,
+                tripleBets: tripleBetAmt,
+                tripleLiability: tripleLiab,
+                singleBets: singleBetAmt,
+                singleLiability: singleLiab,
+                jodiBets: jodiBetAmt,
+                jodiLiability: jodiLiab,
+                jodiNumbers,
             })
         }
 
         // ==========================================
-        // RECOMMENDATION LISTS (Per SRS Requirements)
+        // THE 4 RESULT LISTS
         // ==========================================
 
-        // List A: Target Match - Filter by ±2% tolerance of slider value
-        const PAYOUT_TOLERANCE = 2 // ±2% tolerance
+        // List 1: EXACT Target Match
+        // Only show numbers where payout % is exactly the selected integer
         const targetMatch = results
-            .filter(r => Math.abs(r.payoutPercentage - targetPayout) <= PAYOUT_TOLERANCE)
+            .filter(r => Math.round(r.payoutPercentage) === Math.round(targetPayout))
             .sort((a, b) => Math.abs(a.payoutPercentage - targetPayout) - Math.abs(b.payoutPercentage - targetPayout))
 
-        // List B: Leverage Results - ±10% of target payout (fallback when exact match not found)
-        const LEVERAGE_TOLERANCE = 10 // ±10% leverage
+        // List 2: LEVERAGE — ±10% of the selected percentage
         const leverageResults = results
-            .filter(r => Math.abs(r.payoutPercentage - targetPayout) <= LEVERAGE_TOLERANCE)
+            .filter(r => {
+                const diff = Math.abs(r.payoutPercentage - targetPayout)
+                return diff > 0 && diff <= 10
+            })
             .sort((a, b) => Math.abs(a.payoutPercentage - targetPayout) - Math.abs(b.payoutPercentage - targetPayout))
 
-        // List C: Low Bets - Bottom 20th percentile by bet volume
+        // List 3: LOW BETS — bottom 20th percentile by total bet volume (non-zero only)
         const betsWithVolume = results.filter(r => r.totalBets > 0)
         const sortedByBets = [...betsWithVolume].sort((a, b) => a.totalBets - b.totalBets)
         const percentile20Count = Math.max(Math.ceil(sortedByBets.length * 0.2), 1)
         const lowBets = sortedByBets.slice(0, percentile20Count)
 
-        // List D: Ghost Numbers - Zero bets on TRIPLE and JODI only (singles ignored)
-        // A number is ghost if no one bet on the triple AND no one bet on jodi that would match
-        const noBets = results
-            .filter(r => {
-                const triple = r.triple
-                const single = r.single.toString()
-
-                // Check if triple has zero bets
-                const tData = tripleData.get(triple)
-                const hasTripleBets = tData && tData.bets > 0
-
-                // Check jodi bets
-                let hasJodiBets = false
-                if (target === 'open') {
-                    // For OPEN: check if any jodi starting with this single has bets
-                    for (let closeSingle = 0; closeSingle <= 9; closeSingle++) {
-                        const potentialJodi = single + closeSingle.toString()
-                        const jData = jodiData.get(potentialJodi)
-                        if (jData && jData.bets > 0) {
-                            hasJodiBets = true
-                            break
-                        }
-                    }
-                } else if (target === 'close' && session?.open_single) {
-                    // For CLOSE: check exact jodi
-                    const jodi = session.open_single + single
-                    const jData = jodiData.get(jodi)
-                    hasJodiBets = !!(jData && jData.bets > 0)
-                }
-
-                // Ghost = no triple bets AND no jodi bets
-                return !hasTripleBets && !hasJodiBets
-            })
+        // List 4: GHOST NUMBERS — no triple bets AND no jodi bets
+        // Per SRS: "all possible triple Bet Amount == 0 AND all possible jodi Bet Amount == 0"
+        // Singles are ignored for ghost calculation
+        const noBets = results.filter(r => r.tripleBets === 0 && r.jodiBets === 0)
 
         return NextResponse.json({
             recommendations: {
                 totalCollection,
+                targetCollection,
                 targetMatch,
-                systemRecommendations: leverageResults, // Renamed for compatibility
+                systemRecommendations: leverageResults,
                 lowBets,
-                noBets
+                noBets,
+                betStats,
             }
         })
     }

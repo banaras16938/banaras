@@ -224,7 +224,7 @@ Admin can choose the result  ways
 - **Profit/Payout Slider:** A slider bar ranging from **0% to 30%**.
     - *Label:* "Desired User Payout %"
     - *Action:* Admin drags slider to e.g., **15%**.
-    - *Meaning:* "Show me results where the system pays out approx. 15% of total collection and keeps 85% profit."
+    - *Meaning:* "Show me results where the system pays out exact 15% and keeps 85% profit."
 
 ### 2. The Logic Engine (Backend Calculation)
 
@@ -235,39 +235,33 @@ Since `5 + 7 + 8 = 20` (Single is **0**), picking `578` triggers payouts for:
 
 1. **Triple Winner:** Anyone who bet on `578`.
 2. **Single Winner:** Anyone who bet on Single `0`.
-3. **Jodi Risk:** Since this is the Open result, the system estimates the max potential payout for Jodis `00-09` (using the Night/Close logic).
+3. **Jodi Risk:** Since this is the Open result, the system estimates the max potential payout for Jodis `00-09` .
 
-Total Liability=(Triple Bets×800)+(Single Bets×90)+(Projected Jodi Payout)
+
 
 ---
 
-### 📊 The 4 Data Lists (Output)
+### 📊 The 4 Result Types
 
 Based on the calculation above, the screen displays 4 specific tables requested by you:
 
-### List A: "Target Match" (The Slider Result)
+### 1: "Exact Target Match" (The Slider Result)
 
-- **Logic:** Filters Triples where the `(Total Liability / Total Collection)` is roughly equal to the Admin's selected % (e.g., 10% ± 2%).
+- **Logic:** Filters Triples where the payout percentage is exactly equal to the Admin's selected % (e.g., 10%).
 - **Use Case:** The Admin wants to make the game look "fair" by letting some people win, but controls the exact loss.
-- **Display:**
-    - Triple: `145` | Single: `0` | Payout: `10.5%` | Profit: `89.5%`
-    - Triple: `668` | Single: `0` | Payout: `9.8%` | Profit: `90.2%`
 
-### List B: "System Recommendations" (Highest Profit)
 
-- **Logic:** The algorithm ignores the slider and simply sorts all 1,000 outcomes by **Maximum Admin Profit**.
-- **Display:** Top 5 Triples that result in the absolute lowest payout mathematically possible.
+### 2: "Levarage" (+-10% of the selected percentage)
 
-### List C: "Numbers with Less Bets" (Low Payout)
+- **Logic:** The algorithm considers all the numbers which are in range of +-10% of the selected percentage.
 
-- **Logic:** Shows Triples where total bet volume is non-zero but very low (bottom 20th percentile).
-- **Use Case:** Winners exist, but they are small players. Good for maintaining "hope" in the user base without losing big money.
-- **Display:**
-    - Triple: `224` | Total Bets: `₹500` | Payout: `₹4500`
+### 3: "Numbers with Less Bets" (Low Payout)
 
-### List D: "Numbers with NO Bets" (100% Profit)
+- **Logic:** Shows Triples where total bet volume is non-zero but very low 
 
-- **Logic:** Filters Triples where `Total Bet Amount == 0` AND `Associated Single Bet Amount == 0`.
+### 4: "Numbers with NO Bets" (100% Profit )
+
+- **Logic:** Filters Triples where `all possibile  double Bet Amount == 0` AND `all possibile triple Bet Amount == 0`.
 - **Result:** If Admin picks this, **System pays ₹0**. Admin keeps 100% of collection.
 - **Display:** List of "Ghost Numbers" (e.g., `119`, `337`, `400`).
 
