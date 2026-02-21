@@ -172,9 +172,9 @@ export async function GET(request: NextRequest) {
                 potentialPayout: Number(b.amount) * multiplier,
             }))
 
-        const tripleFormatted = formatBets(tripleBets, config.payout_triple)
-        const singleFormatted = formatBets(singleBets, config.payout_single)
-        const jodiFormatted = formatBets(jodiBets, config.payout_jodi)
+        const tripleFormatted = formatBets(tripleBets || [], config.payout_triple)
+        const singleFormatted = formatBets(singleBets || [], config.payout_single)
+        const jodiFormatted = formatBets(jodiBets || [], config.payout_jodi)
 
         const sumAmount = (bets: any[]) => bets.reduce((s: number, b: any) => s + b.amount, 0)
         const sumLiability = (bets: any[]) => bets.reduce((s: number, b: any) => s + b.potentialPayout, 0)
