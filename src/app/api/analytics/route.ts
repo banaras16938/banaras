@@ -150,12 +150,14 @@ export async function GET(request: NextRequest) {
         // ==========================================
         // TARGET-SPECIFIC COLLECTION
         // ==========================================
-        // For OPEN declaration: only count open-target bets
-        // For CLOSE declaration: count close + jodi_full bets
+        // Per SRS: Jodi betting stops with OPEN (12:30 morning / 17:30 night)
+        // So jodi bets are always included for BOTH open and close declarations
+        // For OPEN: open bets + jodi bets (both locked at same time)
+        // For CLOSE: close bets + jodi bets (jodi payout depends on close result too)
         let targetCollection = 0
         if (target === 'open') {
             targetCollection = bets
-                .filter(b => b.target === 'open')
+                .filter(b => b.target === 'open' || b.target === 'jodi_full')
                 .reduce((s, b) => s + Number(b.amount), 0)
         } else {
             targetCollection = bets
@@ -169,8 +171,9 @@ export async function GET(request: NextRequest) {
         // ==========================================
         // BET STATS for KPIs
         // ==========================================
+        // Jodi bets are always relevant (they lock with open, resolve with close)
         const targetBets = bets.filter(b => {
-            if (target === 'open') return b.target === 'open'
+            if (target === 'open') return b.target === 'open' || b.target === 'jodi_full'
             return b.target === 'close' || b.target === 'jodi_full'
         })
         const betStats = {

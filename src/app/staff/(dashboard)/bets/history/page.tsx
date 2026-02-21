@@ -95,7 +95,7 @@ function getStatusConfig(status: string) {
         case 'won': return { icon: Trophy, color: 'text-emerald-400', bg: 'bg-emerald-500/15', label: 'Won' }
         case 'lost': return { icon: XCircle, color: 'text-red-400', bg: 'bg-red-500/15', label: 'Lost' }
         case 'refunded': return { icon: RotateCcw, color: 'text-yellow-400', bg: 'bg-yellow-500/15', label: 'Refunded' }
-        default: return { icon: Clock, color: 'text-cyan-400', bg: 'bg-cyan-500/15', label: 'Pending' }
+        default: return { icon: Clock, color: 'text-cyan-400', bg: 'bg-cyan-500/15', label: 'Placed' }
     }
 }
 
