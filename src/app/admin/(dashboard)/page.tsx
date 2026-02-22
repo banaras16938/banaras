@@ -62,24 +62,28 @@ interface RecommendationsData {
     betStats: BetStats
 }
 
-// Lock window timings from SRS
+// Lock window timings — fetched dynamically from game_schedules DB
 interface LockWindow {
     start: string
     end: string
     resultTime: string
 }
 
+interface GameSchedule {
+    session_name: 'morning' | 'night'
+    start_time: string
+    open_bet_freeze_time: string
+    open_result_time: string
+    close_bet_freeze_time: string
+    close_result_time: string
+}
+
 type DeclarationTarget = 'open' | 'close'
 
-const LOCK_WINDOWS: Record<SessionType, Record<DeclarationTarget, LockWindow>> = {
-    morning: {
-        open: { start: '12:30', end: '13:00', resultTime: '13:00' },
-        close: { start: '14:30', end: '15:00', resultTime: '15:00' }
-    },
-    night: {
-        open: { start: '17:30', end: '18:00', resultTime: '18:00' },
-        close: { start: '19:30', end: '20:00', resultTime: '20:00' }
-    }
+// Convert DB time (HH:MM:SS) to HH:MM
+function dbTimeToHHMM(dbTime: string): string {
+    if (!dbTime) return '00:00'
+    return dbTime.substring(0, 5) // "12:30:00" → "12:30"
 }
 
 function timeToMinutes(time: string): number {
@@ -115,6 +119,7 @@ export default function AdminDashboard() {
     const [manualTriple, setManualTriple] = useState('')
     const [manualResult, setManualResult] = useState<ResultOption | null>(null)
     const [loadingManual, setLoadingManual] = useState(false)
+    const [gameSchedules, setGameSchedules] = useState<GameSchedule[]>([])
     const [currentTime, setCurrentTime] = useState(() => {
         const now = new Date()
         return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
@@ -138,8 +143,47 @@ export default function AdminDashboard() {
     const isOpenDeclared = currentSession?.open_triple != null
     const isCloseDeclared = currentSession?.close_triple != null
 
+    // Fetch game schedules from DB
+    const fetchSchedules = useCallback(async () => {
+        try {
+            const response = await fetch('/api/game-schedules')
+            if (response.ok) {
+                const { schedules } = await response.json()
+                setGameSchedules(schedules || [])
+            }
+        } catch (error) {
+            console.error('Failed to fetch game schedules:', error)
+        }
+    }, [])
+
+    useEffect(() => {
+        fetchSchedules()
+    }, [fetchSchedules])
+
+    // Build lock windows dynamically from DB schedules
     const getLockWindowStatus = useCallback((session: SessionType, target: DeclarationTarget) => {
-        const window = LOCK_WINDOWS[session][target]
+        const schedule = gameSchedules.find(s => s.session_name === session)
+
+        // Default fallback if schedule not loaded yet
+        const defaultWindow: LockWindow = { start: '00:00', end: '00:00', resultTime: '00:00' }
+
+        let window: LockWindow
+        if (!schedule) {
+            window = defaultWindow
+        } else if (target === 'open') {
+            window = {
+                start: dbTimeToHHMM(schedule.open_bet_freeze_time),
+                end: dbTimeToHHMM(schedule.open_result_time),
+                resultTime: dbTimeToHHMM(schedule.open_result_time),
+            }
+        } else {
+            window = {
+                start: dbTimeToHHMM(schedule.close_bet_freeze_time),
+                end: dbTimeToHHMM(schedule.close_result_time),
+                resultTime: dbTimeToHHMM(schedule.close_result_time),
+            }
+        }
+
         const nowMinutes = timeToMinutes(currentTime)
         const startMinutes = timeToMinutes(window.start)
         const endMinutes = timeToMinutes(window.end)
@@ -150,7 +194,7 @@ export default function AdminDashboard() {
             isBeforeWindow: nowMinutes < startMinutes,
             window
         }
-    }, [currentTime])
+    }, [currentTime, gameSchedules])
 
     const openLockStatus = getLockWindowStatus(selectedSession, 'open')
     const closeLockStatus = getLockWindowStatus(selectedSession, 'close')
@@ -238,17 +282,17 @@ export default function AdminDashboard() {
 
     const handleSelectResult = (option: ResultOption) => {
         const targetKey = selectedTarget as DeclarationTarget
-        const window = LOCK_WINDOWS[selectedSession][targetKey]
+        const lockStatus = targetKey === 'open' ? openLockStatus : closeLockStatus
 
         if (selectedTarget === 'open') {
             if (isOpenDeclared) { toast.error('Open result already declared'); return }
-            if (openLockStatus.isBeforeWindow) { toast.error(`Too early! Open result declaration starts at ${window.start}`); return }
+            if (openLockStatus.isBeforeWindow) { toast.error(`Too early! Open result declaration starts at ${lockStatus.window.start}`); return }
         }
 
         if (selectedTarget === 'close') {
             if (!isOpenDeclared) { toast.error('Declare Open result first'); return }
             if (isCloseDeclared) { toast.error('Close result already declared'); return }
-            if (closeLockStatus.isBeforeWindow) { toast.error(`Too early! Close result declaration starts at ${window.start}`); return }
+            if (closeLockStatus.isBeforeWindow) { toast.error(`Too early! Close result declaration starts at ${lockStatus.window.start}`); return }
         }
 
         setSelectedResult(option)
@@ -383,7 +427,7 @@ export default function AdminDashboard() {
                         ) : openLockStatus.isInWindow ? (
                             <p className="text-sm font-bold text-cyan-400">ACTIVE NOW</p>
                         ) : openLockStatus.isBeforeWindow ? (
-                            <p className="text-xs text-gray-400"><Lock size={12} className="inline mr-1" />Opens at {LOCK_WINDOWS[selectedSession].open.start}</p>
+                            <p className="text-xs text-gray-400"><Lock size={12} className="inline mr-1" />Opens at {openLockStatus.window.start}</p>
                         ) : (
                             <p className="text-sm text-yellow-400">Ready to Declare</p>
                         )}
@@ -402,7 +446,7 @@ export default function AdminDashboard() {
                         ) : closeLockStatus.isInWindow ? (
                             <p className="text-sm font-bold text-cyan-400">ACTIVE NOW</p>
                         ) : closeLockStatus.isBeforeWindow ? (
-                            <p className="text-xs text-gray-400"><Lock size={12} className="inline mr-1" />Opens at {LOCK_WINDOWS[selectedSession].close.start}</p>
+                            <p className="text-xs text-gray-400"><Lock size={12} className="inline mr-1" />Opens at {closeLockStatus.window.start}</p>
                         ) : (
                             <p className="text-sm text-yellow-400">Ready to Declare</p>
                         )}
