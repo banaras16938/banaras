@@ -108,12 +108,23 @@ export async function GET(request: NextRequest) {
             })
         }
 
-        // Fetch ALL pending bets for this session to calculate total collection
-        const { data: allBets } = await supabase
+        // Fetch bets scoped to the selected target for accurate collection
+        // Per SRS: Open target = open + jodi bets (jodi locks with open)
+        //          Close target = close bets only (open/jodi already settled)
+        let collectionQuery = supabase
             .from('bets')
             .select('amount')
             .eq('game_session_id', sessionId)
-            .eq('status', 'pending')
+
+        if (target === 'open') {
+            // Open collection = open single/triple bets + jodi bets
+            collectionQuery = collectionQuery.in('target', ['open', 'jodi_full'])
+        } else {
+            // Close collection = close single/triple bets only
+            collectionQuery = collectionQuery.eq('target', 'close')
+        }
+
+        const { data: allBets } = await collectionQuery
 
         const totalCollection = (allBets || []).reduce((s: number, b: any) => s + Number(b.amount), 0)
 

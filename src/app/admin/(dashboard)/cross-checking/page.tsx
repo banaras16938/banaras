@@ -126,8 +126,8 @@ export default function CrossCheckingPage() {
                                     key={s}
                                     onClick={() => setSession(s)}
                                     className={`px-4 py-2 text-sm font-medium transition-all ${session === s
-                                            ? 'bg-indigo-500 text-white'
-                                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                        ? 'bg-indigo-500 text-white'
+                                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                                         }`}
                                 >
                                     {s === 'morning' ? '☀️ Morning' : '🌙 Night'}
@@ -140,8 +140,8 @@ export default function CrossCheckingPage() {
                                     key={t}
                                     onClick={() => setTarget(t)}
                                     className={`px-4 py-2 text-sm font-medium transition-all ${target === t
-                                            ? 'bg-purple-500 text-white'
-                                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                        ? 'bg-purple-500 text-white'
+                                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                                         }`}
                                 >
                                     {t === 'open' ? 'Open' : 'Close'}
@@ -206,7 +206,7 @@ export default function CrossCheckingPage() {
                                 {formatCurrency(data.totalCollection)}
                             </p>
                             <p className="text-xs text-gray-500 mt-1">
-                                All pending bets for {data.session} session
+                                {data.target === 'open' ? 'Open + Jodi' : 'Close'} bets for {data.session} session
                             </p>
                         </div>
 
@@ -231,8 +231,8 @@ export default function CrossCheckingPage() {
                             }`}>
                             <div className="flex items-center gap-3 mb-2">
                                 <div className={`p-2 rounded-lg ${estimatedProfit >= 0
-                                        ? 'bg-emerald-500/10 text-emerald-400'
-                                        : 'bg-red-500/10 text-red-400'
+                                    ? 'bg-emerald-500/10 text-emerald-400'
+                                    : 'bg-red-500/10 text-red-400'
                                     }`}>
                                     <TrendingUp size={20} />
                                 </div>
