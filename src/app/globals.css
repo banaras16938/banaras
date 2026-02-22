@@ -416,16 +416,87 @@ body {
 
 .chart-table.chart-table-fit th:first-child,
 .chart-table.chart-table-fit td:first-child {
-  width: 22%;
+  width: 18%;
 }
 
 .chart-table.chart-table-fit th,
 .chart-table.chart-table-fit td {
   padding: 8px 4px;
+  font-size: 12px;
+}
+
+/* Date cell with "to" label */
+td.chart-date-cell {
+  display: table-cell;
+  text-align: center;
+  vertical-align: middle;
   font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  padding: 10px 4px;
+}
+
+td.chart-date-cell span {
+  display: block;
+}
+
+.chart-date-to {
+  font-size: 9px;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--text-muted);
+  line-height: 1.4;
+  padding: 1px 0;
 }
 
 @media (max-width: 640px) {
+  .chart-header {
+    padding: 12px 8px;
+  }
+
+  .chart-header h2 {
+    font-size: 15px;
+    margin: 0 0 4px 0;
+  }
+
+  .chart-header p {
+    font-size: 10px;
+  }
+
+  .session-tab {
+    padding: 10px 14px;
+    font-size: 12px;
+  }
+
+  .chart-table.chart-table-fit th,
+  .chart-table.chart-table-fit td {
+    padding: 6px 2px;
+    font-size: 10px;
+  }
+
+  .chart-table.chart-table-fit th {
+    font-size: 9px;
+    padding: 8px 2px;
+  }
+
+  .chart-table.chart-table-fit th:first-child,
+  .chart-table.chart-table-fit td:first-child {
+    width: 17%;
+  }
+
+  td.chart-date-cell {
+    font-size: 8px;
+    line-height: 1.3;
+    padding: 8px 2px;
+  }
+
+  .chart-date-to {
+    font-size: 7px;
+    line-height: 1;
+  }
+}
+
+@media (max-width: 380px) {
 
   .chart-table.chart-table-fit th,
   .chart-table.chart-table-fit td {
@@ -433,10 +504,16 @@ body {
     font-size: 9px;
   }
 
-  .chart-table.chart-table-fit th:first-child,
-  .chart-table.chart-table-fit td:first-child {
+  .chart-table.chart-table-fit th {
     font-size: 8px;
-    line-height: 1.3;
+  }
+
+  td.chart-date-cell {
+    font-size: 7px;
+  }
+
+  .chart-date-to {
+    font-size: 6px;
   }
 }
 

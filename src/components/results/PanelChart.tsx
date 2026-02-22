@@ -184,9 +184,10 @@ export function PanelChart({ results, schedules, currentTime = new Date() }: Pan
                         <tbody>
                             {panelData.map((week, weekIndex) => (
                                 <tr key={weekIndex}>
-                                    <td className="text-xs font-medium">
-                                        <div>{week.startDate}</div>
-                                        <div>{week.endDate}</div>
+                                    <td className="chart-date-cell">
+                                        <span>{week.startDate}</span>
+                                        <span className="chart-date-to">to</span>
+                                        <span>{week.endDate}</span>
                                     </td>
                                     {week.panels.map((panel, dayIndex) => (
                                         <td key={dayIndex} className="text-center">

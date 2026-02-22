@@ -107,6 +107,7 @@ export async function GET(request: NextRequest) {
 
         const target = searchParams.get('target') as BetTarget || 'open'
         const targetPayout = parseFloat(searchParams.get('targetPayout') || '15')
+        const lookupTriple = searchParams.get('lookupTriple') || null
 
         // Get game session
         const { data: session } = await supabase
@@ -232,17 +233,14 @@ export async function GET(request: NextRequest) {
 
             if (target === 'open') {
                 // Open: jodi could be single + any close digit (0-9)
-                // Use MAX single jodi risk (worst case)
-                let maxJodiLiab = 0
+                // SUM all jodi liabilities across exposed jodis (matches cross-check)
                 for (let c = 0; c <= 9; c++) {
                     const potentialJodi = single + c.toString()
                     jodiNumbers.push(potentialJodi)
                     const jAmt = jodiBetMap.get(potentialJodi) || 0
                     jodiBetAmt += jAmt
-                    const jLiab = jAmt * payoutJodi
-                    if (jLiab > maxJodiLiab) maxJodiLiab = jLiab
+                    jodiLiab += jAmt * payoutJodi
                 }
-                jodiLiab = maxJodiLiab
             } else if (target === 'close' && session.open_single) {
                 // Close: exact jodi = open_single + derived single
                 const exactJodi = session.open_single + single
@@ -251,13 +249,13 @@ export async function GET(request: NextRequest) {
                 jodiLiab = jodiBetAmt * payoutJodi
             } else if (target === 'close' && !session.open_single) {
                 // Close but open not declared yet: all jodis ending with this single
+                // SUM all jodi liabilities across exposed jodis (matches cross-check)
                 for (let o = 0; o <= 9; o++) {
                     const potentialJodi = o.toString() + single
                     jodiNumbers.push(potentialJodi)
                     const jAmt = jodiBetMap.get(potentialJodi) || 0
                     jodiBetAmt += jAmt
-                    const jLiab = jAmt * payoutJodi
-                    if (jLiab > jodiLiab) jodiLiab = jLiab
+                    jodiLiab += jAmt * payoutJodi
                 }
             }
 
@@ -309,10 +307,12 @@ export async function GET(request: NextRequest) {
         const percentile20Count = Math.max(Math.ceil(sortedByBets.length * 0.2), 1)
         const lowBets = sortedByBets.slice(0, percentile20Count)
 
-        // List 4: GHOST NUMBERS — no triple bets AND no jodi bets
-        // Per SRS: "all possible triple Bet Amount == 0 AND all possible jodi Bet Amount == 0"
-        // Singles are ignored for ghost calculation
-        const noBets = results.filter(r => r.tripleBets === 0 && r.jodiBets === 0)
+        // List 4: GHOST NUMBERS — no bets at all on triple, single, AND jodi
+        // Only show triples where declaring them would cause ZERO payout
+        const noBets = results.filter(r => r.tripleBets === 0 && r.singleBets === 0 && r.jodiBets === 0)
+
+        // Optional: lookup a specific triple for Manual tab
+        const lookupResult = lookupTriple ? results.find(r => r.triple === lookupTriple.padStart(3, '0')) || null : null
 
         return NextResponse.json({
             recommendations: {
@@ -323,6 +323,7 @@ export async function GET(request: NextRequest) {
                 lowBets,
                 noBets,
                 betStats,
+                lookupResult,
             }
         })
     }

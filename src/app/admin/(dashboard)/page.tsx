@@ -25,7 +25,8 @@ import {
     Grid3X3,
     ChevronDown,
     ChevronUp,
-    IndianRupee
+    IndianRupee,
+    Keyboard
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { SessionType, BetTarget, ResultOption } from '@/types/types'
@@ -110,7 +111,10 @@ export default function AdminDashboard() {
     const [expandedResult, setExpandedResult] = useState<string | null>(null)
     const [showConfirmModal, setShowConfirmModal] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
-    const [activeTab, setActiveTab] = useState<'target' | 'profit' | 'low' | 'ghost'>('target')
+    const [activeTab, setActiveTab] = useState<'target' | 'profit' | 'low' | 'ghost' | 'manual'>('target')
+    const [manualTriple, setManualTriple] = useState('')
+    const [manualResult, setManualResult] = useState<ResultOption | null>(null)
+    const [loadingManual, setLoadingManual] = useState(false)
     const [currentTime, setCurrentTime] = useState(() => {
         const now = new Date()
         return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
@@ -289,12 +293,45 @@ export default function AdminDashboard() {
         }
     }
 
+    // Fetch manual triple liability from the API
+    const fetchManualResult = useCallback(async (triple: string) => {
+        if (!/^[0-9]{3}$/.test(triple)) {
+            setManualResult(null)
+            return
+        }
+        setLoadingManual(true)
+        try {
+            const response = await fetch(`/api/analytics?type=recommendations&date=${gameDate}&session=${selectedSession}&target=${selectedTarget}&targetPayout=${debouncedPayoutSlider}&lookupTriple=${triple}`)
+            if (response.ok) {
+                const { recommendations: rec } = await response.json()
+                setManualResult(rec?.lookupResult || null)
+            }
+        } catch (error) {
+            console.error('Failed to fetch manual result:', error)
+            setManualResult(null)
+        } finally {
+            setLoadingManual(false)
+        }
+    }, [gameDate, selectedSession, selectedTarget, debouncedPayoutSlider])
+
+    const handleManualTripleChange = (value: string) => {
+        // Only allow digits, max 3
+        const cleaned = value.replace(/[^0-9]/g, '').slice(0, 3)
+        setManualTriple(cleaned)
+        if (cleaned.length === 3) {
+            fetchManualResult(cleaned)
+        } else {
+            setManualResult(null)
+        }
+    }
+
     const getActiveList = (): ResultOption[] => {
         switch (activeTab) {
             case 'target': return recommendations.targetMatch
             case 'profit': return recommendations.systemRecommendations
             case 'low': return recommendations.lowBets
             case 'ghost': return recommendations.noBets
+            case 'manual': return manualResult ? [manualResult] : []
             default: return []
         }
     }
@@ -565,12 +602,55 @@ export default function AdminDashboard() {
                         <span>Ghost</span>
                         <span className="text-[10px]">({recommendations.noBets.length})</span>
                     </button>
+                    <button
+                        onClick={() => setActiveTab('manual')}
+                        className={`flex-1 min-w-[80px] py-3 px-2 text-xs font-medium transition-all flex flex-col items-center gap-1 ${activeTab === 'manual' ? 'bg-orange-500/10 text-orange-400 border-b-2 border-orange-400' : 'text-gray-400'}`}
+                    >
+                        <Keyboard size={16} />
+                        <span>Manual</span>
+                    </button>
                 </div>
+
+                {/* Manual Input (only visible on Manual tab) */}
+                {activeTab === 'manual' && (
+                    <div className="p-4 border-b border-gray-700">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                            <div className="flex-1">
+                                <label className="text-xs text-gray-400 mb-1 block">Enter Triple Number (000–999)</label>
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    maxLength={3}
+                                    value={manualTriple}
+                                    onChange={(e) => handleManualTripleChange(e.target.value)}
+                                    placeholder="e.g. 456"
+                                    className="w-full px-4 py-3 text-2xl font-mono font-bold text-center bg-gray-900 border border-gray-600 rounded-lg text-white focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400/50 transition-all tracking-[0.3em]"
+                                />
+                            </div>
+                            {manualTriple.length === 3 && manualResult && (
+                                <div className="text-center sm:text-left">
+                                    <p className="text-xs text-gray-500">Single</p>
+                                    <p className="text-2xl font-mono font-bold text-cyan-400">{manualResult.single}</p>
+                                </div>
+                            )}
+                        </div>
+                        {manualTriple.length > 0 && manualTriple.length < 3 && (
+                            <p className="text-xs text-gray-500 mt-2">Enter all 3 digits to see the breakdown</p>
+                        )}
+                        {loadingManual && (
+                            <div className="flex items-center gap-2 mt-2">
+                                <Loader2 size={14} className="animate-spin text-orange-400" />
+                                <span className="text-xs text-gray-400">Calculating liability...</span>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Result List */}
                 <div className="max-h-[600px] overflow-y-auto relative">
                     {/* Loading Overlay */}
-                    {loadingRecommendations && (
+                    {(loadingRecommendations && activeTab !== 'manual') && (
                         <div className="absolute inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center z-10">
                             <div className="flex flex-col items-center gap-2">
                                 <Loader2 size={24} className="animate-spin text-cyan-400" />
@@ -581,10 +661,12 @@ export default function AdminDashboard() {
 
                     {getActiveList().length === 0 ? (
                         <div className="py-12 text-center text-gray-500">
-                            {loadingRecommendations ? 'Loading...' : (
+                            {loadingRecommendations && activeTab !== 'manual' ? 'Loading...' : (
                                 activeTab === 'target'
                                     ? `No exact match for ${payoutSlider}% payout. Try the Leverage tab for ±10% range.`
-                                    : 'No results in this category'
+                                    : activeTab === 'manual'
+                                        ? (manualTriple.length === 3 && !loadingManual ? 'Could not compute liability for this triple.' : 'Enter a 3-digit triple number above.')
+                                        : 'No results in this category'
                             )}
                         </div>
                     ) : (
@@ -671,7 +753,7 @@ export default function AdminDashboard() {
                                                 <div className="flex justify-between items-center bg-gray-900/50 rounded-lg px-3 py-2">
                                                     <span className="text-xs text-gray-400">Net after this result</span>
                                                     <span className={`text-sm font-bold font-mono ${(recommendations.targetCollection - result.totalLiability) >= 0
-                                                            ? 'text-emerald-400' : 'text-red-400'
+                                                        ? 'text-emerald-400' : 'text-red-400'
                                                         }`}>
                                                         {(recommendations.targetCollection - result.totalLiability) >= 0 ? '+' : ''}
                                                         {fmt(Math.round(recommendations.targetCollection - result.totalLiability))}

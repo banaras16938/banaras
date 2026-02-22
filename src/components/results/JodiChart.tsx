@@ -175,9 +175,10 @@ export function JodiChart({ results, schedules, currentTime = new Date() }: Jodi
                         <tbody>
                             {weeklyData.map((week, weekIndex) => (
                                 <tr key={weekIndex}>
-                                    <td className="text-xs font-medium">
-                                        <div>{week.startDate}</div>
-                                        <div>{week.endDate}</div>
+                                    <td className="chart-date-cell">
+                                        <span>{week.startDate}</span>
+                                        <span className="chart-date-to">to</span>
+                                        <span>{week.endDate}</span>
                                     </td>
                                     {week.jodis.map((jodi, dayIndex) => (
                                         <td key={dayIndex}>{jodi || '**'}</td>
