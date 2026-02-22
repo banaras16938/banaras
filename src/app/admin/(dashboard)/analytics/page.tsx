@@ -17,24 +17,70 @@ import {
     X,
     ChevronDown,
     ChevronUp,
-    IndianRupee
+    IndianRupee,
+    List
 } from 'lucide-react'
 import { toast } from 'sonner'
+
+// ==========================================
+// TYPES
+// ==========================================
+
+interface CategoryBreakdown {
+    collection: number
+    payout: number
+    profit: number
+    betCount: number
+}
+
+interface TargetBreakdown {
+    collection: number
+    payout: number
+    profit: number
+    betCount: number
+    wonCount: number
+    lostCount: number
+    pendingCount: number
+    categories: {
+        single: CategoryBreakdown
+        triple: CategoryBreakdown
+        jodi: CategoryBreakdown
+    }
+}
+
+interface SessionBreakdown {
+    open: TargetBreakdown
+    close: TargetBreakdown
+    jodi: TargetBreakdown
+    collection: number
+    payout: number
+    profit: number
+}
+
+interface BetDetail {
+    id: string
+    playerName: string
+    category: string
+    target: string
+    selectedNumber: string
+    amount: number
+    status: string
+    winningAmount: number
+    sessionName: string
+    createdAt: string
+}
 
 interface StaffData {
     staffId: string
     staffEmail: string
     staffName: string
-    morningCollection: number
-    morningPayout: number
-    morningProfit: number
-    nightCollection: number
-    nightPayout: number
-    nightProfit: number
+    morning: SessionBreakdown
+    night: SessionBreakdown
     totalCollection: number
     totalPayout: number
     totalProfit: number
     totalBets: number
+    bets: BetDetail[]
 }
 
 interface SummaryData {
@@ -53,6 +99,10 @@ interface HisabKitabData {
     staffBreakdown: StaffData[]
 }
 
+// ==========================================
+// MAIN PAGE
+// ==========================================
+
 export default function HisabKitabPage() {
     const [loading, setLoading] = useState(true)
     const [data, setData] = useState<HisabKitabData | null>(null)
@@ -63,6 +113,7 @@ export default function HisabKitabPage() {
     const [pinError, setPinError] = useState('')
     const [verifying, setVerifying] = useState(false)
     const [expandedStaff, setExpandedStaff] = useState<Set<string>>(new Set())
+    const [showBets, setShowBets] = useState<Set<string>>(new Set())
 
     const fetchData = useCallback(async () => {
         setLoading(true)
@@ -132,6 +183,15 @@ export default function HisabKitabPage() {
 
     const toggleStaff = (staffId: string) => {
         setExpandedStaff(prev => {
+            const next = new Set(prev)
+            if (next.has(staffId)) next.delete(staffId)
+            else next.add(staffId)
+            return next
+        })
+    }
+
+    const toggleBets = (staffId: string) => {
+        setShowBets(prev => {
             const next = new Set(prev)
             if (next.has(staffId)) next.delete(staffId)
             else next.add(staffId)
@@ -240,10 +300,10 @@ export default function HisabKitabPage() {
                 </div>
 
                 <div className={`bg-gray-800/80 border rounded-xl p-4 ${showCriticalData && data
-                        ? data.summary.netProfit >= 0
-                            ? 'border-emerald-500/30'
-                            : 'border-red-500/30'
-                        : 'border-gray-700'
+                    ? data.summary.netProfit >= 0
+                        ? 'border-emerald-500/30'
+                        : 'border-red-500/30'
+                    : 'border-gray-700'
                     }`}>
                     <div className="flex items-center gap-2 mb-1">
                         <TrendingUp size={16} className={
@@ -290,6 +350,7 @@ export default function HisabKitabPage() {
                     <div className="space-y-3">
                         {data.staffBreakdown.map(staff => {
                             const isExpanded = expandedStaff.has(staff.staffId)
+                            const isBetsVisible = showBets.has(staff.staffId)
                             const settlement = staff.totalProfit
                             const staffSettlementLabel = settlement >= 0
                                 ? `Staff gives ₹${Math.abs(settlement).toLocaleString('en-IN')}`
@@ -340,29 +401,23 @@ export default function HisabKitabPage() {
                                     {/* Expanded Details */}
                                     {isExpanded && (
                                         <div className="border-t border-gray-700">
-                                            {/* Session Rows */}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-700">
-                                                {/* Morning */}
-                                                <SessionBlock
-                                                    label="☀️ Morning"
-                                                    collection={staff.morningCollection}
-                                                    payout={staff.morningPayout}
-                                                    profit={staff.morningProfit}
-                                                    showCritical={showCriticalData}
-                                                    onUnlock={() => setShowPinModal(true)}
-                                                    fmt={fmt}
-                                                />
-                                                {/* Night */}
-                                                <SessionBlock
-                                                    label="🌙 Night"
-                                                    collection={staff.nightCollection}
-                                                    payout={staff.nightPayout}
-                                                    profit={staff.nightProfit}
-                                                    showCritical={showCriticalData}
-                                                    onUnlock={() => setShowPinModal(true)}
-                                                    fmt={fmt}
-                                                />
-                                            </div>
+                                            {/* Morning Session */}
+                                            <SessionDetailBlock
+                                                label="☀️ Morning"
+                                                session={staff.morning}
+                                                showCritical={showCriticalData}
+                                                onUnlock={() => setShowPinModal(true)}
+                                                fmt={fmt}
+                                            />
+
+                                            {/* Night Session */}
+                                            <SessionDetailBlock
+                                                label="🌙 Night"
+                                                session={staff.night}
+                                                showCritical={showCriticalData}
+                                                onUnlock={() => setShowPinModal(true)}
+                                                fmt={fmt}
+                                            />
 
                                             {/* Totals Footer */}
                                             <div className="border-t border-gray-700 p-4 bg-gray-900/50">
@@ -400,13 +455,87 @@ export default function HisabKitabPage() {
                                                 {/* Settlement Explanation */}
                                                 {showCriticalData && (
                                                     <div className={`mt-3 text-center text-xs py-2 px-3 rounded-lg ${settlement >= 0
-                                                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                                            : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                                        : 'bg-red-500/10 text-red-400 border border-red-500/20'
                                                         }`}>
                                                         {staffSettlementLabel}
                                                     </div>
                                                 )}
                                             </div>
+
+                                            {/* Bets Toggle */}
+                                            {staff.bets.length > 0 && (
+                                                <div className="border-t border-gray-700">
+                                                    <button
+                                                        onClick={() => toggleBets(staff.staffId)}
+                                                        className="w-full px-4 py-3 flex items-center justify-between text-xs hover:bg-gray-700/30 transition-colors"
+                                                    >
+                                                        <span className="flex items-center gap-2 text-gray-400">
+                                                            <List size={14} />
+                                                            All Bets ({staff.bets.length})
+                                                        </span>
+                                                        {isBetsVisible ? (
+                                                            <ChevronUp size={14} className="text-gray-500" />
+                                                        ) : (
+                                                            <ChevronDown size={14} className="text-gray-500" />
+                                                        )}
+                                                    </button>
+
+                                                    {isBetsVisible && (
+                                                        <div className="overflow-x-auto">
+                                                            <table className="w-full text-left border-collapse">
+                                                                <thead>
+                                                                    <tr className="border-b border-gray-700 text-gray-500 text-[11px] uppercase">
+                                                                        <th className="px-4 py-2 font-medium">Player</th>
+                                                                        <th className="px-4 py-2 font-medium">Type</th>
+                                                                        <th className="px-4 py-2 font-medium">No.</th>
+                                                                        <th className="px-4 py-2 font-medium text-right">Amount</th>
+                                                                        <th className="px-4 py-2 font-medium text-right">Result</th>
+                                                                        <th className="px-4 py-2 font-medium text-right">Time</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-gray-700/50">
+                                                                    {staff.bets.map(bet => (
+                                                                        <tr key={bet.id} className="hover:bg-white/5 transition-colors text-xs">
+                                                                            <td className="px-4 py-2.5 text-gray-300 max-w-[100px] truncate">{bet.playerName}</td>
+                                                                            <td className="px-4 py-2.5">
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    <Badge
+                                                                                        variant={
+                                                                                            bet.category === 'triple' ? 'warning' :
+                                                                                                bet.category === 'jodi' ? 'default' : 'info'
+                                                                                        }
+                                                                                        className="text-[10px] px-1.5 py-0.5"
+                                                                                    >
+                                                                                        {bet.category.charAt(0).toUpperCase() + bet.category.slice(1)}
+                                                                                    </Badge>
+                                                                                    <span className="text-gray-600 text-[10px]">
+                                                                                        {bet.target === 'jodi_full' ? 'J' : bet.target === 'open' ? 'O' : 'C'}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </td>
+                                                                            <td className="px-4 py-2.5 font-mono font-bold text-white">{bet.selectedNumber}</td>
+                                                                            <td className="px-4 py-2.5 text-right font-mono font-bold text-white">{fmt(bet.amount)}</td>
+                                                                            <td className="px-4 py-2.5 text-right">
+                                                                                {bet.status === 'won' ? (
+                                                                                    <span className="font-mono font-bold text-emerald-400">+{fmt(bet.winningAmount)}</span>
+                                                                                ) : bet.status === 'lost' ? (
+                                                                                    <span className="text-red-400">Lost</span>
+                                                                                ) : (
+                                                                                    <span className="text-amber-400">Pending</span>
+                                                                                )}
+                                                                            </td>
+                                                                            <td className="px-4 py-2.5 text-right text-gray-500 font-mono">
+                                                                                {new Date(bet.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                            </td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -469,49 +598,205 @@ export default function HisabKitabPage() {
 }
 
 // ==========================================
-// Session Block Component
+// Session Detail Block (Morning/Night with Open/Close/Jodi)
 // ==========================================
-function SessionBlock({
-    label, collection, payout, profit, showCritical, onUnlock, fmt
+function SessionDetailBlock({
+    label, session, showCritical, onUnlock, fmt
 }: {
     label: string
-    collection: number
-    payout: number
-    profit: number
+    session: SessionBreakdown
+    showCritical: boolean
+    onUnlock: () => void
+    fmt: (n: number) => string
+}) {
+    const hasData = session.collection > 0 || session.payout > 0
+
+    return (
+        <div className="border-t border-gray-700 p-4">
+            {/* Session Header */}
+            <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-medium text-gray-300">{label}</p>
+                {hasData && showCritical && (
+                    <span className={`text-xs font-mono font-bold ${session.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {session.profit >= 0 ? '+' : ''}{fmt(session.profit)}
+                    </span>
+                )}
+            </div>
+
+            {!hasData ? (
+                <p className="text-xs text-gray-600 italic">No bets</p>
+            ) : (
+                <div className="space-y-2">
+                    {/* Open */}
+                    <TargetRow
+                        label="Open"
+                        color="text-blue-400"
+                        data={session.open}
+                        showCritical={showCritical}
+                        onUnlock={onUnlock}
+                        fmt={fmt}
+                    />
+                    {/* Close */}
+                    <TargetRow
+                        label="Close"
+                        color="text-purple-400"
+                        data={session.close}
+                        showCritical={showCritical}
+                        onUnlock={onUnlock}
+                        fmt={fmt}
+                    />
+                    {/* Jodi */}
+                    <TargetRow
+                        label="Jodi"
+                        color="text-amber-400"
+                        data={session.jodi}
+                        showCritical={showCritical}
+                        onUnlock={onUnlock}
+                        fmt={fmt}
+                    />
+
+                    {/* Session totals */}
+                    <div className="border-t border-gray-700/50 pt-2 mt-2 flex justify-between items-center text-xs">
+                        <span className="text-gray-500 font-medium">Session Total</span>
+                        <div className="flex items-center gap-4">
+                            <span className="text-white font-mono">{fmt(session.collection)}</span>
+                            {showCritical ? (
+                                <>
+                                    <span className="text-red-400 font-mono">{fmt(session.payout)}</span>
+                                    <span className={`font-mono font-bold ${session.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                        {session.profit >= 0 ? '+' : ''}{fmt(session.profit)}
+                                    </span>
+                                </>
+                            ) : (
+                                <button onClick={onUnlock} className="text-gray-600 hover:text-gray-400 flex items-center gap-1">
+                                    **** <Eye size={10} />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ==========================================
+// Target Row (Open/Close/Jodi within a session)
+// ==========================================
+function TargetRow({
+    label, color, data, showCritical, onUnlock, fmt
+}: {
+    label: string
+    color: string
+    data: TargetBreakdown
+    showCritical: boolean
+    onUnlock: () => void
+    fmt: (n: number) => string
+}) {
+    if (data.betCount === 0) return null
+
+    // For Open/Close: show Single and Triple sub-rows
+    // For Jodi: just show the single jodi row
+    const isJodi = label === 'Jodi'
+    const cats = data.categories
+
+    return (
+        <div className="bg-gray-900/40 rounded-lg px-3 py-2 space-y-1">
+            {/* Target Header */}
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <span className={`text-xs font-semibold ${color}`}>{label}</span>
+                    <span className="text-[10px] text-gray-600">{data.betCount} bets</span>
+                    {data.wonCount > 0 && (
+                        <span className="text-[10px] text-emerald-500">{data.wonCount}W</span>
+                    )}
+                    {data.lostCount > 0 && (
+                        <span className="text-[10px] text-red-500">{data.lostCount}L</span>
+                    )}
+                    {data.pendingCount > 0 && (
+                        <span className="text-[10px] text-amber-500">{data.pendingCount}P</span>
+                    )}
+                </div>
+                <div className="flex items-center gap-3 text-xs">
+                    <span className="text-white font-mono">{fmt(data.collection)}</span>
+                    {showCritical ? (
+                        <>
+                            <span className="text-red-400 font-mono">{fmt(data.payout)}</span>
+                            <span className={`font-mono font-bold ${data.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {data.profit >= 0 ? '+' : ''}{fmt(data.profit)}
+                            </span>
+                        </>
+                    ) : (
+                        <button onClick={onUnlock} className="text-gray-600 hover:text-gray-400 flex items-center gap-1">
+                            **** <Eye size={10} />
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Category Sub-rows (Single/Triple for Open/Close) */}
+            {!isJodi && (cats.single.betCount > 0 || cats.triple.betCount > 0) && (
+                <div className="ml-4 space-y-0.5 border-l-2 border-gray-700/50 pl-3">
+                    {cats.single.betCount > 0 && (
+                        <CategoryRow
+                            label="Single"
+                            icon="#"
+                            data={cats.single}
+                            showCritical={showCritical}
+                            onUnlock={onUnlock}
+                            fmt={fmt}
+                        />
+                    )}
+                    {cats.triple.betCount > 0 && (
+                        <CategoryRow
+                            label="Triple"
+                            icon="⟐"
+                            data={cats.triple}
+                            showCritical={showCritical}
+                            onUnlock={onUnlock}
+                            fmt={fmt}
+                        />
+                    )}
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ==========================================
+// Category Row (Single/Triple within a target)
+// ==========================================
+function CategoryRow({
+    label, icon, data, showCritical, onUnlock, fmt
+}: {
+    label: string
+    icon: string
+    data: CategoryBreakdown
     showCritical: boolean
     onUnlock: () => void
     fmt: (n: number) => string
 }) {
     return (
-        <div className="p-4 space-y-2">
-            <p className="text-sm font-medium text-gray-300 mb-2">{label}</p>
-            <div className="space-y-1.5">
-                <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-500">Collection</span>
-                    <span className="text-xs font-bold text-white font-mono">{fmt(collection)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-500">Payout</span>
-                    {showCritical ? (
-                        <span className="text-xs font-bold text-red-400 font-mono">{fmt(payout)}</span>
-                    ) : (
-                        <button onClick={onUnlock} className="text-xs text-gray-600 hover:text-gray-400 flex items-center gap-1">
-                            **** <Eye size={10} />
-                        </button>
-                    )}
-                </div>
-                <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-500">Profit</span>
-                    {showCritical ? (
-                        <span className={`text-xs font-bold font-mono ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                            {profit >= 0 ? '+' : ''}{fmt(profit)}
+        <div className="flex items-center justify-between py-0.5">
+            <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-gray-600 w-3 text-center">{icon}</span>
+                <span className="text-[11px] text-gray-400">{label}</span>
+                <span className="text-[10px] text-gray-600">({data.betCount})</span>
+            </div>
+            <div className="flex items-center gap-3 text-[11px]">
+                <span className="text-gray-300 font-mono">{fmt(data.collection)}</span>
+                {showCritical ? (
+                    <>
+                        <span className="text-red-400/70 font-mono">{fmt(data.payout)}</span>
+                        <span className={`font-mono ${data.profit >= 0 ? 'text-emerald-400/70' : 'text-red-400/70'}`}>
+                            {data.profit >= 0 ? '+' : ''}{fmt(data.profit)}
                         </span>
-                    ) : (
-                        <button onClick={onUnlock} className="text-xs text-gray-600 hover:text-gray-400 flex items-center gap-1">
-                            **** <Eye size={10} />
-                        </button>
-                    )}
-                </div>
+                    </>
+                ) : (
+                    <button onClick={onUnlock} className="text-gray-600 hover:text-gray-400 flex items-center gap-1">
+                        **** <Eye size={10} />
+                    </button>
+                )}
             </div>
         </div>
     )

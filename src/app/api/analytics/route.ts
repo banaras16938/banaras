@@ -383,16 +383,6 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Only today and yesterday data is available' }, { status: 400 })
         }
 
-        // Get staff performance data for the selected date
-        const { data: performanceData, error } = await supabase
-            .from('view_staff_performance')
-            .select('*')
-            .eq('game_date', selectedDate)
-
-        if (error) {
-            return NextResponse.json({ error: error.message }, { status: 500 })
-        }
-
         // Get staff names
         const { data: staffProfiles } = await supabase
             .from('profiles')
@@ -401,85 +391,173 @@ export async function GET(request: NextRequest) {
 
         const staffMap = new Map(staffProfiles?.map(p => [p.id, p]) || [])
 
-        // Get bet counts for the selected date
+        // Get game sessions for the selected date
         const { data: sessions } = await supabase
             .from('game_sessions')
-            .select('id')
+            .select('id, session_name')
             .eq('game_date', selectedDate)
 
-        const sessionIds = sessions?.map(s => s.id) || []
+        const sessionList = sessions || []
+        const sessionIds = sessionList.map(s => s.id)
+        const sessionNameMap = new Map(sessionList.map(s => [s.id, s.session_name]))
 
-        let betStats = { total: 0, won: 0, lost: 0 }
+        // Fetch ALL bets with player details for the selected date
+        let allBets: any[] = []
         if (sessionIds.length > 0) {
-            const { data: bets } = await supabase
+            const { data: betsData } = await supabase
                 .from('bets')
-                .select('status')
+                .select(`
+                    id, amount, category, target, selected_number, status, winning_amount, created_at,
+                    staff_id, game_session_id,
+                    players!inner(name)
+                `)
                 .in('game_session_id', sessionIds)
+                .order('created_at', { ascending: false })
 
-            if (bets) {
-                betStats.total = bets.length
-                betStats.won = bets.filter(b => b.status === 'won').length
-                betStats.lost = bets.filter(b => b.status === 'lost').length
+            allBets = betsData || []
+        }
+
+        // Overall bet stats
+        const betStats = {
+            total: allBets.length,
+            won: allBets.filter(b => b.status === 'won').length,
+            lost: allBets.filter(b => b.status === 'lost').length
+        }
+
+        // ==========================================
+        // BUILD STAFF BREAKDOWN WITH OPEN/CLOSE/JODI
+        // ==========================================
+        interface CategoryBreakdown {
+            collection: number
+            payout: number
+            profit: number
+            betCount: number
+        }
+
+        interface TargetBreakdown {
+            collection: number
+            payout: number
+            profit: number
+            betCount: number
+            wonCount: number
+            lostCount: number
+            pendingCount: number
+            categories: {
+                single: CategoryBreakdown
+                triple: CategoryBreakdown
+                jodi: CategoryBreakdown
             }
         }
 
-        // Aggregate by staff with session breakdown
-        const staffBreakdown = new Map<string, {
+        interface SessionBreakdown {
+            open: TargetBreakdown
+            close: TargetBreakdown
+            jodi: TargetBreakdown
+            collection: number
+            payout: number
+            profit: number
+        }
+
+        interface StaffEntry {
             staffId: string
             staffEmail: string
             staffName: string
-            morningCollection: number
-            morningPayout: number
-            morningProfit: number
-            nightCollection: number
-            nightPayout: number
-            nightProfit: number
+            morning: SessionBreakdown
+            night: SessionBreakdown
             totalCollection: number
             totalPayout: number
             totalProfit: number
             totalBets: number
-        }>()
+            bets: any[]
+        }
 
-        performanceData?.forEach(row => {
-            const staffInfo = staffMap.get(row.staff_id)
-            const existing = staffBreakdown.get(row.staff_id) || {
-                staffId: row.staff_id,
-                staffEmail: row.staff_email,
-                staffName: staffInfo?.name || row.staff_email,
-                morningCollection: 0,
-                morningPayout: 0,
-                morningProfit: 0,
-                nightCollection: 0,
-                nightPayout: 0,
-                nightProfit: 0,
-                totalCollection: 0,
-                totalPayout: 0,
-                totalProfit: 0,
-                totalBets: 0
-            }
+        const emptyCat = (): CategoryBreakdown => ({ collection: 0, payout: 0, profit: 0, betCount: 0 })
 
-            const collection = Number(row.total_collection || 0)
-            const payout = Number(row.total_payouts_given || 0)
-            const profit = Number(row.profit || 0)
-            const bets = Number(row.total_bets_placed || 0)
-
-            if (row.session_name === 'morning') {
-                existing.morningCollection = collection
-                existing.morningPayout = payout
-                existing.morningProfit = profit
-            } else {
-                existing.nightCollection = collection
-                existing.nightPayout = payout
-                existing.nightProfit = profit
-            }
-
-            existing.totalCollection += collection
-            existing.totalPayout += payout
-            existing.totalProfit += profit
-            existing.totalBets += bets
-
-            staffBreakdown.set(row.staff_id, existing)
+        const emptyTarget = (): TargetBreakdown => ({
+            collection: 0, payout: 0, profit: 0, betCount: 0, wonCount: 0, lostCount: 0, pendingCount: 0,
+            categories: { single: emptyCat(), triple: emptyCat(), jodi: emptyCat() }
         })
+
+        const emptySession = (): SessionBreakdown => ({
+            open: emptyTarget(), close: emptyTarget(), jodi: emptyTarget(),
+            collection: 0, payout: 0, profit: 0
+        })
+
+        const staffBreakdown = new Map<string, StaffEntry>()
+
+        for (const bet of allBets) {
+            const staffId = bet.staff_id
+            const sessionName = sessionNameMap.get(bet.game_session_id) || 'morning'
+
+            if (!staffBreakdown.has(staffId)) {
+                const info = staffMap.get(staffId)
+                staffBreakdown.set(staffId, {
+                    staffId,
+                    staffEmail: info?.email || '',
+                    staffName: info?.name || info?.email || 'Unknown',
+                    morning: emptySession(),
+                    night: emptySession(),
+                    totalCollection: 0,
+                    totalPayout: 0,
+                    totalProfit: 0,
+                    totalBets: 0,
+                    bets: []
+                })
+            }
+
+            const staff = staffBreakdown.get(staffId)!
+            const session = sessionName === 'morning' ? staff.morning : staff.night
+            const amt = Number(bet.amount)
+            const winAmt = Number(bet.winning_amount || 0)
+
+            // Determine target bucket
+            let targetBucket: TargetBreakdown
+            if (bet.target === 'open') targetBucket = session.open
+            else if (bet.target === 'close') targetBucket = session.close
+            else targetBucket = session.jodi // jodi_full
+
+            targetBucket.collection += amt
+            targetBucket.payout += winAmt
+            targetBucket.profit = targetBucket.collection - targetBucket.payout
+            targetBucket.betCount++
+            if (bet.status === 'won') targetBucket.wonCount++
+            else if (bet.status === 'lost') targetBucket.lostCount++
+            else targetBucket.pendingCount++
+
+            // Category-level breakdown (single/triple/jodi within target)
+            const cat = targetBucket.categories[bet.category as 'single' | 'triple' | 'jodi']
+            if (cat) {
+                cat.collection += amt
+                cat.payout += winAmt
+                cat.profit = cat.collection - cat.payout
+                cat.betCount++
+            }
+
+            // Update session totals
+            session.collection = session.open.collection + session.close.collection + session.jodi.collection
+            session.payout = session.open.payout + session.close.payout + session.jodi.payout
+            session.profit = session.collection - session.payout
+
+            // Update staff totals
+            staff.totalCollection = staff.morning.collection + staff.night.collection
+            staff.totalPayout = staff.morning.payout + staff.night.payout
+            staff.totalProfit = staff.totalCollection - staff.totalPayout
+            staff.totalBets++
+
+            // Add bet detail
+            staff.bets.push({
+                id: bet.id,
+                playerName: bet.players?.name || 'Unknown',
+                category: bet.category,
+                target: bet.target,
+                selectedNumber: bet.selected_number,
+                amount: amt,
+                status: bet.status,
+                winningAmount: winAmt,
+                sessionName,
+                createdAt: bet.created_at,
+            })
+        }
 
         // Calculate overall summary
         const staffList = Array.from(staffBreakdown.values())
