@@ -27,6 +27,8 @@ interface CategoryData {
     totalAmount: number
     totalLiability: number
     multiplier: number
+    bestJodi?: string | null
+    jodiBreakdown?: { number: string; bets: number; amount: number; liability: number }[]
 }
 
 interface CrossCheckResult {
@@ -292,6 +294,7 @@ export default function CrossCheckingPage() {
                             number={data.jodiNumbers.join(', ')}
                             color="purple"
                             category={data.categories.jodi}
+                            target={data.target}
                         />
                     </div>
 
@@ -341,13 +344,14 @@ export default function CrossCheckingPage() {
 // Category Card Component
 // ==========================================
 function CategoryCard({
-    title, icon, number, color, category
+    title, icon, number, color, category, target
 }: {
     title: string
     icon: React.ReactNode
     number: string
     color: 'amber' | 'blue' | 'purple'
     category: CategoryData
+    target?: string
 }) {
     const colorMap = {
         amber: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/30' },
@@ -355,6 +359,8 @@ function CategoryCard({
         purple: { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/30' },
     }
     const c = colorMap[color]
+
+    const isJodiWithBreakdown = color === 'purple' && category.bestJodi && category.jodiBreakdown?.length
 
     return (
         <div className={`p-5 rounded-xl bg-gray-800 border ${c.border}`}>
@@ -377,10 +383,33 @@ function CategoryCard({
                     <span className="font-bold text-white font-mono">{formatCurrency(category.totalAmount)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Liability (×{category.multiplier})</span>
+                    <span className="text-gray-400">
+                        {isJodiWithBreakdown ? 'Min Liability' : `Liability`} (×{category.multiplier})
+                    </span>
                     <span className={`font-bold font-mono ${c.text}`}>{formatCurrency(category.totalLiability)}</span>
                 </div>
             </div>
+
+            {/* Best Jodi indicator */}
+            {isJodiWithBreakdown && (
+                <div className="mt-3 pt-3 border-t border-gray-700">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-gray-500">Best Jodi (lowest risk)</span>
+                        <span className="text-sm font-bold text-emerald-400 font-mono">{category.bestJodi}</span>
+                    </div>
+                    <div className="space-y-1">
+                        {category.jodiBreakdown!.map(jd => (
+                            <div key={jd.number} className={`flex justify-between text-xs py-0.5 px-2 rounded ${jd.number === category.bestJodi ? 'bg-emerald-500/10 text-emerald-400' : 'text-gray-500'
+                                }`}>
+                                <span className="font-mono font-bold">{jd.number}</span>
+                                <span className="font-mono">
+                                    {jd.bets > 0 ? `${jd.bets} bets • ${formatCurrency(jd.amount)} → ${formatCurrency(jd.liability)}` : 'No bets'}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

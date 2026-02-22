@@ -190,6 +190,48 @@ export async function GET(request: NextRequest) {
         const sumAmount = (bets: any[]) => bets.reduce((s: number, b: any) => s + b.amount, 0)
         const sumLiability = (bets: any[]) => bets.reduce((s: number, b: any) => s + b.potentialPayout, 0)
 
+        // For Open target: admin controls close digit, so jodi liability = MIN jodi bet (best case for admin)
+        // For Close target: exact single jodi, so full liability applies
+        let jodiLiability = sumLiability(jodiFormatted)
+        let bestJodi: string | null = null
+        let jodiBreakdown: { number: string; bets: number; amount: number; liability: number }[] = []
+
+        if (target === 'open' && jodiNumbers.length > 1) {
+            // Group jodi bets by selected number and find the one with minimum total bet
+            const jodiByNumber = new Map<string, number>()
+            for (const jn of jodiNumbers) {
+                jodiByNumber.set(jn, 0)
+            }
+            for (const bet of jodiFormatted) {
+                const current = jodiByNumber.get(bet.selectedNumber) || 0
+                jodiByNumber.set(bet.selectedNumber, current + bet.amount)
+            }
+
+            // Build breakdown for all jodis
+            jodiBreakdown = jodiNumbers.map(jn => {
+                const amt = jodiByNumber.get(jn) || 0
+                return {
+                    number: jn,
+                    bets: jodiFormatted.filter(b => b.selectedNumber === jn).length,
+                    amount: amt,
+                    liability: amt * config.payout_jodi,
+                }
+            })
+
+            // Find the jodi with minimum bet amount (admin will pick this close digit)
+            let minAmount = Infinity
+            for (const jn of jodiNumbers) {
+                const amt = jodiByNumber.get(jn) || 0
+                if (amt < minAmount) {
+                    minAmount = amt
+                    bestJodi = jn
+                }
+            }
+
+            // Jodi liability = only the minimum jodi's liability (what admin will actually pick)
+            jodiLiability = (minAmount === Infinity ? 0 : minAmount) * config.payout_jodi
+        }
+
         const categories = {
             triple: {
                 bets: tripleFormatted,
@@ -209,8 +251,10 @@ export async function GET(request: NextRequest) {
                 bets: jodiFormatted,
                 count: jodiFormatted.length,
                 totalAmount: sumAmount(jodiFormatted),
-                totalLiability: sumLiability(jodiFormatted),
+                totalLiability: jodiLiability,
                 multiplier: config.payout_jodi,
+                bestJodi,
+                jodiBreakdown,
             },
         }
 
