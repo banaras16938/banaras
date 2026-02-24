@@ -190,14 +190,14 @@ export async function GET(request: NextRequest) {
         const sumAmount = (bets: any[]) => bets.reduce((s: number, b: any) => s + b.amount, 0)
         const sumLiability = (bets: any[]) => bets.reduce((s: number, b: any) => s + b.potentialPayout, 0)
 
-        // For Open target: admin controls close digit, so jodi liability = MIN jodi bet (best case for admin)
+        // For Open target: liability = MAX jodi bet (worst-case exposure per SRS)
         // For Close target: exact single jodi, so full liability applies
         let jodiLiability = sumLiability(jodiFormatted)
-        let bestJodi: string | null = null
+        let worstJodi: string | null = null
         let jodiBreakdown: { number: string; bets: number; amount: number; liability: number }[] = []
 
         if (target === 'open' && jodiNumbers.length > 1) {
-            // Group jodi bets by selected number and find the one with minimum total bet
+            // Group jodi bets by selected number and find the one with maximum total bet
             const jodiByNumber = new Map<string, number>()
             for (const jn of jodiNumbers) {
                 jodiByNumber.set(jn, 0)
@@ -218,18 +218,18 @@ export async function GET(request: NextRequest) {
                 }
             })
 
-            // Find the jodi with minimum bet amount (admin will pick this close digit)
-            let minAmount = Infinity
+            // Find the jodi with maximum bet amount (worst-case exposure)
+            let maxAmount = 0
             for (const jn of jodiNumbers) {
                 const amt = jodiByNumber.get(jn) || 0
-                if (amt < minAmount) {
-                    minAmount = amt
-                    bestJodi = jn
+                if (amt > maxAmount) {
+                    maxAmount = amt
+                    worstJodi = jn
                 }
             }
 
-            // Jodi liability = only the minimum jodi's liability (what admin will actually pick)
-            jodiLiability = (minAmount === Infinity ? 0 : minAmount) * config.payout_jodi
+            // Jodi liability = the maximum jodi's liability (worst-case exposure for admin)
+            jodiLiability = maxAmount * config.payout_jodi
         }
 
         const categories = {
@@ -253,7 +253,7 @@ export async function GET(request: NextRequest) {
                 totalAmount: sumAmount(jodiFormatted),
                 totalLiability: jodiLiability,
                 multiplier: config.payout_jodi,
-                bestJodi,
+                worstJodi,
                 jodiBreakdown,
             },
         }

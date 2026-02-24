@@ -233,18 +233,18 @@ export async function GET(request: NextRequest) {
 
             if (target === 'open') {
                 // Open: jodi could be single + any close digit (0-9)
-                // Admin controls close digit, so liability = MIN jodi bet (admin picks lowest)
-                let minJodiAmt = Infinity
+                // Liability = MAX jodi bet (worst-case exposure per SRS)
+                let maxJodiAmt = 0
                 for (let c = 0; c <= 9; c++) {
                     const potentialJodi = single + c.toString()
                     jodiNumbers.push(potentialJodi)
                     const jAmt = jodiBetMap.get(potentialJodi) || 0
                     jodiBetAmt += jAmt
-                    if (jAmt < minJodiAmt) {
-                        minJodiAmt = jAmt
+                    if (jAmt > maxJodiAmt) {
+                        maxJodiAmt = jAmt
                     }
                 }
-                jodiLiab = (minJodiAmt === Infinity ? 0 : minJodiAmt) * payoutJodi
+                jodiLiab = maxJodiAmt * payoutJodi
             } else if (target === 'close' && session.open_single) {
                 // Close: exact jodi = open_single + derived single
                 const exactJodi = session.open_single + single
@@ -253,18 +253,18 @@ export async function GET(request: NextRequest) {
                 jodiLiab = jodiBetAmt * payoutJodi
             } else if (target === 'close' && !session.open_single) {
                 // Close but open not declared yet: all jodis ending with this single
-                // Admin controls open digit, so liability = MIN jodi bet (admin picks lowest)
-                let minJodiAmt = Infinity
+                // Liability = MAX jodi bet (worst-case exposure per SRS)
+                let maxJodiAmt = 0
                 for (let o = 0; o <= 9; o++) {
                     const potentialJodi = o.toString() + single
                     jodiNumbers.push(potentialJodi)
                     const jAmt = jodiBetMap.get(potentialJodi) || 0
                     jodiBetAmt += jAmt
-                    if (jAmt < minJodiAmt) {
-                        minJodiAmt = jAmt
+                    if (jAmt > maxJodiAmt) {
+                        maxJodiAmt = jAmt
                     }
                 }
-                jodiLiab = (minJodiAmt === Infinity ? 0 : minJodiAmt) * payoutJodi
+                jodiLiab = maxJodiAmt * payoutJodi
             }
 
             const totalLiability = tripleLiab + singleLiab + jodiLiab

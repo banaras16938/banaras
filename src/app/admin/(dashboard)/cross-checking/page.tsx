@@ -27,7 +27,7 @@ interface CategoryData {
     totalAmount: number
     totalLiability: number
     multiplier: number
-    bestJodi?: string | null
+    worstJodi?: string | null
     jodiBreakdown?: { number: string; bets: number; amount: number; liability: number }[]
 }
 
@@ -360,7 +360,7 @@ function CategoryCard({
     }
     const c = colorMap[color]
 
-    const isJodiWithBreakdown = color === 'purple' && category.bestJodi && category.jodiBreakdown?.length
+    const isJodiWithBreakdown = color === 'purple' && category.worstJodi && category.jodiBreakdown?.length
 
     return (
         <div className={`p-5 rounded-xl bg-gray-800 border ${c.border}`}>
@@ -384,22 +384,22 @@ function CategoryCard({
                 </div>
                 <div className="flex justify-between text-sm">
                     <span className="text-gray-400">
-                        {isJodiWithBreakdown ? 'Min Liability' : `Liability`} (×{category.multiplier})
+                        {isJodiWithBreakdown ? 'Max Liability' : `Liability`} (×{category.multiplier})
                     </span>
                     <span className={`font-bold font-mono ${c.text}`}>{formatCurrency(category.totalLiability)}</span>
                 </div>
             </div>
 
-            {/* Best Jodi indicator */}
+            {/* Worst Jodi indicator */}
             {isJodiWithBreakdown && (
                 <div className="mt-3 pt-3 border-t border-gray-700">
                     <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs text-gray-500">Best Jodi (lowest risk)</span>
-                        <span className="text-sm font-bold text-emerald-400 font-mono">{category.bestJodi}</span>
+                        <span className="text-xs text-gray-500">Worst Jodi (highest risk)</span>
+                        <span className="text-sm font-bold text-red-400 font-mono">{category.worstJodi}</span>
                     </div>
                     <div className="space-y-1">
                         {category.jodiBreakdown!.map(jd => (
-                            <div key={jd.number} className={`flex justify-between text-xs py-0.5 px-2 rounded ${jd.number === category.bestJodi ? 'bg-emerald-500/10 text-emerald-400' : 'text-gray-500'
+                            <div key={jd.number} className={`flex justify-between text-xs py-0.5 px-2 rounded ${jd.number === category.worstJodi ? 'bg-red-500/10 text-red-400' : 'text-gray-500'
                                 }`}>
                                 <span className="font-mono font-bold">{jd.number}</span>
                                 <span className="font-mono">
