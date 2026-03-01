@@ -5,7 +5,7 @@ import { Card } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { BetCategory, BetTarget, SessionType, PAYOUT_MULTIPLIERS } from '@/types/types'
+import { BetCategory, BetTarget, SessionType, PAYOUT_MULTIPLIERS, PATTI_NUMBERS, PATTI_CATEGORIES, PATTI_LABELS, PATTI_FULL_LABELS, PattiCategory } from '@/types/types'
 import { Check, Search, Plus, User, Clock, AlertTriangle, CalendarX, UserCheck, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSchedules, formatScheduleTime } from '@/hooks/useSchedules'
@@ -67,10 +67,9 @@ export default function PlaceBetPage() {
     const [jodiSelections, setJodiSelections] = useState<Record<string, string>>({})
     const [jodiSearch, setJodiSearch] = useState('')
 
-    // Triple Selection: selected triples with their amounts (like jodi)
-    const [tripleSelections, setTripleSelections] = useState<Record<string, string>>({})
-    const [tripleNumber, setTripleNumber] = useState('')
-    const [tripleAmount, setTripleAmount] = useState('')
+    // Patti Selection: selected pattis with their amounts (replaces old triple)
+    const [pattiSelections, setPattiSelections] = useState<Record<string, string>>({})
+    const [pattiSearch, setPattiSearch] = useState('')
 
     // Submission
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -165,6 +164,7 @@ export default function PlaceBetPage() {
     const canPlaceBet = useMemo(() => {
         if (isHoliday) return false
         if (activeTab === 'jodi') return bettingStatus.jodiBetting
+        // Patti categories follow same timing as single
         return target === 'open' ? bettingStatus.openBetting : bettingStatus.closeBetting
     }, [activeTab, target, bettingStatus, isHoliday])
 
@@ -290,40 +290,41 @@ export default function PlaceBetPage() {
         })
     }
 
-    // === Triple Selection ===
-    const addTripleToSelection = () => {
-        if (tripleNumber.length !== 3) {
-            toast.error('Enter a 3-digit number')
-            return
-        }
-        if (!tripleAmount || Number(tripleAmount) < 10) {
-            toast.error('Minimum amount is 10')
-            return
-        }
-        if (Number(tripleAmount) % 10 !== 0) {
-            toast.error('Amount must be multiple of 10')
-            return
-        }
-        setTripleSelections(prev => ({
-            ...prev,
-            [tripleNumber.padStart(3, '0')]: tripleAmount
-        }))
-        setTripleNumber('')
-        setTripleAmount('')
+    // === Patti Selection (replaces old triple) ===
+    const togglePattiSelection = (patti: string) => {
+        setPattiSelections(prev => {
+            if (prev[patti] !== undefined) {
+                const { [patti]: _, ...rest } = prev
+                return rest
+            }
+            return { ...prev, [patti]: '' }
+        })
     }
 
-    const removeTripleSelection = (triple: string) => {
-        setTripleSelections(prev => {
-            const { [triple]: _, ...rest } = prev
+    const updatePattiAmount = (patti: string, value: string) => {
+        setPattiSelections(prev => ({ ...prev, [patti]: value }))
+    }
+
+    const removePattiSelection = (patti: string) => {
+        setPattiSelections(prev => {
+            const { [patti]: _, ...rest } = prev
             return rest
         })
     }
 
-    const tripleSelectionTotal = useMemo(() => {
-        return Object.values(tripleSelections).reduce((sum, val) => sum + (Number(val) || 0), 0)
-    }, [tripleSelections])
+    const pattiSelectionTotal = useMemo(() => {
+        return Object.values(pattiSelections).reduce((sum, val) => sum + (Number(val) || 0), 0)
+    }, [pattiSelections])
 
-    const clearTripleSelections = () => setTripleSelections({})
+    const clearPattiSelections = () => setPattiSelections({})
+
+    const applyAmountToAllPattis = (amt: number) => {
+        setPattiSelections(prev => {
+            const updated: Record<string, string> = {}
+            Object.keys(prev).forEach(p => { updated[p] = amt.toString() })
+            return updated
+        })
+    }
 
     // === Place Bets Functions ===
     const prepareSingleBets = (): BetItem[] => {
@@ -358,15 +359,16 @@ export default function PlaceBetPage() {
         return bets
     }
 
-    const prepareTripleBets = (): BetItem[] => {
+    const preparePattiBets = (): BetItem[] => {
+        if (!PATTI_CATEGORIES.includes(activeTab as PattiCategory)) return []
         const bets: BetItem[] = []
-        Object.entries(tripleSelections).forEach(([triple, amt]) => {
+        Object.entries(pattiSelections).forEach(([patti, amt]) => {
             const numAmt = Number(amt)
             if (numAmt >= 10 && numAmt % 10 === 0) {
                 bets.push({
-                    category: 'triple',
+                    category: activeTab as BetCategory,
                     target: target,
-                    selectedNumber: triple.padStart(3, '0'),
+                    selectedNumber: patti,
                     amount: numAmt
                 })
             }
@@ -399,7 +401,7 @@ export default function PlaceBetPage() {
 
     const handlePlaceSingleBets = () => validateAndShowConfirm(prepareSingleBets())
     const handlePlaceJodiBets = () => validateAndShowConfirm(prepareJodiBets())
-    const handlePlaceTripleBets = () => validateAndShowConfirm(prepareTripleBets())
+    const handlePlacePattiBets = () => validateAndShowConfirm(preparePattiBets())
 
     const confirmPlaceBets = async () => {
         if (pendingBets.length === 0) return
@@ -423,7 +425,7 @@ export default function PlaceBetPage() {
                 // Clear the appropriate form
                 if (pendingBets[0]?.category === 'single') clearSingleGrid()
                 else if (pendingBets[0]?.category === 'jodi') clearJodiSelections()
-                else if (pendingBets[0]?.category === 'triple') clearTripleSelections()
+                else clearPattiSelections()
             } else {
                 toast.error(`Failed: ${data.error || 'Unknown error'}`)
             }
@@ -556,21 +558,32 @@ export default function PlaceBetPage() {
 
             {/* Category Tabs */}
             <div className="flex rounded-xl overflow-hidden border border-gray-700">
-                {(['single', 'jodi', 'triple'] as BetCategory[]).map((cat) => {
+                {(['single', 'jodi', 'single_patti', 'double_patti', 'triple_patti'] as BetCategory[]).map((cat) => {
                     const isDisabled = cat === 'jodi' ? !bettingStatus.jodiBetting : (!bettingStatus.openBetting && !bettingStatus.closeBetting)
+                    const label = cat === 'single' ? 'Single' : cat === 'jodi' ? 'Jodi' : PATTI_LABELS[cat as PattiCategory]
+                    const mult = PAYOUT_MULTIPLIERS[cat]
                     return (
                         <button
                             key={cat}
                             type="button"
-                            onClick={() => !isDisabled && setActiveTab(cat)}
-                            className={`flex-1 py-4 font-semibold text-center transition-all relative ${activeTab === cat
+                            onClick={() => {
+                                if (!isDisabled) {
+                                    setActiveTab(cat)
+                                    // Clear patti selections when switching patti tabs
+                                    if (PATTI_CATEGORIES.includes(cat as PattiCategory)) {
+                                        clearPattiSelections()
+                                        setPattiSearch('')
+                                    }
+                                }
+                            }}
+                            className={`flex-1 py-3 font-semibold text-center transition-all relative text-sm ${activeTab === cat
                                 ? isDisabled ? 'bg-gray-700 text-gray-400' : 'bg-indigo-500 text-white'
                                 : isDisabled ? 'bg-gray-800 text-gray-600 cursor-not-allowed' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                                 }`}
                         >
-                            {cat === 'single' ? 'Single' : cat === 'jodi' ? 'Jodi' : 'Triple'}
-                            <span className="block text-xs mt-1 opacity-75">{PAYOUT_MULTIPLIERS[cat]}x</span>
-                            {isDisabled && <span className="absolute top-1 right-2 text-red-400"><AlertTriangle size={14} /></span>}
+                            {label}
+                            <span className="block text-xs mt-0.5 opacity-75">{mult}x</span>
+                            {isDisabled && <span className="absolute top-1 right-1 text-red-400"><AlertTriangle size={12} /></span>}
                         </button>
                     )
                 })}
@@ -755,70 +768,87 @@ export default function PlaceBetPage() {
                         </div>
                     )}
 
-                    {/* === TRIPLE TAB === */}
-                    {activeTab === 'triple' && (
+                    {/* === PATTI TABS (SP / DP / TP) === */}
+                    {PATTI_CATEGORIES.includes(activeTab as PattiCategory) && (
                         <div className="space-y-3">
-                            {/* Add Triple Form - Mobile Responsive */}
-                            <div className="flex flex-col sm:flex-row gap-2">
-                                <div className="flex gap-2 flex-1">
-                                    <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        pattern="[0-9]*"
-                                        placeholder="000"
-                                        maxLength={3}
-                                        value={tripleNumber}
-                                        onChange={(e) => setTripleNumber(e.target.value.replace(/\D/g, '').slice(0, 3))}
-                                        disabled={!canPlaceBet}
-                                        className="flex-1 min-w-0 px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white text-center text-lg sm:text-xl font-mono focus:border-indigo-500 focus:outline-none disabled:opacity-50"
-                                    />
-                                    <input
-                                        type="number"
-                                        inputMode="numeric"
-                                        min="10"
-                                        placeholder="Points"
-                                        value={tripleAmount}
-                                        onChange={(e) => setTripleAmount(e.target.value)}
-                                        disabled={!canPlaceBet}
-                                        className="flex-1 min-w-0 px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white text-center text-lg sm:text-xl font-mono focus:border-indigo-500 focus:outline-none disabled:opacity-50"
-                                    />
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={addTripleToSelection}
-                                    disabled={!canPlaceBet || tripleNumber.length !== 3 || !tripleAmount}
-                                    className="px-4 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                                >
-                                    <Plus size={20} />
-                                    <span className="sm:hidden">Add</span>
-                                </button>
+                            {/* Tab header */}
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm text-gray-400 font-medium">
+                                    {PATTI_FULL_LABELS[activeTab as PattiCategory]} — Select from valid pattis
+                                </span>
                             </div>
 
-                            {/* Quick Amounts */}
-                            <div className="flex flex-wrap gap-1">
-                                {quickAmounts.map((amt) => (
-                                    <button
-                                        key={amt}
-                                        type="button"
-                                        onClick={() => setTripleAmount(amt.toString())}
-                                        disabled={!canPlaceBet}
-                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${tripleAmount === amt.toString() ? 'bg-indigo-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'} disabled:opacity-50`}
-                                    >
-                                        {amt}
-                                    </button>
-                                ))}
+                            {/* Search */}
+                            <div className="relative">
+                                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    placeholder="Search patti number..."
+                                    value={pattiSearch}
+                                    onChange={(e) => setPattiSearch(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                                    className="w-full pl-9 pr-3 py-2.5 bg-gray-900 border border-gray-600 rounded-lg text-white text-sm font-mono focus:border-indigo-500 focus:outline-none placeholder-gray-500"
+                                />
                             </div>
 
-                            {/* Selected Triples */}
-                            {Object.keys(tripleSelections).length > 0 && (
+                            {/* Grouped patti list by single digit */}
+                            <div className="h-52 overflow-y-auto bg-gray-900 rounded-lg border border-gray-700 p-2 space-y-2">
+                                {Object.entries(PATTI_NUMBERS[activeTab as PattiCategory]).map(([digit, pattis]) => {
+                                    const filtered = pattiSearch ? pattis.filter(p => p.includes(pattiSearch)) : pattis
+                                    if (filtered.length === 0) return null
+                                    return (
+                                        <div key={digit}>
+                                            <div className="text-xs text-gray-500 font-semibold mb-1 px-1">Single → {digit}</div>
+                                            <div className="flex flex-wrap gap-1">
+                                                {filtered.map((patti) => {
+                                                    const isSelected = pattiSelections[patti] !== undefined
+                                                    return (
+                                                        <button
+                                                            key={patti}
+                                                            type="button"
+                                                            onClick={() => togglePattiSelection(patti)}
+                                                            disabled={!canPlaceBet}
+                                                            className={`px-2.5 py-1.5 rounded-lg text-sm font-mono font-medium transition-all ${isSelected ? 'bg-indigo-600 text-white ring-2 ring-indigo-400' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                                                                } disabled:opacity-50`}
+                                                        >
+                                                            {patti}
+                                                        </button>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+
+                            {/* Selected pattis with amounts */}
+                            {Object.keys(pattiSelections).length > 0 && (
                                 <div className="space-y-2">
-                                    <span className="text-sm text-gray-400">Selected ({Object.keys(tripleSelections).length})</span>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm text-gray-400">Selected ({Object.keys(pattiSelections).length})</span>
+                                        <div className="flex gap-1">
+                                            {quickAmounts.slice(0, 4).map((amt) => (
+                                                <button key={amt} type="button" onClick={() => applyAmountToAllPattis(amt)} className="px-2 py-1 text-xs bg-gray-700 text-gray-300 rounded hover:bg-gray-600">
+                                                    All={amt}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
                                     <div className="flex flex-wrap gap-2">
-                                        {Object.entries(tripleSelections).map(([triple, amt]) => (
-                                            <div key={triple} className="flex items-center gap-1 bg-gray-900 border border-gray-700 rounded-lg p-1">
-                                                <span className="w-10 h-8 flex items-center justify-center bg-indigo-600 text-white font-bold rounded text-sm">{triple}</span>
-                                                <span className="px-2 text-white font-mono text-sm">{amt}</span>
-                                                <button type="button" onClick={() => removeTripleSelection(triple)} className="w-6 h-6 flex items-center justify-center bg-red-600 text-white rounded hover:bg-red-700">
+                                        {Object.entries(pattiSelections).map(([patti, amt]) => (
+                                            <div key={patti} className="flex items-center gap-1 bg-gray-900 border border-gray-700 rounded-lg p-1">
+                                                <span className="w-10 h-8 flex items-center justify-center bg-indigo-600 text-white font-bold rounded text-sm">{patti}</span>
+                                                <input
+                                                    type="number"
+                                                    inputMode="numeric"
+                                                    min="0"
+                                                    placeholder="0"
+                                                    value={amt}
+                                                    onChange={(e) => updatePattiAmount(patti, e.target.value)}
+                                                    className="w-14 px-1 py-1 bg-gray-800 border border-gray-600 rounded text-white text-center text-sm font-mono focus:border-indigo-500 focus:outline-none"
+                                                />
+                                                <button type="button" onClick={() => removePattiSelection(patti)} className="w-6 h-6 flex items-center justify-center bg-red-600 text-white rounded hover:bg-red-700">
                                                     <X size={14} />
                                                 </button>
                                             </div>
@@ -829,11 +859,11 @@ export default function PlaceBetPage() {
 
                             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-2 border-t border-gray-700">
                                 <div className="text-gray-400">
-                                    Total: <span className="text-white font-bold text-lg">{tripleSelectionTotal}</span> Points
+                                    Total: <span className="text-white font-bold text-lg">{pattiSelectionTotal}</span> Points
                                 </div>
                                 <div className="flex gap-2 w-full sm:w-auto">
-                                    <button type="button" onClick={clearTripleSelections} className="flex-1 sm:flex-none px-3 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600">Clear</button>
-                                    <Button type="button" size="sm" onClick={handlePlaceTripleBets} disabled={!canPlaceBet || tripleSelectionTotal === 0} isLoading={isSubmitting} className="flex-1 sm:flex-none">
+                                    <button type="button" onClick={clearPattiSelections} className="flex-1 sm:flex-none px-3 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600">Clear</button>
+                                    <Button type="button" size="sm" onClick={handlePlacePattiBets} disabled={!canPlaceBet || pattiSelectionTotal === 0} isLoading={isSubmitting} className="flex-1 sm:flex-none">
                                         Place Bets
                                     </Button>
                                 </div>

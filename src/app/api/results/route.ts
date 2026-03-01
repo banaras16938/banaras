@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import { SessionType, BetTarget, sessionToResult } from '@/types/types'
+import { SessionType, BetTarget, sessionToResult, ALL_VALID_PATTIS } from '@/types/types'
 
 // ==========================================
 // RESULTS (GAME SESSIONS) API ROUTE
@@ -66,6 +66,11 @@ export async function POST(request: NextRequest) {
 
     if (!/^[0-9]{3}$/.test(triple)) {
         return NextResponse.json({ error: 'Triple must be 3 digits (000-999)' }, { status: 400 })
+    }
+
+    // Validate triple is a valid patti from the 220-number universe
+    if (!ALL_VALID_PATTIS.has(triple)) {
+        return NextResponse.json({ error: `Invalid patti number: ${triple}. Must be from the valid 220-patti universe.` }, { status: 400 })
     }
 
     if (!['open', 'close'].includes(target)) {

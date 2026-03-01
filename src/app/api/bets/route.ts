@@ -1,6 +1,9 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import { BetCategory, BetTarget, SessionType } from '@/types/types'
+import { BetCategory, BetTarget, SessionType, ALL_VALID_PATTIS, PATTI_CATEGORIES, PattiCategory } from '@/types/types'
+
+const VALID_CATEGORIES = ['single', 'jodi', 'single_patti', 'double_patti', 'triple_patti']
+const PATTI_CATEGORY_SET = new Set<string>(PATTI_CATEGORIES)
 
 // ==========================================
 // BETS API ROUTE
@@ -111,7 +114,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate category
-    if (!['single', 'jodi', 'triple'].includes(category)) {
+    if (!VALID_CATEGORIES.includes(category)) {
         return NextResponse.json({ error: 'Invalid category' }, { status: 400 })
     }
 
@@ -125,6 +128,13 @@ export async function POST(request: NextRequest) {
     if (selectedNumber.length !== expectedLength || !/^[0-9]+$/.test(selectedNumber)) {
         return NextResponse.json({
             error: `${category} must be ${expectedLength} digit(s) (0-9)`
+        }, { status: 400 })
+    }
+
+    // Validate patti number against master list
+    if (PATTI_CATEGORY_SET.has(category) && !ALL_VALID_PATTIS.has(selectedNumber)) {
+        return NextResponse.json({
+            error: `Invalid ${category.replace('_', ' ')} number: ${selectedNumber}. Must be from the valid patti universe.`
         }, { status: 400 })
     }
 
@@ -143,6 +153,10 @@ export async function POST(request: NextRequest) {
     }
     if (category !== 'jodi' && target === 'jodi_full') {
         return NextResponse.json({ error: 'Only jodi bets can use jodi_full target' }, { status: 400 })
+    }
+    // Patti bets must target open or close (not jodi_full)
+    if (PATTI_CATEGORY_SET.has(category) && target === 'jodi_full') {
+        return NextResponse.json({ error: 'Patti bets must target open or close' }, { status: 400 })
     }
 
     // Get or create game session using RPC function (bypasses RLS)
@@ -312,7 +326,7 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ error: 'Each bet must have category, target, selectedNumber, and amount' }, { status: 400 })
         }
 
-        if (!['single', 'jodi', 'triple'].includes(category)) {
+        if (!VALID_CATEGORIES.includes(category)) {
             return NextResponse.json({ error: `Invalid category: ${category}` }, { status: 400 })
         }
 
@@ -325,6 +339,11 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ error: `${category} must be ${expectedLength} digit(s)` }, { status: 400 })
         }
 
+        // Validate patti number against master list
+        if (PATTI_CATEGORY_SET.has(category) && !ALL_VALID_PATTIS.has(selectedNumber)) {
+            return NextResponse.json({ error: `Invalid ${category.replace('_', ' ')} number: ${selectedNumber}` }, { status: 400 })
+        }
+
         const numericAmount = Number(amount)
         if (isNaN(numericAmount) || numericAmount < 10 || numericAmount % 10 !== 0) {
             return NextResponse.json({ error: 'Amount must be minimum 10 and multiple of 10' }, { status: 400 })
@@ -335,6 +354,9 @@ export async function PUT(request: NextRequest) {
         }
         if (category !== 'jodi' && target === 'jodi_full') {
             return NextResponse.json({ error: 'Only jodi bets can use jodi_full target' }, { status: 400 })
+        }
+        if (PATTI_CATEGORY_SET.has(category) && target === 'jodi_full') {
+            return NextResponse.json({ error: 'Patti bets must target open or close' }, { status: 400 })
         }
     }
 

@@ -73,7 +73,10 @@ function getCategoryColor(cat: BetCategory): string {
     switch (cat) {
         case 'single': return 'from-blue-500 to-blue-600'
         case 'jodi': return 'from-purple-500 to-purple-600'
-        case 'triple': return 'from-amber-500 to-amber-600'
+        case 'single_patti': return 'from-emerald-500 to-emerald-600'
+        case 'double_patti': return 'from-orange-500 to-orange-600'
+        case 'triple_patti': return 'from-red-500 to-red-600'
+        default: return 'from-amber-500 to-amber-600'
     }
 }
 
@@ -81,7 +84,10 @@ function getCategoryBg(cat: BetCategory): string {
     switch (cat) {
         case 'single': return 'bg-blue-500/15 text-blue-400 border-blue-500/30'
         case 'jodi': return 'bg-purple-500/15 text-purple-400 border-purple-500/30'
-        case 'triple': return 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+        case 'single_patti': return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+        case 'double_patti': return 'bg-orange-500/15 text-orange-400 border-orange-500/30'
+        case 'triple_patti': return 'bg-red-500/15 text-red-400 border-red-500/30'
+        default: return 'bg-amber-500/15 text-amber-400 border-amber-500/30'
     }
 }
 
@@ -160,7 +166,9 @@ export default function BetHistoryPage() {
         const types: { key: BetCategory; label: string; color: string }[] = [
             { key: 'single', label: 'Single', color: 'blue' },
             { key: 'jodi', label: 'Jodi', color: 'purple' },
-            { key: 'triple', label: 'Triple', color: 'amber' },
+            { key: 'single_patti', label: 'SP', color: 'emerald' },
+            { key: 'double_patti', label: 'DP', color: 'orange' },
+            { key: 'triple_patti', label: 'TP', color: 'red' },
         ]
         return types.map(t => {
             const bets = allBets.filter(b => b.category === t.key)
@@ -248,32 +256,40 @@ export default function BetHistoryPage() {
             </div>
 
             {/* Per Game Type Summary */}
-            <div className="grid grid-cols-3 gap-2">
-                {gameTypeStats.map(gt => (
-                    <div key={gt.key} className={`bg-gray-800/80 border rounded-xl p-3 overflow-hidden relative ${gt.color === 'blue' ? 'border-blue-500/30' :
+            <div className="grid grid-cols-5 gap-2">
+                {gameTypeStats.map(gt => {
+                    const borderColor = gt.color === 'blue' ? 'border-blue-500/30' :
                         gt.color === 'purple' ? 'border-purple-500/30' :
-                            'border-amber-500/30'
-                        }`}>
-                        {/* Top accent strip */}
-                        <div className={`absolute top-0 left-0 right-0 h-0.5 ${gt.color === 'blue' ? 'bg-blue-500' :
-                            gt.color === 'purple' ? 'bg-purple-500' :
-                                'bg-amber-500'
-                            }`} />
-                        <div className="mb-2">
-                            <span className="text-xs font-semibold text-white">{gt.label}</span>
-                        </div>
-                        <div className="space-y-1">
-                            <div className="flex justify-between items-center">
-                                <span className="text-[10px] text-gray-500">Bets</span>
-                                <span className="text-xs font-bold text-white font-mono">{gt.count}</span>
+                            gt.color === 'emerald' ? 'border-emerald-500/30' :
+                                gt.color === 'orange' ? 'border-orange-500/30' :
+                                    gt.color === 'red' ? 'border-red-500/30' :
+                                        'border-amber-500/30'
+                    const stripColor = gt.color === 'blue' ? 'bg-blue-500' :
+                        gt.color === 'purple' ? 'bg-purple-500' :
+                            gt.color === 'emerald' ? 'bg-emerald-500' :
+                                gt.color === 'orange' ? 'bg-orange-500' :
+                                    gt.color === 'red' ? 'bg-red-500' :
+                                        'bg-amber-500'
+                    return (
+                        <div key={gt.key} className={`bg-gray-800/80 border rounded-xl p-3 overflow-hidden relative ${borderColor}`}>
+                            {/* Top accent strip */}
+                            <div className={`absolute top-0 left-0 right-0 h-0.5 ${stripColor}`} />
+                            <div className="mb-2">
+                                <span className="text-xs font-semibold text-white">{gt.label}</span>
                             </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-[10px] text-gray-500">Amount</span>
-                                <span className="text-xs font-bold text-white font-mono">₹{gt.amount.toLocaleString()}</span>
+                            <div className="space-y-1">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[10px] text-gray-500">Bets</span>
+                                    <span className="text-xs font-bold text-white font-mono">{gt.count}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[10px] text-gray-500">Amount</span>
+                                    <span className="text-xs font-bold text-white font-mono">₹{gt.amount.toLocaleString()}</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                ))}
+                    )
+                })}
             </div>
 
             {/* Main Tabs: Positions / Orders */}

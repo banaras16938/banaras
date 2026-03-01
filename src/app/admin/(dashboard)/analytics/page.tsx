@@ -41,11 +41,7 @@ interface TargetBreakdown {
     wonCount: number
     lostCount: number
     pendingCount: number
-    categories: {
-        single: CategoryBreakdown
-        triple: CategoryBreakdown
-        jodi: CategoryBreakdown
-    }
+    categories: Record<string, CategoryBreakdown>
 }
 
 interface SessionBreakdown {
@@ -502,8 +498,9 @@ export default function HisabKitabPage() {
                                                                                 <div className="flex items-center gap-1.5">
                                                                                     <Badge
                                                                                         variant={
-                                                                                            bet.category === 'triple' ? 'warning' :
-                                                                                                bet.category === 'jodi' ? 'default' : 'info'
+                                                                                            bet.category === 'jodi' ? 'default' :
+                                                                                                bet.category === 'single' ? 'info' :
+                                                                                                    'warning'
                                                                                         }
                                                                                         className="text-[10px] px-1.5 py-0.5"
                                                                                     >
@@ -734,31 +731,31 @@ function TargetRow({
                 </div>
             </div>
 
-            {/* Category Sub-rows (Single/Triple for Open/Close) */}
-            {!isJodi && (cats.single.betCount > 0 || cats.triple.betCount > 0) && (
-                <div className="ml-4 space-y-0.5 border-l-2 border-gray-700/50 pl-3">
-                    {cats.single.betCount > 0 && (
-                        <CategoryRow
-                            label="Single"
-                            icon="#"
-                            data={cats.single}
-                            showCritical={showCritical}
-                            onUnlock={onUnlock}
-                            fmt={fmt}
-                        />
-                    )}
-                    {cats.triple.betCount > 0 && (
-                        <CategoryRow
-                            label="Triple"
-                            icon="⟐"
-                            data={cats.triple}
-                            showCritical={showCritical}
-                            onUnlock={onUnlock}
-                            fmt={fmt}
-                        />
-                    )}
-                </div>
-            )}
+            {/* Category Sub-rows */}
+            {!isJodi && Object.entries(cats).map(([catKey, catData]) => {
+                if (catData.betCount === 0) return null
+                const catLabel = catKey === 'single' ? 'Single' :
+                    catKey === 'single_patti' ? 'SP' :
+                        catKey === 'double_patti' ? 'DP' :
+                            catKey === 'triple_patti' ? 'TP' :
+                                catKey === 'jodi' ? 'Jodi' : catKey
+                const catIcon = catKey === 'single' ? '#' :
+                    catKey === 'single_patti' ? 'S' :
+                        catKey === 'double_patti' ? 'D' :
+                            catKey === 'triple_patti' ? 'T' :
+                                catKey === 'jodi' ? 'J' : '•'
+                return (
+                    <CategoryRow
+                        key={catKey}
+                        label={catLabel}
+                        icon={catIcon}
+                        data={catData}
+                        showCritical={showCritical}
+                        onUnlock={onUnlock}
+                        fmt={fmt}
+                    />
+                )
+            })}
         </div>
     )
 }

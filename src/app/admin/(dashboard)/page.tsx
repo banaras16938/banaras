@@ -29,7 +29,7 @@ import {
     Keyboard
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { SessionType, BetTarget, ResultOption } from '@/types/types'
+import { SessionType, BetTarget, ResultOption, PATTI_FULL_LABELS, PattiCategory } from '@/types/types'
 
 interface GameSession {
     id: string
@@ -45,8 +45,12 @@ interface GameSession {
 interface BetStats {
     singleCount: number
     singleAmount: number
-    tripleCount: number
-    tripleAmount: number
+    singlePattiCount: number
+    singlePattiAmount: number
+    doublePattiCount: number
+    doublePattiAmount: number
+    triplePattiCount: number
+    triplePattiAmount: number
     jodiCount: number
     jodiAmount: number
     totalPending: number
@@ -109,7 +113,7 @@ export default function AdminDashboard() {
         systemRecommendations: [],
         lowBets: [],
         noBets: [],
-        betStats: { singleCount: 0, singleAmount: 0, tripleCount: 0, tripleAmount: 0, jodiCount: 0, jodiAmount: 0, totalPending: 0 }
+        betStats: { singleCount: 0, singleAmount: 0, singlePattiCount: 0, singlePattiAmount: 0, doublePattiCount: 0, doublePattiAmount: 0, triplePattiCount: 0, triplePattiAmount: 0, jodiCount: 0, jodiAmount: 0, totalPending: 0 }
     })
     const [selectedResult, setSelectedResult] = useState<ResultOption | null>(null)
     const [expandedResult, setExpandedResult] = useState<string | null>(null)
@@ -561,14 +565,16 @@ export default function AdminDashboard() {
                     <p className="text-[10px] text-gray-500">{stats.singleCount} bets • ×9 payout</p>
                 </div>
 
-                {/* Triple Bets */}
+                {/* Patti Bets (combined) */}
                 <div className="bg-gray-800/80 border border-gray-700 rounded-xl p-3">
                     <div className="flex items-center gap-2 mb-1">
                         <Layers size={14} className="text-amber-400" />
-                        <span className="text-[10px] text-gray-500 uppercase">Triple Bets</span>
+                        <span className="text-[10px] text-gray-500 uppercase">Patti Bets</span>
                     </div>
-                    <p className="text-lg font-bold text-white font-mono">{fmt(stats.tripleAmount)}</p>
-                    <p className="text-[10px] text-gray-500">{stats.tripleCount} bets • ×800 payout</p>
+                    <p className="text-lg font-bold text-white font-mono">{fmt(stats.singlePattiAmount + stats.doublePattiAmount + stats.triplePattiAmount)}</p>
+                    <p className="text-[10px] text-gray-500">
+                        SP:{stats.singlePattiCount} DP:{stats.doublePattiCount} TP:{stats.triplePattiCount}
+                    </p>
                 </div>
 
                 {/* Jodi Bets */}
@@ -736,7 +742,17 @@ export default function AdminDashboard() {
                                             >
                                                 <div className="flex items-center gap-4">
                                                     <div>
-                                                        <p className="font-mono text-xl font-bold text-cyan-400">{result.triple}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="font-mono text-xl font-bold text-cyan-400">{result.triple}</p>
+                                                            {result.pattiType && (
+                                                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${result.pattiType === 'single_patti' ? 'bg-emerald-500/20 text-emerald-400' :
+                                                                    result.pattiType === 'double_patti' ? 'bg-orange-500/20 text-orange-400' :
+                                                                        'bg-red-500/20 text-red-400'
+                                                                    }`}>
+                                                                    {PATTI_FULL_LABELS[result.pattiType as PattiCategory] || result.pattiType}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <p className="text-xs text-gray-500">Single: {result.single}</p>
                                                     </div>
                                                 </div>
@@ -754,44 +770,46 @@ export default function AdminDashboard() {
                                         {/* Expanded Detail */}
                                         {isExpanded && (
                                             <div className="px-4 pb-4 ml-10 space-y-2 animate-fade-in">
-                                                <div className="grid grid-cols-3 gap-2">
-                                                    {/* Triple detail */}
-                                                    <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3">
-                                                        <div className="flex items-center gap-1.5 mb-2">
-                                                            <Layers size={12} className="text-amber-400" />
-                                                            <span className="text-[10px] text-gray-400 uppercase">Triple ({result.triple})</span>
-                                                        </div>
-                                                        <p className="text-sm font-bold text-white font-mono">{fmt(result.tripleBets)}</p>
-                                                        <p className="text-[10px] text-amber-400">Liability: {fmt(Math.round(result.tripleLiability))}</p>
-                                                        <p className="text-[10px] text-gray-500">×800</p>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {/* SP detail */}
+                                                    <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2">
+                                                        <span className="text-[10px] text-gray-400">SP ×1400</span>
+                                                        <p className="text-sm font-bold text-white font-mono">{fmt(result.singlePattiBets)}</p>
+                                                        <p className="text-[10px] text-emerald-400">Liab: {fmt(Math.round(result.singlePattiLiability))}</p>
                                                     </div>
-
+                                                    {/* DP detail */}
+                                                    <div className="bg-orange-500/5 border border-orange-500/20 rounded-lg p-2">
+                                                        <span className="text-[10px] text-gray-400">DP ×2800</span>
+                                                        <p className="text-sm font-bold text-white font-mono">{fmt(result.doublePattiBets)}</p>
+                                                        <p className="text-[10px] text-orange-400">Liab: {fmt(Math.round(result.doublePattiLiability))}</p>
+                                                    </div>
+                                                    {/* TP detail */}
+                                                    <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-2">
+                                                        <span className="text-[10px] text-gray-400">TP ×8000</span>
+                                                        <p className="text-sm font-bold text-white font-mono">{fmt(result.triplePattiBets)}</p>
+                                                        <p className="text-[10px] text-red-400">Liab: {fmt(Math.round(result.triplePattiLiability))}</p>
+                                                    </div>
                                                     {/* Single detail */}
-                                                    <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-3">
-                                                        <div className="flex items-center gap-1.5 mb-2">
-                                                            <Hash size={12} className="text-blue-400" />
-                                                            <span className="text-[10px] text-gray-400 uppercase">Single ({result.single})</span>
-                                                        </div>
+                                                    <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-2">
+                                                        <span className="text-[10px] text-gray-400">Single ×9 ({result.single})</span>
                                                         <p className="text-sm font-bold text-white font-mono">{fmt(result.singleBets)}</p>
-                                                        <p className="text-[10px] text-blue-400">Liability: {fmt(Math.round(result.singleLiability))}</p>
-                                                        <p className="text-[10px] text-gray-500">×9</p>
+                                                        <p className="text-[10px] text-blue-400">Liab: {fmt(Math.round(result.singleLiability))}</p>
                                                     </div>
-
-                                                    {/* Jodi detail */}
-                                                    <div className="bg-purple-500/5 border border-purple-500/20 rounded-lg p-3">
-                                                        <div className="flex items-center gap-1.5 mb-2">
-                                                            <Grid3X3 size={12} className="text-purple-400" />
-                                                            <span className="text-[10px] text-gray-400 uppercase">Jodi</span>
-                                                        </div>
-                                                        <p className="text-sm font-bold text-white font-mono">{fmt(result.jodiBets)}</p>
-                                                        <p className="text-[10px] text-purple-400">Liability: {fmt(Math.round(result.jodiLiability))}</p>
-                                                        <p className="text-[10px] text-gray-500 truncate" title={result.jodiNumbers?.join(', ')}>
-                                                            {result.jodiNumbers?.length > 3
-                                                                ? `${result.jodiNumbers.slice(0, 3).join(', ')}...`
-                                                                : result.jodiNumbers?.join(', ')
-                                                            }
-                                                        </p>
+                                                </div>
+                                                {/* Jodi detail */}
+                                                <div className="bg-purple-500/5 border border-purple-500/20 rounded-lg p-2">
+                                                    <div className="flex items-center gap-1.5 mb-1">
+                                                        <Grid3X3 size={12} className="text-purple-400" />
+                                                        <span className="text-[10px] text-gray-400">JODI ×90</span>
                                                     </div>
+                                                    <p className="text-sm font-bold text-white font-mono">{fmt(result.jodiBets)}</p>
+                                                    <p className="text-[10px] text-purple-400">Liab: {fmt(Math.round(result.jodiLiability))}</p>
+                                                    <p className="text-[10px] text-gray-500 truncate" title={result.jodiNumbers?.join(', ')}>
+                                                        {result.jodiNumbers?.length > 3
+                                                            ? `${result.jodiNumbers.slice(0, 3).join(', ')}...`
+                                                            : result.jodiNumbers?.join(', ')
+                                                        }
+                                                    </p>
                                                 </div>
                                                 {/* Profit line */}
                                                 <div className="flex justify-between items-center bg-gray-900/50 rounded-lg px-3 py-2">
@@ -841,22 +859,27 @@ export default function AdminDashboard() {
                         </div>
 
                         {/* Per-category breakdown in modal */}
-                        <div className="grid grid-cols-3 gap-2">
-                            <div className="bg-gray-900 rounded-lg p-3 text-center">
-                                <p className="text-[10px] text-gray-500">TRIPLE (×800)</p>
-                                <p className="text-sm font-bold text-amber-400">{fmt(Math.round(selectedResult.tripleLiability))}</p>
-                                <p className="text-[10px] text-gray-500">from {fmt(selectedResult.tripleBets)}</p>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="bg-gray-900 rounded-lg p-2 text-center">
+                                <p className="text-[10px] text-gray-500">SP (×1400)</p>
+                                <p className="text-sm font-bold text-emerald-400">{fmt(Math.round(selectedResult.singlePattiLiability))}</p>
                             </div>
-                            <div className="bg-gray-900 rounded-lg p-3 text-center">
+                            <div className="bg-gray-900 rounded-lg p-2 text-center">
+                                <p className="text-[10px] text-gray-500">DP (×2800)</p>
+                                <p className="text-sm font-bold text-orange-400">{fmt(Math.round(selectedResult.doublePattiLiability))}</p>
+                            </div>
+                            <div className="bg-gray-900 rounded-lg p-2 text-center">
+                                <p className="text-[10px] text-gray-500">TP (×8000)</p>
+                                <p className="text-sm font-bold text-red-400">{fmt(Math.round(selectedResult.triplePattiLiability))}</p>
+                            </div>
+                            <div className="bg-gray-900 rounded-lg p-2 text-center">
                                 <p className="text-[10px] text-gray-500">SINGLE (×9)</p>
                                 <p className="text-sm font-bold text-blue-400">{fmt(Math.round(selectedResult.singleLiability))}</p>
-                                <p className="text-[10px] text-gray-500">from {fmt(selectedResult.singleBets)}</p>
                             </div>
-                            <div className="bg-gray-900 rounded-lg p-3 text-center">
-                                <p className="text-[10px] text-gray-500">JODI (×90)</p>
-                                <p className="text-sm font-bold text-purple-400">{fmt(Math.round(selectedResult.jodiLiability))}</p>
-                                <p className="text-[10px] text-gray-500">from {fmt(selectedResult.jodiBets)}</p>
-                            </div>
+                        </div>
+                        <div className="bg-gray-900 rounded-lg p-2 text-center">
+                            <p className="text-[10px] text-gray-500">JODI (×90)</p>
+                            <p className="text-sm font-bold text-purple-400">{fmt(Math.round(selectedResult.jodiLiability))}</p>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-gray-900">

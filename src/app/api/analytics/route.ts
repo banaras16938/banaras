@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import { SessionType, BetTarget, PAYOUT_MULTIPLIERS } from '@/types/types'
+import { SessionType, BetTarget, PAYOUT_MULTIPLIERS, PATTI_NUMBERS, PATTI_CATEGORIES, ALL_VALID_PATTIS, getPattiType, PattiCategory } from '@/types/types'
 
 // ==========================================
 // ANALYTICS API ROUTE
@@ -137,7 +137,9 @@ export async function GET(request: NextRequest) {
             .single()
         const payoutSingle = Number(configData?.payout_single || 9)
         const payoutJodi = Number(configData?.payout_jodi || 90)
-        const payoutTriple = Number(configData?.payout_triple || 800)
+        const payoutSinglePatti = Number(configData?.payout_single_patti || 1400)
+        const payoutDoublePatti = Number(configData?.payout_double_patti || 2800)
+        const payoutTriplePatti = Number(configData?.payout_triple_patti || 8000)
 
         // Fetch ALL pending bets for this session
         const { data: allBets } = await supabase
@@ -180,8 +182,12 @@ export async function GET(request: NextRequest) {
         const betStats = {
             singleCount: targetBets.filter(b => b.category === 'single').length,
             singleAmount: targetBets.filter(b => b.category === 'single').reduce((s, b) => s + Number(b.amount), 0),
-            tripleCount: targetBets.filter(b => b.category === 'triple').length,
-            tripleAmount: targetBets.filter(b => b.category === 'triple').reduce((s, b) => s + Number(b.amount), 0),
+            singlePattiCount: targetBets.filter(b => b.category === 'single_patti').length,
+            singlePattiAmount: targetBets.filter(b => b.category === 'single_patti').reduce((s, b) => s + Number(b.amount), 0),
+            doublePattiCount: targetBets.filter(b => b.category === 'double_patti').length,
+            doublePattiAmount: targetBets.filter(b => b.category === 'double_patti').reduce((s, b) => s + Number(b.amount), 0),
+            triplePattiCount: targetBets.filter(b => b.category === 'triple_patti').length,
+            triplePattiAmount: targetBets.filter(b => b.category === 'triple_patti').reduce((s, b) => s + Number(b.amount), 0),
             jodiCount: targetBets.filter(b => b.category === 'jodi').length,
             jodiAmount: targetBets.filter(b => b.category === 'jodi').reduce((s, b) => s + Number(b.amount), 0),
             totalPending: targetBets.length,
@@ -190,8 +196,10 @@ export async function GET(request: NextRequest) {
         // ==========================================
         // PRE-AGGREGATE BET DATA for O(1) lookups
         // ==========================================
-        // triple bets by number + target
-        const tripleBetMap = new Map<string, number>()
+        // patti bets by number + target (each patti type separate)
+        const singlePattiBetMap = new Map<string, number>()
+        const doublePattiBetMap = new Map<string, number>()
+        const triplePattiBetMap = new Map<string, number>()
         // single bets by number + target
         const singleBetMap = new Map<string, number>()
         // jodi bets by number
@@ -199,8 +207,12 @@ export async function GET(request: NextRequest) {
 
         for (const b of bets) {
             const amt = Number(b.amount)
-            if (b.category === 'triple' && b.target === target) {
-                tripleBetMap.set(b.selected_number, (tripleBetMap.get(b.selected_number) || 0) + amt)
+            if (b.category === 'single_patti' && b.target === target) {
+                singlePattiBetMap.set(b.selected_number, (singlePattiBetMap.get(b.selected_number) || 0) + amt)
+            } else if (b.category === 'double_patti' && b.target === target) {
+                doublePattiBetMap.set(b.selected_number, (doublePattiBetMap.get(b.selected_number) || 0) + amt)
+            } else if (b.category === 'triple_patti' && b.target === target) {
+                triplePattiBetMap.set(b.selected_number, (triplePattiBetMap.get(b.selected_number) || 0) + amt)
             } else if (b.category === 'single' && b.target === target) {
                 singleBetMap.set(b.selected_number, (singleBetMap.get(b.selected_number) || 0) + amt)
             } else if (b.category === 'jodi' && b.target === 'jodi_full') {
@@ -209,86 +221,102 @@ export async function GET(request: NextRequest) {
         }
 
         // ==========================================
-        // CALCULATE ALL 1000 TRIPLES
+        // CALCULATE ALL 220 VALID PATTIS
         // ==========================================
         const results: any[] = []
 
-        for (let i = 0; i < 1000; i++) {
-            const triple = i.toString().padStart(3, '0')
-            const singleDigit = calculateSingle(triple)
-            const single = singleDigit.toString()
+        // Iterate over all 220 valid pattis from the master data
+        for (const pattiType of PATTI_CATEGORIES) {
+            const groups = PATTI_NUMBERS[pattiType]
+            for (const [singleDigit, pattis] of Object.entries(groups)) {
+                for (const patti of pattis) {
+                    const single = singleDigit
 
-            // 1. Triple liability
-            const tripleBetAmt = tripleBetMap.get(triple) || 0
-            const tripleLiab = tripleBetAmt * payoutTriple
+                    // 1. Single Patti liability for this specific number
+                    const spBetAmt = singlePattiBetMap.get(patti) || 0
+                    const spLiab = spBetAmt * payoutSinglePatti
 
-            // 2. Single liability
-            const singleBetAmt = singleBetMap.get(single) || 0
-            const singleLiab = singleBetAmt * payoutSingle
+                    // 2. Double Patti liability for this specific number
+                    const dpBetAmt = doublePattiBetMap.get(patti) || 0
+                    const dpLiab = dpBetAmt * payoutDoublePatti
 
-            // 3. Jodi liability + exposed jodi numbers
-            let jodiBetAmt = 0
-            let jodiLiab = 0
-            const jodiNumbers: string[] = []
+                    // 3. Triple Patti liability for this specific number
+                    const tpBetAmt = triplePattiBetMap.get(patti) || 0
+                    const tpLiab = tpBetAmt * payoutTriplePatti
 
-            if (target === 'open') {
-                // Open: jodi could be single + any close digit (0-9)
-                // Liability = MAX jodi bet (worst-case exposure per SRS)
-                let maxJodiAmt = 0
-                for (let c = 0; c <= 9; c++) {
-                    const potentialJodi = single + c.toString()
-                    jodiNumbers.push(potentialJodi)
-                    const jAmt = jodiBetMap.get(potentialJodi) || 0
-                    jodiBetAmt += jAmt
-                    if (jAmt > maxJodiAmt) {
-                        maxJodiAmt = jAmt
+                    // 4. Single liability
+                    const singleBetAmt = singleBetMap.get(single) || 0
+                    const singleLiab = singleBetAmt * payoutSingle
+
+                    // 5. Jodi liability + exposed jodi numbers
+                    let jodiBetAmt = 0
+                    let jodiLiab = 0
+                    const jodiNumbers: string[] = []
+
+                    if (target === 'open') {
+                        // Open: jodi could be single + any close digit (0-9)
+                        // Liability = MAX jodi bet (worst-case exposure per SRS)
+                        let maxJodiAmt = 0
+                        for (let c = 0; c <= 9; c++) {
+                            const potentialJodi = single + c.toString()
+                            jodiNumbers.push(potentialJodi)
+                            const jAmt = jodiBetMap.get(potentialJodi) || 0
+                            jodiBetAmt += jAmt
+                            if (jAmt > maxJodiAmt) {
+                                maxJodiAmt = jAmt
+                            }
+                        }
+                        jodiLiab = maxJodiAmt * payoutJodi
+                    } else if (target === 'close' && session.open_single) {
+                        // Close: exact jodi = open_single + derived single
+                        const exactJodi = session.open_single + single
+                        jodiNumbers.push(exactJodi)
+                        jodiBetAmt = jodiBetMap.get(exactJodi) || 0
+                        jodiLiab = jodiBetAmt * payoutJodi
+                    } else if (target === 'close' && !session.open_single) {
+                        // Close but open not declared yet: all jodis ending with this single
+                        let maxJodiAmt = 0
+                        for (let o = 0; o <= 9; o++) {
+                            const potentialJodi = o.toString() + single
+                            jodiNumbers.push(potentialJodi)
+                            const jAmt = jodiBetMap.get(potentialJodi) || 0
+                            jodiBetAmt += jAmt
+                            if (jAmt > maxJodiAmt) {
+                                maxJodiAmt = jAmt
+                            }
+                        }
+                        jodiLiab = maxJodiAmt * payoutJodi
                     }
+
+                    const totalLiability = spLiab + dpLiab + tpLiab + singleLiab + jodiLiab
+                    const totalBetsAmt = spBetAmt + dpBetAmt + tpBetAmt + singleBetAmt + jodiBetAmt
+
+                    const payoutPercentage = targetCollection > 0
+                        ? (totalLiability / targetCollection) * 100
+                        : 0
+
+                    results.push({
+                        triple: patti,
+                        pattiType,
+                        single: parseInt(single),
+                        totalBets: totalBetsAmt,
+                        totalLiability,
+                        payoutPercentage: Math.round(payoutPercentage * 100) / 100,
+                        profitPercentage: Math.round((100 - payoutPercentage) * 100) / 100,
+                        singlePattiBets: spBetAmt,
+                        singlePattiLiability: spLiab,
+                        doublePattiBets: dpBetAmt,
+                        doublePattiLiability: dpLiab,
+                        triplePattiBets: tpBetAmt,
+                        triplePattiLiability: tpLiab,
+                        singleBets: singleBetAmt,
+                        singleLiability: singleLiab,
+                        jodiBets: jodiBetAmt,
+                        jodiLiability: jodiLiab,
+                        jodiNumbers,
+                    })
                 }
-                jodiLiab = maxJodiAmt * payoutJodi
-            } else if (target === 'close' && session.open_single) {
-                // Close: exact jodi = open_single + derived single
-                const exactJodi = session.open_single + single
-                jodiNumbers.push(exactJodi)
-                jodiBetAmt = jodiBetMap.get(exactJodi) || 0
-                jodiLiab = jodiBetAmt * payoutJodi
-            } else if (target === 'close' && !session.open_single) {
-                // Close but open not declared yet: all jodis ending with this single
-                // Liability = MAX jodi bet (worst-case exposure per SRS)
-                let maxJodiAmt = 0
-                for (let o = 0; o <= 9; o++) {
-                    const potentialJodi = o.toString() + single
-                    jodiNumbers.push(potentialJodi)
-                    const jAmt = jodiBetMap.get(potentialJodi) || 0
-                    jodiBetAmt += jAmt
-                    if (jAmt > maxJodiAmt) {
-                        maxJodiAmt = jAmt
-                    }
-                }
-                jodiLiab = maxJodiAmt * payoutJodi
             }
-
-            const totalLiability = tripleLiab + singleLiab + jodiLiab
-            const totalBetsAmt = tripleBetAmt + singleBetAmt + jodiBetAmt
-
-            const payoutPercentage = targetCollection > 0
-                ? (totalLiability / targetCollection) * 100
-                : 0
-
-            results.push({
-                triple,
-                single: singleDigit,
-                totalBets: totalBetsAmt,
-                totalLiability,
-                payoutPercentage: Math.round(payoutPercentage * 100) / 100,
-                profitPercentage: Math.round((100 - payoutPercentage) * 100) / 100,
-                tripleBets: tripleBetAmt,
-                tripleLiability: tripleLiab,
-                singleBets: singleBetAmt,
-                singleLiability: singleLiab,
-                jodiBets: jodiBetAmt,
-                jodiLiability: jodiLiab,
-                jodiNumbers,
-            })
         }
 
         // ==========================================
@@ -315,9 +343,9 @@ export async function GET(request: NextRequest) {
         const percentile20Count = Math.max(Math.ceil(sortedByBets.length * 0.2), 1)
         const lowBets = sortedByBets.slice(0, percentile20Count)
 
-        // List 4: GHOST NUMBERS — no bets at all on triple, single, AND jodi
-        // Only show triples where declaring them would cause ZERO payout
-        const noBets = results.filter(r => r.tripleBets === 0 && r.singleBets === 0 && r.jodiBets === 0)
+        // List 4: GHOST NUMBERS — no bets at all on patti, single, AND jodi
+        // Only show pattis where declaring them would cause ZERO payout
+        const noBets = results.filter(r => r.singlePattiBets === 0 && r.doublePattiBets === 0 && r.triplePattiBets === 0 && r.singleBets === 0 && r.jodiBets === 0)
 
         // Optional: lookup a specific triple for Manual tab
         const lookupResult = lookupTriple ? results.find(r => r.triple === lookupTriple.padStart(3, '0')) || null : null
@@ -450,11 +478,7 @@ export async function GET(request: NextRequest) {
             wonCount: number
             lostCount: number
             pendingCount: number
-            categories: {
-                single: CategoryBreakdown
-                triple: CategoryBreakdown
-                jodi: CategoryBreakdown
-            }
+            categories: Record<string, CategoryBreakdown>
         }
 
         interface SessionBreakdown {
@@ -483,7 +507,7 @@ export async function GET(request: NextRequest) {
 
         const emptyTarget = (): TargetBreakdown => ({
             collection: 0, payout: 0, profit: 0, betCount: 0, wonCount: 0, lostCount: 0, pendingCount: 0,
-            categories: { single: emptyCat(), triple: emptyCat(), jodi: emptyCat() }
+            categories: { single: emptyCat(), single_patti: emptyCat(), double_patti: emptyCat(), triple_patti: emptyCat(), jodi: emptyCat() }
         })
 
         const emptySession = (): SessionBreakdown => ({
@@ -532,8 +556,9 @@ export async function GET(request: NextRequest) {
             else if (bet.status === 'lost') targetBucket.lostCount++
             else targetBucket.pendingCount++
 
-            // Category-level breakdown (single/triple/jodi within target)
-            const cat = targetBucket.categories[bet.category as 'single' | 'triple' | 'jodi']
+            // Category-level breakdown (single/patti types/jodi within target)
+            const catKey = bet.category as string
+            const cat = (targetBucket.categories as Record<string, any>)[catKey]
             if (cat) {
                 cat.collection += amt
                 cat.payout += winAmt

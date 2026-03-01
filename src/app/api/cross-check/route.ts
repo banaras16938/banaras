@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
-import { GameConfig } from '@/types/types'
+import { SessionType, GameConfig, getPattiType } from '@/types/types'
 
 // Derive single from a triple: sum digits, take rightmost
-function deriveSingle(triple: string): string {
+function calculateSingle(triple: string): string {
     const sum = triple.split('').reduce((s, d) => s + parseInt(d), 0)
     return (sum % 10).toString()
 }
@@ -11,20 +11,21 @@ function deriveSingle(triple: string): string {
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const triple = searchParams.get('triple')
-    const session = searchParams.get('session') // 'morning' | 'night'
-    const target = searchParams.get('target')   // 'open' | 'close'
+    const sessionParam = searchParams.get('session')
+    const target = searchParams.get('target')
     const date = searchParams.get('date') || new Date().toISOString().split('T')[0]
 
     if (!triple || triple.length !== 3 || !/^\d{3}$/.test(triple)) {
         return NextResponse.json({ error: 'A valid 3-digit triple is required' }, { status: 400 })
     }
-    if (!session || !['morning', 'night'].includes(session)) {
+    if (!sessionParam || !['morning', 'night'].includes(sessionParam)) {
         return NextResponse.json({ error: 'Session must be morning or night' }, { status: 400 })
     }
     if (!target || !['open', 'close'].includes(target)) {
         return NextResponse.json({ error: 'Target must be open or close' }, { status: 400 })
     }
 
+    const session = sessionParam as SessionType
     const supabase = await createClient()
 
     // Auth check
@@ -42,43 +43,8 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        const derivedSingle = deriveSingle(triple)
-
-        // Get game session for this date + session
-        const { data: gameSession } = await supabase
-            .from('game_sessions')
-            .select('id, open_single, close_single, jodi_result, open_triple, close_triple')
-            .eq('game_date', date)
-            .eq('session_name', session)
-            .single()
-
-        const sessionId = gameSession?.id
-
-        // Determine jodi exposure
-        let jodiNumbers: string[] = []
-        let jodiNote = ''
-
-        if (target === 'open') {
-            // If we pick this as open triple, single = derivedSingle
-            // Jodi could be derivedSingle + any close digit (0-9)
-            for (let i = 0; i <= 9; i++) {
-                jodiNumbers.push(derivedSingle + i.toString())
-            }
-            jodiNote = `Jodi exposure: ${derivedSingle}0 - ${derivedSingle}9`
-        } else {
-            // Close: if open_single already declared, jodi = open_single + derivedSingle
-            const openSingle = gameSession?.open_single
-            if (openSingle) {
-                jodiNumbers = [openSingle + derivedSingle]
-                jodiNote = `Exact Jodi: ${openSingle}${derivedSingle}`
-            } else {
-                // Open not declared yet, all jodis ending with derivedSingle are at risk
-                for (let i = 0; i <= 9; i++) {
-                    jodiNumbers.push(i.toString() + derivedSingle)
-                }
-                jodiNote = `Jodi exposure: *${derivedSingle} (open not yet declared)`
-            }
-        }
+        const singleDigit = calculateSingle(triple)
+        const pattiType = getPattiType(triple)
 
         // Get payout config
         const { data: configData, error: configError } = await supabase
@@ -88,194 +54,179 @@ export async function GET(request: NextRequest) {
         if (configError) throw configError
         const config = configData as GameConfig
 
-        // If no session exists yet, return empty results
+        const payoutSingle = Number(config.payout_single || 9)
+        const payoutJodi = Number(config.payout_jodi || 90)
+        const payoutSinglePatti = Number(config.payout_single_patti || 1400)
+        const payoutDoublePatti = Number(config.payout_double_patti || 2800)
+        const payoutTriplePatti = Number(config.payout_triple_patti || 8000)
+
+        // Get game session
+        const { data: gameSession } = await supabase
+            .from('game_sessions')
+            .select('id, open_single, close_single, jodi_result, open_triple, close_triple')
+            .eq('game_date', date)
+            .eq('session_name', session)
+            .single()
+
+        const sessionId = gameSession?.id
+
+        // Empty results if no session
         if (!sessionId) {
             return NextResponse.json({
-                triple,
-                derivedSingle,
-                session,
-                target,
-                date,
-                jodiNumbers,
-                jodiNote,
+                success: true, triple, pattiType: pattiType || 'unknown', single: singleDigit, target, session,
                 totalCollection: 0,
-                categories: {
-                    triple: { bets: [], count: 0, totalAmount: 0, totalLiability: 0, multiplier: config.payout_triple },
-                    single: { bets: [], count: 0, totalAmount: 0, totalLiability: 0, multiplier: config.payout_single },
-                    jodi: { bets: [], count: 0, totalAmount: 0, totalLiability: 0, multiplier: config.payout_jodi },
+                breakdown: {
+                    singlePatti: { bets: 0, amount: 0, liability: 0, multiplier: payoutSinglePatti },
+                    doublePatti: { bets: 0, amount: 0, liability: 0, multiplier: payoutDoublePatti },
+                    triplePatti: { bets: 0, amount: 0, liability: 0, multiplier: payoutTriplePatti },
+                    single: { bets: 0, amount: 0, liability: 0, multiplier: payoutSingle },
+                    jodi: { numbers: [], bets: 0, amount: 0, liability: 0, multiplier: payoutJodi, exposure: [] }
                 },
-                grandTotalLiability: 0,
+                totalLiability: 0, payoutPercentage: 0, profitPercentage: 0,
             })
         }
 
-        // Fetch bets scoped to the selected target for accurate collection
-        // Per SRS: Open target = open + jodi bets (jodi locks with open)
-        //          Close target = close bets only (open/jodi already settled)
-        let collectionQuery = supabase
+        // Determine jodi exposure
+        const jodiNumbers: string[] = []
+        if (target === 'open') {
+            for (let i = 0; i <= 9; i++) jodiNumbers.push(singleDigit + i.toString())
+        } else {
+            const openSingle = gameSession?.open_single
+            if (openSingle) {
+                jodiNumbers.push(openSingle + singleDigit)
+            } else {
+                for (let i = 0; i <= 9; i++) jodiNumbers.push(i.toString() + singleDigit)
+            }
+        }
+
+        // Total collection for this session
+        const { data: sessionBets } = await supabase
             .from('bets')
             .select('amount')
             .eq('game_session_id', sessionId)
+            .eq('status', 'pending')
+        const totalCollection = (sessionBets || []).reduce((s: number, b: any) => s + Number(b.amount), 0)
 
-        if (target === 'open') {
-            // Open collection = open single/triple bets + jodi bets
-            collectionQuery = collectionQuery.in('target', ['open', 'jodi_full'])
-        } else {
-            // Close collection = close single/triple bets only
-            collectionQuery = collectionQuery.eq('target', 'close')
-        }
-
-        const { data: allBets } = await collectionQuery
-
-        const totalCollection = (allBets || []).reduce((s: number, b: any) => s + Number(b.amount), 0)
-
-        // Fetch TRIPLE bets matching the entered triple
-        const { data: tripleBets } = await supabase
+        // Fetch patti bets for this number
+        const { data: pattiBets } = await supabase
             .from('bets')
-            .select(`
-                id, amount, created_at, target, selected_number,
-                profiles!inner(name),
-                players!inner(name)
-            `)
+            .select('id, amount, category, selected_number, target')
             .eq('game_session_id', sessionId)
-            .eq('category', 'triple')
-            .eq('target', target)
             .eq('selected_number', triple)
+            .eq('target', target)
+            .in('category', ['single_patti', 'double_patti', 'triple_patti'])
             .eq('status', 'pending')
 
-        // Fetch SINGLE bets matching the derived single 
+        const spBets = (pattiBets || []).filter((b: any) => b.category === 'single_patti')
+        const dpBets = (pattiBets || []).filter((b: any) => b.category === 'double_patti')
+        const tpBets = (pattiBets || []).filter((b: any) => b.category === 'triple_patti')
+
+        const spAmount = spBets.reduce((s: number, b: any) => s + Number(b.amount), 0)
+        const spLiability = spAmount * payoutSinglePatti
+        const dpAmount = dpBets.reduce((s: number, b: any) => s + Number(b.amount), 0)
+        const dpLiability = dpAmount * payoutDoublePatti
+        const tpAmount = tpBets.reduce((s: number, b: any) => s + Number(b.amount), 0)
+        const tpLiability = tpAmount * payoutTriplePatti
+
+        // Fetch single bets
         const { data: singleBets } = await supabase
             .from('bets')
-            .select(`
-                id, amount, created_at, target, selected_number,
-                profiles!inner(name),
-                players!inner(name)
-            `)
+            .select('id, amount')
             .eq('game_session_id', sessionId)
             .eq('category', 'single')
             .eq('target', target)
-            .eq('selected_number', derivedSingle)
+            .eq('selected_number', singleDigit)
             .eq('status', 'pending')
 
-        // Fetch JODI bets matching exposed jodi numbers
+        const singleAmount = (singleBets || []).reduce((s: number, b: any) => s + Number(b.amount), 0)
+        const singleLiability = singleAmount * payoutSingle
+
+        // Fetch jodi bets
         const { data: jodiBets } = await supabase
             .from('bets')
-            .select(`
-                id, amount, created_at, target, selected_number,
-                profiles!inner(name),
-                players!inner(name)
-            `)
+            .select('id, amount, selected_number')
             .eq('game_session_id', sessionId)
             .eq('category', 'jodi')
             .eq('target', 'jodi_full')
-            .in('selected_number', jodiNumbers)
+            .in('selected_number', jodiNumbers.length > 0 ? jodiNumbers : ['__none__'])
             .eq('status', 'pending')
 
-        // Format bets helper
-        const formatBets = (bets: any[], multiplier: number) =>
-            (bets || []).map((b: any) => ({
-                id: b.id,
-                staffName: b.profiles.name,
-                playerName: b.players.name,
-                amount: Number(b.amount),
-                selectedNumber: b.selected_number,
-                target: b.target,
-                createdAt: b.created_at,
-                potentialPayout: Number(b.amount) * multiplier,
-            }))
-
-        const tripleFormatted = formatBets(tripleBets || [], config.payout_triple)
-        const singleFormatted = formatBets(singleBets || [], config.payout_single)
-        const jodiFormatted = formatBets(jodiBets || [], config.payout_jodi)
-
-        const sumAmount = (bets: any[]) => bets.reduce((s: number, b: any) => s + b.amount, 0)
-        const sumLiability = (bets: any[]) => bets.reduce((s: number, b: any) => s + b.potentialPayout, 0)
-
-        // For Open target: liability = MAX jodi bet (worst-case exposure per SRS)
-        // For Close target: exact single jodi, so full liability applies
-        let jodiLiability = sumLiability(jodiFormatted)
-        let worstJodi: string | null = null
-        let jodiBreakdown: { number: string; bets: number; amount: number; liability: number }[] = []
+        let jodiLiability = 0
+        let jodiExposure: { number: string; bets: number; amount: number; liability: number }[] = []
 
         if (target === 'open' && jodiNumbers.length > 1) {
-            // Group jodi bets by selected number and find the one with maximum total bet
             const jodiByNumber = new Map<string, number>()
-            for (const jn of jodiNumbers) {
-                jodiByNumber.set(jn, 0)
-            }
-            for (const bet of jodiFormatted) {
-                const current = jodiByNumber.get(bet.selectedNumber) || 0
-                jodiByNumber.set(bet.selectedNumber, current + bet.amount)
+            for (const jn of jodiNumbers) jodiByNumber.set(jn, 0)
+            for (const bet of (jodiBets || [])) {
+                const current = jodiByNumber.get(bet.selected_number) || 0
+                jodiByNumber.set(bet.selected_number, current + Number(bet.amount))
             }
 
-            // Build breakdown for all jodis
-            jodiBreakdown = jodiNumbers.map(jn => {
+            jodiExposure = jodiNumbers.map(jn => {
                 const amt = jodiByNumber.get(jn) || 0
                 return {
                     number: jn,
-                    bets: jodiFormatted.filter(b => b.selectedNumber === jn).length,
+                    bets: (jodiBets || []).filter((b: any) => b.selected_number === jn).length,
                     amount: amt,
-                    liability: amt * config.payout_jodi,
+                    liability: amt * payoutJodi,
                 }
             })
 
-            // Find the jodi with maximum bet amount (worst-case exposure)
             let maxAmount = 0
             for (const jn of jodiNumbers) {
                 const amt = jodiByNumber.get(jn) || 0
-                if (amt > maxAmount) {
-                    maxAmount = amt
-                    worstJodi = jn
-                }
+                if (amt > maxAmount) maxAmount = amt
             }
-
-            // Jodi liability = the maximum jodi's liability (worst-case exposure for admin)
-            jodiLiability = maxAmount * config.payout_jodi
+            jodiLiability = maxAmount * payoutJodi
+        } else {
+            jodiLiability = (jodiBets || []).reduce((s: number, b: any) => s + Number(b.amount), 0) * payoutJodi
+            jodiExposure = jodiNumbers.map(jn => {
+                const betsForJodi = (jodiBets || []).filter((b: any) => b.selected_number === jn)
+                const amountForJodi = betsForJodi.reduce((s: number, b: any) => s + Number(b.amount), 0)
+                return {
+                    number: jn,
+                    bets: betsForJodi.length,
+                    amount: amountForJodi,
+                    liability: amountForJodi * payoutJodi,
+                }
+            })
         }
 
-        const categories = {
-            triple: {
-                bets: tripleFormatted,
-                count: tripleFormatted.length,
-                totalAmount: sumAmount(tripleFormatted),
-                totalLiability: sumLiability(tripleFormatted),
-                multiplier: config.payout_triple,
-            },
-            single: {
-                bets: singleFormatted,
-                count: singleFormatted.length,
-                totalAmount: sumAmount(singleFormatted),
-                totalLiability: sumLiability(singleFormatted),
-                multiplier: config.payout_single,
-            },
-            jodi: {
-                bets: jodiFormatted,
-                count: jodiFormatted.length,
-                totalAmount: sumAmount(jodiFormatted),
-                totalLiability: jodiLiability,
-                multiplier: config.payout_jodi,
-                worstJodi,
-                jodiBreakdown,
-            },
-        }
-
-        const grandTotalLiability =
-            categories.triple.totalLiability +
-            categories.single.totalLiability +
-            categories.jodi.totalLiability
+        const totalPattiLiability = spLiability + dpLiability + tpLiability
+        const totalLiability = totalPattiLiability + singleLiability + jodiLiability
+        const payoutPercentage = totalCollection > 0 ? (totalLiability / totalCollection) * 100 : 0
 
         return NextResponse.json({
+            success: true,
             triple,
-            derivedSingle,
-            session,
+            pattiType: pattiType || 'unknown',
+            single: singleDigit,
             target,
-            date,
-            jodiNumbers,
-            jodiNote,
+            session,
             totalCollection,
-            categories,
-            grandTotalLiability,
+            breakdown: {
+                singlePatti: {
+                    bets: spBets.length, amount: spAmount, liability: spLiability, multiplier: payoutSinglePatti,
+                },
+                doublePatti: {
+                    bets: dpBets.length, amount: dpAmount, liability: dpLiability, multiplier: payoutDoublePatti,
+                },
+                triplePatti: {
+                    bets: tpBets.length, amount: tpAmount, liability: tpLiability, multiplier: payoutTriplePatti,
+                },
+                single: {
+                    bets: (singleBets || []).length, amount: singleAmount, liability: singleLiability, multiplier: payoutSingle,
+                },
+                jodi: {
+                    numbers: jodiNumbers, bets: jodiExposure.length,
+                    amount: jodiExposure.reduce((s, j) => s + j.amount, 0),
+                    liability: jodiLiability, multiplier: payoutJodi, exposure: jodiExposure,
+                }
+            },
+            totalLiability,
+            payoutPercentage: Math.round(payoutPercentage * 100) / 100,
+            profitPercentage: Math.round((100 - payoutPercentage) * 100) / 100,
         })
-
     } catch (error) {
         console.error('Cross-check API Error:', error)
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
