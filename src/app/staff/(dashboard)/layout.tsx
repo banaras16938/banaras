@@ -50,12 +50,12 @@ export default function StaffLayout({ children }: { children: ReactNode }) {
         fetchStaffInfo()
     }, [])
 
-    const handleLogout = async () => {
+    const handleLogout = () => {
         const supabase = createClient()
-        await supabase.auth.signOut()
+        // Fire signOut in background — don't block UI
+        supabase.auth.signOut()
         toast.success('Logged out successfully')
         router.push('/staff/login')
-        router.refresh()
     }
 
     return (

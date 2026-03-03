@@ -87,8 +87,8 @@ export function Sidebar({ title, subtitle, logoSrc, links, onLogout, isOpen = tr
                     )}
                 </div>
 
-                {/* Navigation Links */}
-                <nav className="flex-1 flex flex-col gap-2">
+                {/* Navigation Links — scrollable if overflow */}
+                <nav className="flex-1 flex flex-col gap-2 overflow-y-auto min-h-0">
                     {links.map((link) => {
                         const Icon = link.icon
                         const isActive = pathname === link.href
@@ -114,11 +114,11 @@ export function Sidebar({ title, subtitle, logoSrc, links, onLogout, isOpen = tr
                     })}
                 </nav>
 
-                {/* Logout Button */}
+                {/* Logout Button — always visible at bottom */}
                 {onLogout && (
                     <button
                         onClick={onLogout}
-                        className="flex items-center gap-3 px-4 py-3 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors mt-auto"
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors mt-4 shrink-0"
                     >
                         <LogOut size={20} />
                         <span>Logout</span>
