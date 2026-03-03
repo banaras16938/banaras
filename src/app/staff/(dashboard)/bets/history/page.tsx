@@ -256,7 +256,7 @@ export default function BetHistoryPage() {
             </div>
 
             {/* Per Game Type Summary */}
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
                 {gameTypeStats.map(gt => {
                     const borderColor = gt.color === 'blue' ? 'border-blue-500/30' :
                         gt.color === 'purple' ? 'border-purple-500/30' :
@@ -271,20 +271,18 @@ export default function BetHistoryPage() {
                                     gt.color === 'red' ? 'bg-red-500' :
                                         'bg-amber-500'
                     return (
-                        <div key={gt.key} className={`bg-gray-800/80 border rounded-xl p-3 overflow-hidden relative ${borderColor}`}>
+                        <div key={gt.key} className={`bg-gray-800/80 border rounded-xl p-2.5 overflow-hidden relative ${borderColor}`}>
                             {/* Top accent strip */}
                             <div className={`absolute top-0 left-0 right-0 h-0.5 ${stripColor}`} />
-                            <div className="mb-2">
-                                <span className="text-xs font-semibold text-white">{gt.label}</span>
-                            </div>
-                            <div className="space-y-1">
+                            <p className="text-xs font-semibold text-white mb-1.5">{gt.label}</p>
+                            <div className="space-y-0.5">
                                 <div className="flex justify-between items-center">
                                     <span className="text-[10px] text-gray-500">Bets</span>
-                                    <span className="text-xs font-bold text-white font-mono">{gt.count}</span>
+                                    <span className="text-[11px] font-bold text-white font-mono">{gt.count}</span>
                                 </div>
                                 <div className="flex justify-between items-center">
-                                    <span className="text-[10px] text-gray-500">Amount</span>
-                                    <span className="text-xs font-bold text-white font-mono">₹{gt.amount.toLocaleString()}</span>
+                                    <span className="text-[10px] text-gray-500">Amt</span>
+                                    <span className="text-[11px] font-bold text-white font-mono truncate ml-1">₹{gt.amount.toLocaleString()}</span>
                                 </div>
                             </div>
                         </div>
@@ -304,9 +302,9 @@ export default function BetHistoryPage() {
                     <span className="flex items-center justify-center gap-2">
                         <Clock size={15} />
                         Positions
-                        {positions.length > 0 && (
+                        {(mainTab === 'positions' ? filteredBets.length : positions.length) > 0 && (
                             <span className="bg-cyan-500/30 text-cyan-300 text-xs px-1.5 py-0.5 rounded-full font-mono">
-                                {positions.length}
+                                {mainTab === 'positions' ? filteredBets.length : positions.length}
                             </span>
                         )}
                     </span>
@@ -321,9 +319,9 @@ export default function BetHistoryPage() {
                     <span className="flex items-center justify-center gap-2">
                         <Trophy size={15} />
                         Orders
-                        {orders.length > 0 && (
+                        {(mainTab === 'orders' ? filteredBets.length : orders.length) > 0 && (
                             <span className="bg-indigo-500/30 text-indigo-300 text-xs px-1.5 py-0.5 rounded-full font-mono">
-                                {orders.length}
+                                {mainTab === 'orders' ? filteredBets.length : orders.length}
                             </span>
                         )}
                     </span>
