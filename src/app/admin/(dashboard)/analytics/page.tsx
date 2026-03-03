@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Card, CardHeader } from '@/components/ui'
 import { Badge } from '@/components/ui/Badge'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
@@ -18,7 +18,12 @@ import {
     ChevronDown,
     ChevronUp,
     IndianRupee,
-    List
+    List,
+    Search,
+    ArrowUpDown,
+    SlidersHorizontal,
+    Sun,
+    Moon
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -461,77 +466,13 @@ export default function HisabKitabPage() {
 
                                             {/* Bets Toggle */}
                                             {staff.bets.length > 0 && (
-                                                <div className="border-t border-gray-700">
-                                                    <button
-                                                        onClick={() => toggleBets(staff.staffId)}
-                                                        className="w-full px-4 py-3 flex items-center justify-between text-xs hover:bg-gray-700/30 transition-colors"
-                                                    >
-                                                        <span className="flex items-center gap-2 text-gray-400">
-                                                            <List size={14} />
-                                                            All Bets ({staff.bets.length})
-                                                        </span>
-                                                        {isBetsVisible ? (
-                                                            <ChevronUp size={14} className="text-gray-500" />
-                                                        ) : (
-                                                            <ChevronDown size={14} className="text-gray-500" />
-                                                        )}
-                                                    </button>
-
-                                                    {isBetsVisible && (
-                                                        <div className="overflow-x-auto">
-                                                            <table className="w-full text-left border-collapse">
-                                                                <thead>
-                                                                    <tr className="border-b border-gray-700 text-gray-500 text-[11px] uppercase">
-                                                                        <th className="px-4 py-2 font-medium">Player</th>
-                                                                        <th className="px-4 py-2 font-medium">Type</th>
-                                                                        <th className="px-4 py-2 font-medium">No.</th>
-                                                                        <th className="px-4 py-2 font-medium text-right">Amount</th>
-                                                                        <th className="px-4 py-2 font-medium text-right">Result</th>
-                                                                        <th className="px-4 py-2 font-medium text-right">Time</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody className="divide-y divide-gray-700/50">
-                                                                    {staff.bets.map(bet => (
-                                                                        <tr key={bet.id} className="hover:bg-white/5 transition-colors text-xs">
-                                                                            <td className="px-4 py-2.5 text-gray-300 max-w-[100px] truncate">{bet.playerName}</td>
-                                                                            <td className="px-4 py-2.5">
-                                                                                <div className="flex items-center gap-1.5">
-                                                                                    <Badge
-                                                                                        variant={
-                                                                                            bet.category === 'jodi' ? 'default' :
-                                                                                                bet.category === 'single' ? 'info' :
-                                                                                                    'warning'
-                                                                                        }
-                                                                                        className="text-[10px] px-1.5 py-0.5"
-                                                                                    >
-                                                                                        {bet.category.charAt(0).toUpperCase() + bet.category.slice(1)}
-                                                                                    </Badge>
-                                                                                    <span className="text-gray-600 text-[10px]">
-                                                                                        {bet.target === 'jodi_full' ? 'J' : bet.target === 'open' ? 'O' : 'C'}
-                                                                                    </span>
-                                                                                </div>
-                                                                            </td>
-                                                                            <td className="px-4 py-2.5 font-mono font-bold text-white">{bet.selectedNumber}</td>
-                                                                            <td className="px-4 py-2.5 text-right font-mono font-bold text-white">{fmt(bet.amount)}</td>
-                                                                            <td className="px-4 py-2.5 text-right">
-                                                                                {bet.status === 'won' ? (
-                                                                                    <span className="font-mono font-bold text-emerald-400">+{fmt(bet.winningAmount)}</span>
-                                                                                ) : bet.status === 'lost' ? (
-                                                                                    <span className="text-red-400">Lost</span>
-                                                                                ) : (
-                                                                                    <span className="text-amber-400">Pending</span>
-                                                                                )}
-                                                                            </td>
-                                                                            <td className="px-4 py-2.5 text-right text-gray-500 font-mono">
-                                                                                {new Date(bet.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                                            </td>
-                                                                        </tr>
-                                                                    ))}
-                                                                </tbody>
-                                                            </table>
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                <BetsSection
+                                                    bets={staff.bets}
+                                                    staffId={staff.staffId}
+                                                    isBetsVisible={isBetsVisible}
+                                                    toggleBets={toggleBets}
+                                                    fmt={fmt}
+                                                />
                                             )}
                                         </div>
                                     )}
@@ -795,6 +736,258 @@ function CategoryRow({
                     </button>
                 )}
             </div>
+        </div>
+    )
+}
+
+// ==========================================
+// Bets Section with Search, Filter & Sort
+// ==========================================
+type SortField = 'playerName' | 'category' | 'selectedNumber' | 'amount' | 'status' | 'sessionName' | 'createdAt'
+type SortDir = 'asc' | 'desc'
+
+function BetsSection({
+    bets, staffId, isBetsVisible, toggleBets, fmt
+}: {
+    bets: BetDetail[]
+    staffId: string
+    isBetsVisible: boolean
+    toggleBets: (id: string) => void
+    fmt: (n: number) => string
+}) {
+    const [search, setSearch] = useState('')
+    const [filterSession, setFilterSession] = useState<'all' | 'morning' | 'night'>('all')
+    const [filterCategory, setFilterCategory] = useState<string>('all')
+    const [filterStatus, setFilterStatus] = useState<string>('all')
+    const [sortField, setSortField] = useState<SortField>('createdAt')
+    const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+    const toggleSort = (field: SortField) => {
+        if (sortField === field) {
+            setSortDir(prev => prev === 'asc' ? 'desc' : 'asc')
+        } else {
+            setSortField(field)
+            setSortDir('asc')
+        }
+    }
+
+    const filteredBets = useMemo(() => {
+        let result = bets
+
+        // Search
+        if (search) {
+            const q = search.toLowerCase()
+            result = result.filter(b =>
+                b.playerName.toLowerCase().includes(q) ||
+                b.selectedNumber.includes(q)
+            )
+        }
+
+        // Filters
+        if (filterSession !== 'all') {
+            result = result.filter(b => b.sessionName === filterSession)
+        }
+        if (filterCategory !== 'all') {
+            result = result.filter(b => b.category === filterCategory)
+        }
+        if (filterStatus !== 'all') {
+            result = result.filter(b => b.status === filterStatus)
+        }
+
+        // Sort
+        result = [...result].sort((a, b) => {
+            let cmp = 0
+            switch (sortField) {
+                case 'playerName': cmp = a.playerName.localeCompare(b.playerName); break
+                case 'category': cmp = a.category.localeCompare(b.category); break
+                case 'selectedNumber': cmp = a.selectedNumber.localeCompare(b.selectedNumber); break
+                case 'amount': cmp = a.amount - b.amount; break
+                case 'status': cmp = a.status.localeCompare(b.status); break
+                case 'sessionName': cmp = a.sessionName.localeCompare(b.sessionName); break
+                case 'createdAt': cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(); break
+            }
+            return sortDir === 'asc' ? cmp : -cmp
+        })
+
+        return result
+    }, [bets, search, filterSession, filterCategory, filterStatus, sortField, sortDir])
+
+    const categoryLabel = (cat: string) => {
+        switch (cat) {
+            case 'single': return 'Single'
+            case 'jodi': return 'Jodi'
+            case 'single_patti': return 'SP'
+            case 'double_patti': return 'DP'
+            case 'triple_patti': return 'TP'
+            default: return cat
+        }
+    }
+
+    const SortHeader = ({ field, label, align }: { field: SortField, label: string, align?: string }) => (
+        <th
+            className={`px-3 py-2 font-medium cursor-pointer hover:text-gray-300 transition-colors select-none ${align || ''}`}
+            onClick={() => toggleSort(field)}
+        >
+            <span className="inline-flex items-center gap-1">
+                {label}
+                <ArrowUpDown size={10} className={sortField === field ? 'text-purple-400' : 'text-gray-600'} />
+            </span>
+        </th>
+    )
+
+    return (
+        <div className="border-t border-gray-700">
+            <button
+                onClick={() => toggleBets(staffId)}
+                className="w-full px-4 py-3 flex items-center justify-between text-xs hover:bg-gray-700/30 transition-colors"
+            >
+                <span className="flex items-center gap-2 text-gray-400">
+                    <List size={14} />
+                    All Bets ({bets.length})
+                </span>
+                {isBetsVisible ? (
+                    <ChevronUp size={14} className="text-gray-500" />
+                ) : (
+                    <ChevronDown size={14} className="text-gray-500" />
+                )}
+            </button>
+
+            {isBetsVisible && (
+                <div className="px-3 pb-3 space-y-2">
+                    {/* Search & Filters Row */}
+                    <div className="flex flex-wrap gap-2">
+                        {/* Search */}
+                        <div className="relative flex-1 min-w-[140px]">
+                            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
+                            <input
+                                type="text"
+                                placeholder="Search player or number..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="w-full pl-8 pr-3 py-1.5 bg-gray-900 border border-gray-700 rounded-lg text-xs text-white placeholder-gray-600 focus:border-purple-500 focus:outline-none"
+                            />
+                        </div>
+
+                        {/* Session Filter */}
+                        <select
+                            value={filterSession}
+                            onChange={(e) => setFilterSession(e.target.value as 'all' | 'morning' | 'night')}
+                            className="px-2.5 py-1.5 bg-gray-900 border border-gray-700 rounded-lg text-xs text-white focus:border-purple-500 focus:outline-none"
+                        >
+                            <option value="all">All Sessions</option>
+                            <option value="morning">☀️ Morning</option>
+                            <option value="night">🌙 Night</option>
+                        </select>
+
+                        {/* Category Filter */}
+                        <select
+                            value={filterCategory}
+                            onChange={(e) => setFilterCategory(e.target.value)}
+                            className="px-2.5 py-1.5 bg-gray-900 border border-gray-700 rounded-lg text-xs text-white focus:border-purple-500 focus:outline-none"
+                        >
+                            <option value="all">All Types</option>
+                            <option value="single">Single</option>
+                            <option value="jodi">Jodi</option>
+                            <option value="single_patti">Single Patti</option>
+                            <option value="double_patti">Double Patti</option>
+                            <option value="triple_patti">Triple Patti</option>
+                        </select>
+
+                        {/* Status Filter */}
+                        <select
+                            value={filterStatus}
+                            onChange={(e) => setFilterStatus(e.target.value)}
+                            className="px-2.5 py-1.5 bg-gray-900 border border-gray-700 rounded-lg text-xs text-white focus:border-purple-500 focus:outline-none"
+                        >
+                            <option value="all">All Status</option>
+                            <option value="won">Won</option>
+                            <option value="lost">Lost</option>
+                            <option value="pending">Pending</option>
+                        </select>
+                    </div>
+
+                    {/* Results count */}
+                    <p className="text-[10px] text-gray-600">
+                        Showing {filteredBets.length} of {bets.length} bets
+                    </p>
+
+                    {/* Table */}
+                    <div className="overflow-x-auto rounded-lg border border-gray-700">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-gray-700 text-gray-500 text-[11px] uppercase bg-gray-900/50">
+                                    <SortHeader field="sessionName" label="Session" />
+                                    <SortHeader field="playerName" label="Player" />
+                                    <SortHeader field="category" label="Type" />
+                                    <SortHeader field="selectedNumber" label="No." />
+                                    <SortHeader field="amount" label="Amount" align="text-right" />
+                                    <SortHeader field="status" label="Result" align="text-right" />
+                                    <SortHeader field="createdAt" label="Time" align="text-right" />
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-700/50">
+                                {filteredBets.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={7} className="px-4 py-6 text-center text-gray-600 text-xs">
+                                            No bets match your filters
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    filteredBets.map(bet => (
+                                        <tr key={bet.id} className="hover:bg-white/5 transition-colors text-xs">
+                                            <td className="px-3 py-2">
+                                                {bet.sessionName === 'morning' ? (
+                                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 text-[10px] font-medium">
+                                                        <Sun size={10} />
+                                                        AM
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 text-[10px] font-medium">
+                                                        <Moon size={10} />
+                                                        PM
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="px-3 py-2 text-gray-300 max-w-[100px] truncate">{bet.playerName}</td>
+                                            <td className="px-3 py-2">
+                                                <div className="flex items-center gap-1.5">
+                                                    <Badge
+                                                        variant={
+                                                            bet.category === 'jodi' ? 'default' :
+                                                                bet.category === 'single' ? 'info' :
+                                                                    'warning'
+                                                        }
+                                                        className="text-[10px] px-1.5 py-0.5"
+                                                    >
+                                                        {categoryLabel(bet.category)}
+                                                    </Badge>
+                                                    <span className="text-gray-600 text-[10px]">
+                                                        {bet.target === 'jodi_full' ? 'J' : bet.target === 'open' ? 'O' : 'C'}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="px-3 py-2 font-mono font-bold text-white">{bet.selectedNumber}</td>
+                                            <td className="px-3 py-2 text-right font-mono font-bold text-white">{fmt(bet.amount)}</td>
+                                            <td className="px-3 py-2 text-right">
+                                                {bet.status === 'won' ? (
+                                                    <span className="font-mono font-bold text-emerald-400">+{fmt(bet.winningAmount)}</span>
+                                                ) : bet.status === 'lost' ? (
+                                                    <span className="text-red-400">Lost</span>
+                                                ) : (
+                                                    <span className="text-amber-400">Pending</span>
+                                                )}
+                                            </td>
+                                            <td className="px-3 py-2 text-right text-gray-500 font-mono">
+                                                {new Date(bet.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

@@ -40,18 +40,18 @@ export default function GameSettingsPage() {
     const [config, setConfig] = useState<GameConfig>({
         payout_single: 9,
         payout_jodi: 90,
-        payout_single_patti: 1400,
-        payout_double_patti: 2800,
-        payout_triple_patti: 8000
+        payout_single_patti: 140,
+        payout_double_patti: 280,
+        payout_triple_patti: 800
     })
     const [holidays, setHolidays] = useState<Holiday[]>([])
 
     // Edit states
     const [editingSingle, setEditingSingle] = useState(90)
     const [editingJodi, setEditingJodi] = useState(900)
-    const [editingSP, setEditingSP] = useState(14000)
-    const [editingDP, setEditingDP] = useState(28000)
-    const [editingTP, setEditingTP] = useState(80000)
+    const [editingSP, setEditingSP] = useState(1400)
+    const [editingDP, setEditingDP] = useState(2800)
+    const [editingTP, setEditingTP] = useState(8000)
     const [isSaving, setIsSaving] = useState(false)
 
     // Holiday modal
