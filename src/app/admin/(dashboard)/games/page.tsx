@@ -23,7 +23,9 @@ interface GameSchedule {
 interface GameConfig {
     payout_single: number
     payout_jodi: number
-    payout_triple: number
+    payout_single_patti: number
+    payout_double_patti: number
+    payout_triple_patti: number
 }
 
 interface Holiday {
@@ -38,14 +40,18 @@ export default function GameSettingsPage() {
     const [config, setConfig] = useState<GameConfig>({
         payout_single: 9,
         payout_jodi: 90,
-        payout_triple: 800
+        payout_single_patti: 1400,
+        payout_double_patti: 2800,
+        payout_triple_patti: 8000
     })
     const [holidays, setHolidays] = useState<Holiday[]>([])
 
     // Edit states
     const [editingSingle, setEditingSingle] = useState(90)
     const [editingJodi, setEditingJodi] = useState(900)
-    const [editingTriple, setEditingTriple] = useState(8000)
+    const [editingSP, setEditingSP] = useState(14000)
+    const [editingDP, setEditingDP] = useState(28000)
+    const [editingTP, setEditingTP] = useState(80000)
     const [isSaving, setIsSaving] = useState(false)
 
     // Holiday modal
@@ -84,7 +90,9 @@ export default function GameSettingsPage() {
                     setConfig(data)
                     setEditingSingle(data.payout_single * 10)
                     setEditingJodi(data.payout_jodi * 10)
-                    setEditingTriple(data.payout_triple * 10)
+                    setEditingSP(data.payout_single_patti * 10)
+                    setEditingDP(data.payout_double_patti * 10)
+                    setEditingTP(data.payout_triple_patti * 10)
                 }
             }
 
@@ -113,7 +121,9 @@ export default function GameSettingsPage() {
                 body: JSON.stringify({
                     payout_single: editingSingle / 10,
                     payout_jodi: editingJodi / 10,
-                    payout_triple: editingTriple / 10
+                    payout_single_patti: editingSP / 10,
+                    payout_double_patti: editingDP / 10,
+                    payout_triple_patti: editingTP / 10
                 })
             })
 
@@ -133,7 +143,9 @@ export default function GameSettingsPage() {
     const handleResetPayouts = () => {
         setEditingSingle(config.payout_single * 10)
         setEditingJodi(config.payout_jodi * 10)
-        setEditingTriple(config.payout_triple * 10)
+        setEditingSP(config.payout_single_patti * 10)
+        setEditingDP(config.payout_double_patti * 10)
+        setEditingTP(config.payout_triple_patti * 10)
     }
 
     const handleEditSchedule = (schedule: GameSchedule) => {
@@ -333,16 +345,16 @@ export default function GameSettingsPage() {
                 />
 
                 <div className="space-y-6">
-                    <div className="grid md:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                         <div className="p-4 rounded-lg bg-[var(--bg-surface)] text-center">
                             <p className="text-sm text-gray-200 mb-2">Single (0-9)</p>
                             <div className="flex items-center justify-center gap-2">
-                                <span className="text-gray-200">₹10 →</span>
+                                <span className="text-gray-200 text-xs">₹10 →</span>
                                 <Input
                                     type="number"
                                     value={editingSingle}
                                     onChange={(e) => setEditingSingle(Number(e.target.value))}
-                                    className="w-24 text-center font-bold text-lg text-white"
+                                    className="w-20 text-center font-bold text-lg text-white"
                                 />
                             </div>
                             <p className="text-xs text-gray-200 mt-2">
@@ -353,12 +365,12 @@ export default function GameSettingsPage() {
                         <div className="p-4 rounded-lg bg-[var(--bg-surface)] text-center">
                             <p className="text-sm text-gray-200 mb-2">Jodi (00-99)</p>
                             <div className="flex items-center justify-center gap-2">
-                                <span className="text-gray-200">₹10 →</span>
+                                <span className="text-gray-200 text-xs">₹10 →</span>
                                 <Input
                                     type="number"
                                     value={editingJodi}
                                     onChange={(e) => setEditingJodi(Number(e.target.value))}
-                                    className="w-24 text-center font-bold text-lg text-white"
+                                    className="w-20 text-center font-bold text-lg text-white"
                                 />
                             </div>
                             <p className="text-xs text-gray-200 mt-2">
@@ -366,19 +378,51 @@ export default function GameSettingsPage() {
                             </p>
                         </div>
 
-                        <div className="p-4 rounded-lg bg-[var(--bg-surface)] text-center">
-                            <p className="text-sm text-gray-200 mb-2">Triple (000-999)</p>
+                        <div className="p-4 rounded-lg bg-[var(--bg-surface)] text-center border border-emerald-500/20">
+                            <p className="text-sm text-emerald-400 mb-2 font-medium">Single Patti</p>
                             <div className="flex items-center justify-center gap-2">
-                                <span className="text-gray-200">₹10 →</span>
+                                <span className="text-gray-200 text-xs">₹10 →</span>
                                 <Input
                                     type="number"
-                                    value={editingTriple}
-                                    onChange={(e) => setEditingTriple(Number(e.target.value))}
-                                    className="w-24 text-center font-bold text-lg text-white"
+                                    value={editingSP}
+                                    onChange={(e) => setEditingSP(Number(e.target.value))}
+                                    className="w-20 text-center font-bold text-lg text-white"
                                 />
                             </div>
                             <p className="text-xs text-gray-200 mt-2">
-                                Multiplier: {(editingTriple / 10).toFixed(1)}x
+                                Multiplier: {(editingSP / 10).toFixed(1)}x
+                            </p>
+                        </div>
+
+                        <div className="p-4 rounded-lg bg-[var(--bg-surface)] text-center border border-orange-500/20">
+                            <p className="text-sm text-orange-400 mb-2 font-medium">Double Patti</p>
+                            <div className="flex items-center justify-center gap-2">
+                                <span className="text-gray-200 text-xs">₹10 →</span>
+                                <Input
+                                    type="number"
+                                    value={editingDP}
+                                    onChange={(e) => setEditingDP(Number(e.target.value))}
+                                    className="w-20 text-center font-bold text-lg text-white"
+                                />
+                            </div>
+                            <p className="text-xs text-gray-200 mt-2">
+                                Multiplier: {(editingDP / 10).toFixed(1)}x
+                            </p>
+                        </div>
+
+                        <div className="p-4 rounded-lg bg-[var(--bg-surface)] text-center border border-red-500/20">
+                            <p className="text-sm text-red-400 mb-2 font-medium">Triple Patti</p>
+                            <div className="flex items-center justify-center gap-2">
+                                <span className="text-gray-200 text-xs">₹10 →</span>
+                                <Input
+                                    type="number"
+                                    value={editingTP}
+                                    onChange={(e) => setEditingTP(Number(e.target.value))}
+                                    className="w-20 text-center font-bold text-lg text-white"
+                                />
+                            </div>
+                            <p className="text-xs text-gray-200 mt-2">
+                                Multiplier: {(editingTP / 10).toFixed(1)}x
                             </p>
                         </div>
                     </div>

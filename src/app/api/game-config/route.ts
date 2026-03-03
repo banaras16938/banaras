@@ -48,10 +48,10 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { payout_single, payout_jodi, payout_triple } = body
+    const { payout_single, payout_jodi, payout_single_patti, payout_double_patti, payout_triple_patti } = body
 
     // Validate payouts
-    if (payout_single <= 0 || payout_jodi <= 0 || payout_triple <= 0) {
+    if (payout_single <= 0 || payout_jodi <= 0 || payout_single_patti <= 0 || payout_double_patti <= 0 || payout_triple_patti <= 0) {
         return NextResponse.json({ error: 'Payout values must be positive' }, { status: 400 })
     }
 
@@ -60,7 +60,9 @@ export async function PUT(request: NextRequest) {
         .update({
             payout_single,
             payout_jodi,
-            payout_triple
+            payout_single_patti,
+            payout_double_patti,
+            payout_triple_patti
         })
         .eq('id', 1)
 
