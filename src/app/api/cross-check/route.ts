@@ -154,43 +154,33 @@ export async function GET(request: NextRequest) {
         let jodiLiability = 0
         let jodiExposure: { number: string; bets: number; amount: number; liability: number }[] = []
 
-        if (target === 'open' && jodiNumbers.length > 1) {
-            const jodiByNumber = new Map<string, number>()
-            for (const jn of jodiNumbers) jodiByNumber.set(jn, 0)
-            for (const bet of (jodiBets || [])) {
-                const current = jodiByNumber.get(bet.selected_number) || 0
-                jodiByNumber.set(bet.selected_number, current + Number(bet.amount))
-            }
-
-            jodiExposure = jodiNumbers.map(jn => {
-                const amt = jodiByNumber.get(jn) || 0
-                return {
-                    number: jn,
-                    bets: (jodiBets || []).filter((b: any) => b.selected_number === jn).length,
-                    amount: amt,
-                    liability: amt * payoutJodi,
-                }
-            })
-
-            let maxAmount = 0
-            for (const jn of jodiNumbers) {
-                const amt = jodiByNumber.get(jn) || 0
-                if (amt > maxAmount) maxAmount = amt
-            }
-            jodiLiability = maxAmount * payoutJodi
-        } else {
-            jodiLiability = (jodiBets || []).reduce((s: number, b: any) => s + Number(b.amount), 0) * payoutJodi
-            jodiExposure = jodiNumbers.map(jn => {
-                const betsForJodi = (jodiBets || []).filter((b: any) => b.selected_number === jn)
-                const amountForJodi = betsForJodi.reduce((s: number, b: any) => s + Number(b.amount), 0)
-                return {
-                    number: jn,
-                    bets: betsForJodi.length,
-                    amount: amountForJodi,
-                    liability: amountForJodi * payoutJodi,
-                }
-            })
+        // Build per-jodi breakdown — only ONE jodi can ever win,
+        // so liability = MAX single jodi payout (not sum of all)
+        const jodiByNumber = new Map<string, number>()
+        for (const jn of jodiNumbers) jodiByNumber.set(jn, 0)
+        for (const bet of (jodiBets || [])) {
+            const current = jodiByNumber.get(bet.selected_number) || 0
+            jodiByNumber.set(bet.selected_number, current + Number(bet.amount))
         }
+
+        jodiExposure = jodiNumbers.map(jn => {
+            const amt = jodiByNumber.get(jn) || 0
+            return {
+                number: jn,
+                bets: (jodiBets || []).filter((b: any) => b.selected_number === jn).length,
+                amount: amt,
+                liability: amt * payoutJodi,
+            }
+        })
+
+        // Jodi liability = the MIN single jodi's payout (best case for admin)
+        // Admin controls the result, so they'll pick the jodi with the LEAST bets
+        let minJodiAmount = Infinity
+        for (const jn of jodiNumbers) {
+            const amt = jodiByNumber.get(jn) || 0
+            if (amt < minJodiAmount) minJodiAmount = amt
+        }
+        jodiLiability = (minJodiAmount === Infinity ? 0 : minJodiAmount) * payoutJodi
 
         const totalPattiLiability = spLiability + dpLiability + tpLiability
         const totalLiability = totalPattiLiability + singleLiability + jodiLiability
