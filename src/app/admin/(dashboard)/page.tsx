@@ -100,8 +100,20 @@ const fmt = (n: number) => `₹${n.toLocaleString('en-IN')}`
 export default function AdminDashboard() {
     const [loading, setLoading] = useState(true)
     const [loadingRecommendations, setLoadingRecommendations] = useState(false)
-    const [selectedSession, setSelectedSession] = useState<SessionType>('morning')
-    const [selectedTarget, setSelectedTarget] = useState<BetTarget>('open')
+    const [selectedSession, setSelectedSession] = useState<SessionType>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = sessionStorage.getItem('admin_selectedSession')
+            if (saved === 'morning' || saved === 'night') return saved
+        }
+        return 'morning'
+    })
+    const [selectedTarget, setSelectedTarget] = useState<BetTarget>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = sessionStorage.getItem('admin_selectedTarget')
+            if (saved === 'open' || saved === 'close') return saved
+        }
+        return 'open'
+    })
     const [payoutSlider, setPayoutSlider] = useState(10)
     const debouncedPayoutSlider = useDebounce(payoutSlider, 300)
     const [morningSession, setMorningSession] = useState<GameSession | null>(null)
@@ -128,6 +140,15 @@ export default function AdminDashboard() {
         const now = new Date()
         return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
     })
+
+    // Persist session & target selection to sessionStorage
+    useEffect(() => {
+        sessionStorage.setItem('admin_selectedSession', selectedSession)
+    }, [selectedSession])
+
+    useEffect(() => {
+        sessionStorage.setItem('admin_selectedTarget', selectedTarget)
+    }, [selectedTarget])
 
     // Update time every 30 seconds
     useEffect(() => {
