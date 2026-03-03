@@ -302,7 +302,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // SECURITY: Rate limiting - max 100 bets per request
-    const MAX_BETS_PER_REQUEST = 100
+    const MAX_BETS_PER_REQUEST = 120
     if (bets.length > MAX_BETS_PER_REQUEST) {
         return NextResponse.json({
             error: `Maximum ${MAX_BETS_PER_REQUEST} bets allowed per request. You sent ${bets.length}.`
