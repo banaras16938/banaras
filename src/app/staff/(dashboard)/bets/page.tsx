@@ -291,7 +291,12 @@ export default function PlaceBetPage() {
     }
 
     // === Patti Selection (replaces old triple) ===
-    const togglePattiSelection = (patti: string) => {
+    // Debounce guard to prevent double-toggle on touch devices
+    const lastToggleRef = useMemo(() => ({ time: 0 }), [])
+    const togglePattiSelection = useCallback((patti: string) => {
+        const now = Date.now()
+        if (now - lastToggleRef.time < 300) return // Skip rapid re-fires
+        lastToggleRef.time = now
         setPattiSelections(prev => {
             if (prev[patti] !== undefined) {
                 const { [patti]: _, ...rest } = prev
@@ -299,7 +304,7 @@ export default function PlaceBetPage() {
             }
             return { ...prev, [patti]: '' }
         })
-    }
+    }, [lastToggleRef])
 
     const updatePattiAmount = (patti: string, value: string) => {
         setPattiSelections(prev => ({ ...prev, [patti]: value }))
@@ -465,7 +470,7 @@ export default function PlaceBetPage() {
     }
 
     return (
-        <div className="space-y-4 animate-fade-in">
+        <div className="space-y-4 animate-fade-in w-full max-w-[100vw] overflow-x-hidden">
             {/* Betting Status Banner */}
             <div className="bg-gray-800/80 backdrop-blur border border-gray-700 rounded-xl p-3">
                 <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -800,16 +805,17 @@ export default function PlaceBetPage() {
                                     return (
                                         <div key={digit}>
                                             <div className="text-xs text-gray-500 font-semibold mb-1 px-1">Single → {digit}</div>
-                                            <div className="flex flex-wrap gap-1">
+                                            <div className="flex flex-wrap gap-2">
                                                 {filtered.map((patti) => {
                                                     const isSelected = pattiSelections[patti] !== undefined
                                                     return (
                                                         <button
                                                             key={patti}
                                                             type="button"
-                                                            onClick={() => togglePattiSelection(patti)}
+                                                            onClick={(e) => { e.preventDefault(); togglePattiSelection(patti) }}
                                                             disabled={!canPlaceBet}
-                                                            className={`px-2.5 py-1.5 rounded-lg text-sm font-mono font-medium transition-all ${isSelected ? 'bg-indigo-600 text-white ring-2 ring-indigo-400' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                                                            style={{ touchAction: 'manipulation' }}
+                                                            className={`px-3 py-2 rounded-lg text-sm font-mono font-medium transition-all select-none ${isSelected ? 'bg-indigo-600 text-white ring-2 ring-indigo-400' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                                                                 } disabled:opacity-50`}
                                                         >
                                                             {patti}
