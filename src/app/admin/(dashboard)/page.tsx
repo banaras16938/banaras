@@ -565,7 +565,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Enhanced KPIs */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                 {/* Target Collection */}
                 <div className="bg-gray-800/80 border border-gray-700 rounded-xl p-3">
                     <div className="flex items-center gap-2 mb-1">
@@ -586,16 +586,34 @@ export default function AdminDashboard() {
                     <p className="text-[10px] text-gray-500">{stats.singleCount} bets • ×9 payout</p>
                 </div>
 
-                {/* Patti Bets (combined) */}
+                {/* Single Patti Bets */}
                 <div className="bg-gray-800/80 border border-gray-700 rounded-xl p-3">
                     <div className="flex items-center gap-2 mb-1">
-                        <Layers size={14} className="text-amber-400" />
-                        <span className="text-[10px] text-gray-500 uppercase">Patti Bets</span>
+                        <Layers size={14} className="text-emerald-400" />
+                        <span className="text-[10px] text-gray-500 uppercase">Single Patti</span>
                     </div>
-                    <p className="text-lg font-bold text-white font-mono">{fmt(stats.singlePattiAmount + stats.doublePattiAmount + stats.triplePattiAmount)}</p>
-                    <p className="text-[10px] text-gray-500">
-                        SP:{stats.singlePattiCount} DP:{stats.doublePattiCount} TP:{stats.triplePattiCount}
-                    </p>
+                    <p className="text-lg font-bold text-white font-mono">{fmt(stats.singlePattiAmount)}</p>
+                    <p className="text-[10px] text-gray-500">{stats.singlePattiCount} bets • ×1400</p>
+                </div>
+
+                {/* Double Patti Bets */}
+                <div className="bg-gray-800/80 border border-gray-700 rounded-xl p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Layers size={14} className="text-orange-400" />
+                        <span className="text-[10px] text-gray-500 uppercase">Double Patti</span>
+                    </div>
+                    <p className="text-lg font-bold text-white font-mono">{fmt(stats.doublePattiAmount)}</p>
+                    <p className="text-[10px] text-gray-500">{stats.doublePattiCount} bets • ×2800</p>
+                </div>
+
+                {/* Triple Patti Bets */}
+                <div className="bg-gray-800/80 border border-gray-700 rounded-xl p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Layers size={14} className="text-red-400" />
+                        <span className="text-[10px] text-gray-500 uppercase">Triple Patti</span>
+                    </div>
+                    <p className="text-lg font-bold text-white font-mono">{fmt(stats.triplePattiAmount)}</p>
+                    <p className="text-[10px] text-gray-500">{stats.triplePattiCount} bets • ×8000</p>
                 </div>
 
                 {/* Jodi Bets */}
