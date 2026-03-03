@@ -249,43 +249,52 @@ export async function GET(request: NextRequest) {
                     const singleLiab = singleBetAmt * payoutSingle
 
                     // 5. Jodi liability + exposed jodi numbers
+                    // Key insight: Admin controls the close result, so they can pick the
+                    // close digit whose jodi has the LEAST bets (ideally zero).
+                    // Therefore liability = MIN jodi bet × payout (best-case for admin).
                     let jodiBetAmt = 0
                     let jodiLiab = 0
                     const jodiNumbers: string[] = []
+                    const jodiBreakdown: { number: string, amount: number }[] = []
 
                     if (target === 'open') {
                         // Open: jodi could be single + any close digit (0-9)
-                        // Liability = MAX jodi bet (worst-case exposure per SRS)
-                        let maxJodiAmt = 0
+                        // Liability = MIN jodi bet (admin will choose close to minimize payout)
+                        let minJodiAmt = Infinity
                         for (let c = 0; c <= 9; c++) {
                             const potentialJodi = single + c.toString()
                             jodiNumbers.push(potentialJodi)
                             const jAmt = jodiBetMap.get(potentialJodi) || 0
-                            jodiBetAmt += jAmt
-                            if (jAmt > maxJodiAmt) {
-                                maxJodiAmt = jAmt
+                            jodiBreakdown.push({ number: potentialJodi, amount: jAmt })
+                            if (jAmt < minJodiAmt) {
+                                minJodiAmt = jAmt
                             }
                         }
-                        jodiLiab = maxJodiAmt * payoutJodi
+                        // If all jodis have bets, use the min; if any is 0, liability is 0
+                        jodiBetAmt = minJodiAmt === Infinity ? 0 : minJodiAmt
+                        jodiLiab = jodiBetAmt * payoutJodi
                     } else if (target === 'close' && session.open_single) {
                         // Close: exact jodi = open_single + derived single
                         const exactJodi = session.open_single + single
                         jodiNumbers.push(exactJodi)
                         jodiBetAmt = jodiBetMap.get(exactJodi) || 0
+                        jodiBreakdown.push({ number: exactJodi, amount: jodiBetAmt })
                         jodiLiab = jodiBetAmt * payoutJodi
                     } else if (target === 'close' && !session.open_single) {
                         // Close but open not declared yet: all jodis ending with this single
-                        let maxJodiAmt = 0
+                        // Admin controls open result too, so use MIN
+                        let minJodiAmt = Infinity
                         for (let o = 0; o <= 9; o++) {
                             const potentialJodi = o.toString() + single
                             jodiNumbers.push(potentialJodi)
                             const jAmt = jodiBetMap.get(potentialJodi) || 0
-                            jodiBetAmt += jAmt
-                            if (jAmt > maxJodiAmt) {
-                                maxJodiAmt = jAmt
+                            jodiBreakdown.push({ number: potentialJodi, amount: jAmt })
+                            if (jAmt < minJodiAmt) {
+                                minJodiAmt = jAmt
                             }
                         }
-                        jodiLiab = maxJodiAmt * payoutJodi
+                        jodiBetAmt = minJodiAmt === Infinity ? 0 : minJodiAmt
+                        jodiLiab = jodiBetAmt * payoutJodi
                     }
 
                     const totalLiability = spLiab + dpLiab + tpLiab + singleLiab + jodiLiab
@@ -314,6 +323,7 @@ export async function GET(request: NextRequest) {
                         jodiBets: jodiBetAmt,
                         jodiLiability: jodiLiab,
                         jodiNumbers,
+                        jodiBreakdown,
                     })
                 }
             }

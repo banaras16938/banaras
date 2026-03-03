@@ -170,6 +170,7 @@ export interface ResultOption {
     jodiBets: number
     jodiLiability: number
     jodiNumbers: string[]
+    jodiBreakdown?: { number: string, amount: number }[]
 }
 
 // Result Recommendations (4 Lists per SRS)

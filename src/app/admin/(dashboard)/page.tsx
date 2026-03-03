@@ -835,20 +835,37 @@ export default function AdminDashboard() {
                                                         <p className="text-[10px] text-blue-400">Liab: {fmt(Math.round(result.singleLiability))}</p>
                                                     </div>
                                                 </div>
-                                                {/* Jodi detail */}
+                                                {/* Jodi detail with per-number breakdown */}
                                                 <div className="bg-purple-500/5 border border-purple-500/20 rounded-lg p-2">
-                                                    <div className="flex items-center gap-1.5 mb-1">
-                                                        <Grid3X3 size={12} className="text-purple-400" />
-                                                        <span className="text-[10px] text-gray-400">JODI ×90</span>
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Grid3X3 size={12} className="text-purple-400" />
+                                                            <span className="text-[10px] text-gray-400">JODI ×90 (Min Liability)</span>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <span className="text-sm font-bold text-white font-mono">{fmt(result.jodiBets)}</span>
+                                                            <span className="text-[10px] text-purple-400 ml-2">Liab: {fmt(Math.round(result.jodiLiability))}</span>
+                                                        </div>
                                                     </div>
-                                                    <p className="text-sm font-bold text-white font-mono">{fmt(result.jodiBets)}</p>
-                                                    <p className="text-[10px] text-purple-400">Liab: {fmt(Math.round(result.jodiLiability))}</p>
-                                                    <p className="text-[10px] text-gray-500 truncate" title={result.jodiNumbers?.join(', ')}>
-                                                        {result.jodiNumbers?.length > 3
-                                                            ? `${result.jodiNumbers.slice(0, 3).join(', ')}...`
-                                                            : result.jodiNumbers?.join(', ')
-                                                        }
-                                                    </p>
+                                                    {/* Per-jodi breakdown grid */}
+                                                    {result.jodiBreakdown && result.jodiBreakdown.length > 1 && (
+                                                        <div className="grid grid-cols-5 gap-1 mt-1">
+                                                            {result.jodiBreakdown.map((jodi: { number: string, amount: number }) => (
+                                                                <div
+                                                                    key={jodi.number}
+                                                                    className={`text-center rounded px-1 py-1 ${jodi.amount === 0
+                                                                        ? 'bg-green-500/10 border border-green-500/30'
+                                                                        : 'bg-gray-800 border border-gray-700'
+                                                                        }`}
+                                                                >
+                                                                    <p className="text-[10px] font-mono font-bold text-gray-300">{jodi.number}</p>
+                                                                    <p className={`text-[9px] font-mono ${jodi.amount === 0 ? 'text-green-400' : 'text-white'}`}>
+                                                                        {jodi.amount === 0 ? '₹0' : fmt(jodi.amount)}
+                                                                    </p>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 {/* Profit line */}
                                                 <div className="flex justify-between items-center bg-gray-900/50 rounded-lg px-3 py-2">
