@@ -347,10 +347,8 @@ export async function GET(request: NextRequest) {
             })
             .sort((a, b) => Math.abs(a.payoutPercentage - targetPayout) - Math.abs(b.payoutPercentage - targetPayout))
 
-        // List 3: LOW BETS — Priority-based smart sorting
-        // Priority 1: Numbers where single digit (0-9) or jodi has NO bets
-        // Priority 2: Numbers where any patti (SP/DP/TP) has NO bets  
-        // Priority 3: All remaining sorted by lowest bet amount (excl TP if all TP booked)
+        // List 3: LOW BETS — Only shown when ALL single and jodi numbers are booked
+        // If not all booked, return empty and let frontend show message
 
         // Check if ALL singles (0-9) are booked
         const allSinglesBooked = Array.from({ length: 10 }, (_, i) => i.toString())
@@ -359,7 +357,6 @@ export async function GET(request: NextRequest) {
         // Check if ALL jodis have bets (depends on target)
         let allJodisBooked = true
         if (target === 'open') {
-            // For open: check all 100 jodis
             for (let i = 0; i < 100; i++) {
                 if ((jodiBetMap.get(i.toString().padStart(2, '0')) || 0) === 0) {
                     allJodisBooked = false
@@ -367,7 +364,6 @@ export async function GET(request: NextRequest) {
                 }
             }
         } else if (session.open_single) {
-            // For close with open declared: only the 10 jodis starting with open_single
             for (let c = 0; c <= 9; c++) {
                 const jodi = session.open_single + c.toString()
                 if ((jodiBetMap.get(jodi) || 0) === 0) {
@@ -376,7 +372,6 @@ export async function GET(request: NextRequest) {
                 }
             }
         } else {
-            // Close without open: check all 100
             for (let i = 0; i < 100; i++) {
                 if ((jodiBetMap.get(i.toString().padStart(2, '0')) || 0) === 0) {
                     allJodisBooked = false
@@ -385,42 +380,36 @@ export async function GET(request: NextRequest) {
             }
         }
 
-        // Check if ALL triple patti numbers are booked
-        const allTriplePattiBooked = Object.values(PATTI_NUMBERS['triple_patti'])
-            .flat()
-            .every(p => (triplePattiBetMap.get(p) || 0) > 0)
+        const allSinglesAndJodiBooked = allSinglesBooked && allJodisBooked
 
-        const lowBets = [...results].sort((a, b) => {
-            // --- Priority 1: Vacant single or jodi (only if NOT all booked) ---
-            if (!allSinglesBooked || !allJodisBooked) {
-                const aHasVacantSingleOrJodi = a.singleBets === 0 || a.jodiBets === 0
-                const bHasVacantSingleOrJodi = b.singleBets === 0 || b.jodiBets === 0
-                if (aHasVacantSingleOrJodi && !bHasVacantSingleOrJodi) return -1
-                if (!aHasVacantSingleOrJodi && bHasVacantSingleOrJodi) return 1
-                if (aHasVacantSingleOrJodi && bHasVacantSingleOrJodi) {
+        let lowBets: typeof results = []
+
+        if (allSinglesAndJodiBooked) {
+            // Check if ALL triple patti numbers are booked
+            const allTriplePattiBooked = Object.values(PATTI_NUMBERS['triple_patti'])
+                .flat()
+                .every(p => (triplePattiBetMap.get(p) || 0) > 0)
+
+            lowBets = [...results].sort((a, b) => {
+                // --- Priority 1: Vacant patti numbers (SP, DP, TP) ---
+                const aHasVacantPatti = a.singlePattiBets === 0 || a.doublePattiBets === 0 || a.triplePattiBets === 0
+                const bHasVacantPatti = b.singlePattiBets === 0 || b.doublePattiBets === 0 || b.triplePattiBets === 0
+                if (aHasVacantPatti && !bHasVacantPatti) return -1
+                if (!aHasVacantPatti && bHasVacantPatti) return 1
+                if (aHasVacantPatti && bHasVacantPatti) {
+                    const aVacantCount = (a.singlePattiBets === 0 ? 1 : 0) + (a.doublePattiBets === 0 ? 1 : 0) + (a.triplePattiBets === 0 ? 1 : 0)
+                    const bVacantCount = (b.singlePattiBets === 0 ? 1 : 0) + (b.doublePattiBets === 0 ? 1 : 0) + (b.triplePattiBets === 0 ? 1 : 0)
+                    if (aVacantCount !== bVacantCount) return bVacantCount - aVacantCount
                     return a.totalLiability - b.totalLiability
                 }
-            }
 
-            // --- Priority 2: Vacant patti numbers (SP, DP, TP) ---
-            const aHasVacantPatti = a.singlePattiBets === 0 || a.doublePattiBets === 0 || a.triplePattiBets === 0
-            const bHasVacantPatti = b.singlePattiBets === 0 || b.doublePattiBets === 0 || b.triplePattiBets === 0
-            if (aHasVacantPatti && !bHasVacantPatti) return -1
-            if (!aHasVacantPatti && bHasVacantPatti) return 1
-            if (aHasVacantPatti && bHasVacantPatti) {
-                // Count how many patti types are vacant (more vacant = better)
-                const aVacantCount = (a.singlePattiBets === 0 ? 1 : 0) + (a.doublePattiBets === 0 ? 1 : 0) + (a.triplePattiBets === 0 ? 1 : 0)
-                const bVacantCount = (b.singlePattiBets === 0 ? 1 : 0) + (b.doublePattiBets === 0 ? 1 : 0) + (b.triplePattiBets === 0 ? 1 : 0)
-                if (aVacantCount !== bVacantCount) return bVacantCount - aVacantCount
-                return a.totalLiability - b.totalLiability
-            }
-
-            // --- Priority 3: All booked — sort by lowest total bet amount ---
-            // Exclude triple patti from consideration if all TP numbers are booked
-            const aAmt = a.singleBets + a.jodiBets + a.singlePattiBets + a.doublePattiBets + (allTriplePattiBooked ? 0 : a.triplePattiBets)
-            const bAmt = b.singleBets + b.jodiBets + b.singlePattiBets + b.doublePattiBets + (allTriplePattiBooked ? 0 : b.triplePattiBets)
-            return aAmt - bAmt
-        })
+                // --- Priority 2: All booked — sort by lowest total bet amount ---
+                // Exclude triple patti if all TP numbers are booked
+                const aAmt = a.singleBets + a.jodiBets + a.singlePattiBets + a.doublePattiBets + (allTriplePattiBooked ? 0 : a.triplePattiBets)
+                const bAmt = b.singleBets + b.jodiBets + b.singlePattiBets + b.doublePattiBets + (allTriplePattiBooked ? 0 : b.triplePattiBets)
+                return aAmt - bAmt
+            })
+        }
 
         // List 4: GHOST NUMBERS — no bets at all on patti, single, AND jodi
         // Only show pattis where declaring them would cause ZERO payout
@@ -436,6 +425,7 @@ export async function GET(request: NextRequest) {
                 targetMatch,
                 systemRecommendations: leverageResults,
                 lowBets,
+                allSinglesAndJodiBooked,
                 noBets,
                 betStats,
                 lookupResult,

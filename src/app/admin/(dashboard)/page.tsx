@@ -62,6 +62,7 @@ interface RecommendationsData {
     targetMatch: ResultOption[]
     systemRecommendations: ResultOption[]
     lowBets: ResultOption[]
+    allSinglesAndJodiBooked: boolean
     noBets: ResultOption[]
     betStats: BetStats
 }
@@ -124,6 +125,7 @@ export default function AdminDashboard() {
         targetMatch: [],
         systemRecommendations: [],
         lowBets: [],
+        allSinglesAndJodiBooked: false,
         noBets: [],
         betStats: { singleCount: 0, singleAmount: 0, singlePattiCount: 0, singlePattiAmount: 0, doublePattiCount: 0, doublePattiAmount: 0, triplePattiCount: 0, triplePattiAmount: 0, jodiCount: 0, jodiAmount: 0, totalPending: 0 }
     })
@@ -258,6 +260,7 @@ export default function AdminDashboard() {
                     targetMatch: [],
                     systemRecommendations: [],
                     lowBets: [],
+                    allSinglesAndJodiBooked: false,
                     noBets: [],
                     betStats: { singleCount: 0, singleAmount: 0, tripleCount: 0, tripleAmount: 0, jodiCount: 0, jodiAmount: 0, totalPending: 0 }
                 })
@@ -753,9 +756,15 @@ export default function AdminDashboard() {
                             {loadingRecommendations && activeTab !== 'manual' ? 'Loading...' : (
                                 activeTab === 'target'
                                     ? `No exact match for ${payoutSlider}% payout. Try the Leverage tab for ±10% range.`
-                                    : activeTab === 'manual'
-                                        ? (manualTriple.length === 3 && !loadingManual ? 'Could not compute liability for this triple.' : 'Enter a 3-digit triple number above.')
-                                        : 'No results in this category'
+                                    : activeTab === 'low' && !recommendations.allSinglesAndJodiBooked
+                                        ? <div className="flex flex-col items-center gap-3">
+                                            <AlertTriangle size={32} className="text-yellow-400" />
+                                            <p className="text-yellow-400 font-medium">All Jodi and Single numbers are not booked</p>
+                                            <p className="text-xs text-gray-500">Low section will be available once all Single (0-9) and Jodi numbers have bets placed on them.</p>
+                                        </div>
+                                        : activeTab === 'manual'
+                                            ? (manualTriple.length === 3 && !loadingManual ? 'Could not compute liability for this triple.' : 'Enter a 3-digit triple number above.')
+                                            : 'No results in this category'
                             )}
                         </div>
                     ) : (
