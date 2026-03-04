@@ -6,12 +6,12 @@ import { JodiChart } from '@/components/results/JodiChart'
 import { PanelChart } from '@/components/results/PanelChart'
 import { GameTimeline } from '@/components/results/GameTimeline'
 import { GameResult, GameSchedule, SessionType, sessionToResult, GameSession } from '@/types/types'
-import { Trophy, FileText, Sun, Moon, Menu, X, BarChart3, Grid3X3, HelpCircle, AlertTriangle } from 'lucide-react'
+import { Trophy, FileText, Sun, Moon, Menu, X, BarChart3, Grid3X3, AlertTriangle } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 
 type TabType = 'results' | 'past'
 type ChartType = 'jodi' | 'panel'
-type PageType = 'home' | 'how-to-play' | 'disclaimer'
+type PageType = 'home' | 'disclaimer'
 
 export default function Home() {
   const [currentTime, setCurrentTime] = useState(new Date())
@@ -224,13 +224,7 @@ export default function Home() {
               <BarChart3 size={16} />
               Panel Chart
             </button>
-            <button
-              onClick={() => { setActivePage('how-to-play'); setMobileMenuOpen(false) }}
-              className="nav-link"
-            >
-              <HelpCircle size={16} />
-              How to Play
-            </button>
+
             <button
               onClick={() => { setActivePage('disclaimer'); setMobileMenuOpen(false) }}
               className="nav-link"
@@ -292,13 +286,7 @@ export default function Home() {
             <BarChart3 size={18} />
             Panel Chart
           </button>
-          <button
-            onClick={() => { setActivePage('how-to-play'); setMobileMenuOpen(false) }}
-            className="mobile-nav-link"
-          >
-            <HelpCircle size={18} />
-            How to Play
-          </button>
+
           <button
             onClick={() => { setActivePage('disclaimer'); setMobileMenuOpen(false) }}
             className="mobile-nav-link"
@@ -468,49 +456,6 @@ export default function Home() {
               </div>
             )}
           </>
-        ) : activePage === 'how-to-play' ? (
-          <div className="static-page animate-fade-in">
-            <button onClick={() => setActivePage('home')} className="back-btn">
-              ← Back to Home
-            </button>
-            <h1>How to Play</h1>
-            <div className="static-content">
-              <section>
-                <h2>🎲 Understanding the Game</h2>
-                <p>Banaras Matka is a number-based game where players predict numbers to win prizes. There are two sessions daily: <strong>Morning</strong> and <strong>Night</strong>.</p>
-              </section>
-
-              <section>
-                <h2>📊 Bet Types</h2>
-                <ul>
-                  <li><strong>Single (0-9):</strong> Pick a single digit from 0 to 9. Payout: 9x</li>
-                  <li><strong>Jodi (00-99):</strong> Pick a two-digit number from 00 to 99. Payout: 90x</li>
-                  <li><strong>Triple (000-999):</strong> Pick a three-digit number. Payout: 800x</li>
-                </ul>
-              </section>
-
-              <section>
-                <h2>⏰ Timing</h2>
-                <ul>
-                  <li><strong>Morning Game:</strong> Open result at 1:00 PM, Close result at 3:00 PM</li>
-                  <li><strong>Night Game:</strong> Open result at 6:00 PM, Close result at 8:00 PM</li>
-                </ul>
-              </section>
-
-              <section>
-                <h2>🎯 How Results Work</h2>
-                <p>Each session has two results: <strong>Open</strong> and <strong>Close</strong>. The Jodi is formed by combining the last digit of Open Sum with the last digit of Close Sum.</p>
-              </section>
-
-              <section>
-                <h2>📈 Using Charts</h2>
-                <ul>
-                  <li><strong>Jodi Chart:</strong> Shows historical Jodi results to help identify patterns</li>
-                  <li><strong>Panel Chart:</strong> Shows full Open-Jodi-Close combinations over time</li>
-                </ul>
-              </section>
-            </div>
-          </div>
         ) : (
           <div className="static-page animate-fade-in">
             <button onClick={() => setActivePage('home')} className="back-btn">

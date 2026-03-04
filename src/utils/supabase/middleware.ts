@@ -12,6 +12,18 @@ export const updateSession = async (request: NextRequest) => {
         },
     });
 
+    const path = request.nextUrl.pathname;
+
+    // Skip auth entirely for public routes (homepage, public API endpoints)
+    // Only run auth for protected /staff and /admin routes
+    const isProtectedRoute =
+        (path.startsWith('/staff') && !path.startsWith('/staff/login')) ||
+        (path.startsWith('/admin') && !path.startsWith('/admin/login'));
+
+    if (!isProtectedRoute) {
+        return supabaseResponse;
+    }
+
     const supabase = createServerClient(
         supabaseUrl!,
         supabaseKey!,
@@ -35,8 +47,6 @@ export const updateSession = async (request: NextRequest) => {
 
     // Refresh session if needed
     const { data: { user } } = await supabase.auth.getUser();
-
-    const path = request.nextUrl.pathname;
 
     // Protect staff routes
     if (path.startsWith('/staff') && !path.startsWith('/staff/login')) {

@@ -524,12 +524,12 @@ td.chart-date-cell span {
 .app-container {
   min-height: 100vh;
   padding-bottom: 88px;
-  background: var(--bg-main);
+  background-color: #1a1128;
   background-image: linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.55)), url('/background-2.webp');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
+  background-size: 100% auto;
+  background-position: top center;
+  background-repeat: repeat-y;
+  background-attachment: scroll;
 }
 
 .app-header {
