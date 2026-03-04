@@ -149,12 +149,10 @@ export default function BetHistoryPage() {
     const activeBets = mainTab === 'positions' ? positions : orders
     const filteredBets = useMemo(() => filterBySubTab(activeBets, subTab), [activeBets, subTab])
 
-    // Filtered pending amount (respects sub-tab selection)
-    const filteredPendingAmount = useMemo(() => {
-        if (mainTab !== 'positions') return 0
-        const betsToSum = subTab === 'all' ? positions : filteredBets
-        return betsToSum.reduce((s, b) => s + Number(b.amount), 0)
-    }, [mainTab, subTab, positions, filteredBets])
+    // Filtered total amount (respects sub-tab selection, works for both tabs)
+    const filteredTotalAmount = useMemo(() => {
+        return filteredBets.reduce((s, b) => s + Number(b.amount), 0)
+    }, [filteredBets])
 
     // Summary stats
     const stats = useMemo(() => {
@@ -359,11 +357,13 @@ export default function BetHistoryPage() {
                 })}
             </div>
 
-            {/* Pending Amount Banner (only on positions tab) */}
-            {mainTab === 'positions' && filteredPendingAmount > 0 && (
-                <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl px-4 py-2.5 flex items-center justify-between">
-                    <span className="text-xs text-cyan-300/80">Pending Amount{subTab !== 'all' ? ` (${SUB_TABS.find(t => t.key === subTab)?.label})` : ''}</span>
-                    <span className="text-sm font-bold text-cyan-400 font-mono">₹{filteredPendingAmount.toLocaleString()}</span>
+            {/* Total Amount Banner */}
+            {filteredTotalAmount > 0 && (
+                <div className={`${mainTab === 'positions' ? 'bg-cyan-500/10 border-cyan-500/20' : 'bg-indigo-500/10 border-indigo-500/20'} border rounded-xl px-4 py-2.5 flex items-center justify-between`}>
+                    <span className={`text-xs ${mainTab === 'positions' ? 'text-cyan-300/80' : 'text-indigo-300/80'}`}>
+                        {mainTab === 'positions' ? 'Pending' : 'Total'} Amount{subTab !== 'all' ? ` (${SUB_TABS.find(t => t.key === subTab)?.label})` : ''}
+                    </span>
+                    <span className={`text-sm font-bold font-mono ${mainTab === 'positions' ? 'text-cyan-400' : 'text-indigo-400'}`}>₹{filteredTotalAmount.toLocaleString()}</span>
                 </div>
             )}
 
