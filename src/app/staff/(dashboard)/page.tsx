@@ -136,6 +136,11 @@ export default function StaffDashboard() {
                     <IndianRupee size={20} className="text-yellow-400" />
                     Payout Rates
                 </h2>
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                    <span className="text-yellow-400 text-sm font-semibold">⚠️ Minimum bet ₹10</span>
+                    <span className="text-gray-500">•</span>
+                    <span className="text-yellow-300/80 text-sm">All bets must be in multiples of ₹10</span>
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                     {/* Single */}
                     <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-700/20 border border-emerald-500/30 p-4">
