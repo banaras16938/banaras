@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { CurrentResult } from '@/components/results/CurrentResult'
-import { Ticket, RefreshCw } from 'lucide-react'
+import { Ticket, RefreshCw, IndianRupee } from 'lucide-react'
 import Link from 'next/link'
 import { GameResult } from '@/types/types'
 import { useStaffName } from './layout'
@@ -128,6 +128,55 @@ export default function StaffDashboard() {
                     <Ticket size={18} />
                     Place New Bet
                 </Link>
+            </div>
+
+            {/* Payout Rates Section */}
+            <div className="space-y-3">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <IndianRupee size={20} className="text-yellow-400" />
+                    Payout Rates
+                </h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                    {/* Single */}
+                    <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-700/20 border border-emerald-500/30 p-4">
+                        <div className="text-emerald-400 font-bold text-sm uppercase tracking-wide">Single</div>
+                        <div className="mt-1 text-white text-2xl font-extrabold">×9</div>
+                        <div className="mt-1 text-emerald-300 text-sm font-semibold">₹10 ka ₹90</div>
+                        <div className="mt-2 text-gray-400 text-xs">0–9 • Open / Close</div>
+                    </div>
+
+                    {/* Jodi */}
+                    <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-700/20 border border-amber-500/30 p-4">
+                        <div className="text-amber-400 font-bold text-sm uppercase tracking-wide">Jodi</div>
+                        <div className="mt-1 text-white text-2xl font-extrabold">×90</div>
+                        <div className="mt-1 text-amber-300 text-sm font-semibold">₹10 ka ₹900</div>
+                        <div className="mt-2 text-gray-400 text-xs">00–99 • Jodi</div>
+                    </div>
+
+                    {/* Single Patti */}
+                    <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-700/20 border border-blue-500/30 p-4">
+                        <div className="text-blue-400 font-bold text-sm uppercase tracking-wide">Single Patti</div>
+                        <div className="mt-1 text-white text-2xl font-extrabold">×140</div>
+                        <div className="mt-1 text-blue-300 text-sm font-semibold">₹10 ka ₹1,400</div>
+                        <div className="mt-2 text-gray-400 text-xs">120 numbers • Open / Close</div>
+                    </div>
+
+                    {/* Double Patti */}
+                    <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-500/20 to-purple-700/20 border border-purple-500/30 p-4">
+                        <div className="text-purple-400 font-bold text-sm uppercase tracking-wide">Double Patti</div>
+                        <div className="mt-1 text-white text-2xl font-extrabold">×280</div>
+                        <div className="mt-1 text-purple-300 text-sm font-semibold">₹10 ka ₹2,800</div>
+                        <div className="mt-2 text-gray-400 text-xs">90 numbers • Open / Close</div>
+                    </div>
+
+                    {/* Triple Patti */}
+                    <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-rose-500/20 to-rose-700/20 border border-rose-500/30 p-4 col-span-2 sm:col-span-1">
+                        <div className="text-rose-400 font-bold text-sm uppercase tracking-wide">Triple Patti</div>
+                        <div className="mt-1 text-white text-2xl font-extrabold">×800</div>
+                        <div className="mt-1 text-rose-300 text-sm font-semibold">₹10 ka ₹8,000</div>
+                        <div className="mt-2 text-gray-400 text-xs">10 numbers • Open / Close</div>
+                    </div>
+                </div>
             </div>
 
             {/* Today's Results Section */}
