@@ -96,7 +96,7 @@ function timeToMinutes(time: string): number {
     return h * 60 + m
 }
 
-const fmt = (n: number) => `₹${n.toLocaleString('en-IN')}`
+const fmt = (n: number) => `₹${(n ?? 0).toLocaleString('en-IN')}`
 
 export default function AdminDashboard() {
     const [loading, setLoading] = useState(true)

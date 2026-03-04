@@ -121,11 +121,13 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({
                 recommendations: {
                     totalCollection: 0,
+                    targetCollection: 0,
                     targetMatch: [],
                     systemRecommendations: [],
                     lowBets: [],
+                    allSinglesAndJodiBooked: false,
                     noBets: [],
-                    betStats: { singleCount: 0, singleAmount: 0, tripleCount: 0, tripleAmount: 0, jodiCount: 0, jodiAmount: 0, totalPending: 0 }
+                    betStats: { singleCount: 0, singleAmount: 0, singlePattiCount: 0, singlePattiAmount: 0, doublePattiCount: 0, doublePattiAmount: 0, triplePattiCount: 0, triplePattiAmount: 0, jodiCount: 0, jodiAmount: 0, totalPending: 0 }
                 }
             })
         }
