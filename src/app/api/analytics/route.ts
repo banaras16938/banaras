@@ -347,11 +347,10 @@ export async function GET(request: NextRequest) {
             })
             .sort((a, b) => Math.abs(a.payoutPercentage - targetPayout) - Math.abs(b.payoutPercentage - targetPayout))
 
-        // List 3: LOW BETS — bottom 20th percentile by total bet volume (non-zero only)
-        const betsWithVolume = results.filter(r => r.totalBets > 0)
-        const sortedByBets = [...betsWithVolume].sort((a, b) => a.totalBets - b.totalBets)
-        const percentile20Count = Math.max(Math.ceil(sortedByBets.length * 0.2), 1)
-        const lowBets = sortedByBets.slice(0, percentile20Count)
+        // List 3: LOW BETS — all numbers sorted by total liability ascending
+        // Zero-bet numbers appear first (safest), then lowest payout numbers
+        const lowBets = [...results]
+            .sort((a, b) => a.totalLiability - b.totalLiability)
 
         // List 4: GHOST NUMBERS — no bets at all on patti, single, AND jodi
         // Only show pattis where declaring them would cause ZERO payout
