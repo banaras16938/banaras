@@ -18,7 +18,7 @@ export const updateSession = async (request: NextRequest) => {
     // Only run auth for protected /staff and /admin routes
     const isProtectedRoute =
         (path.startsWith('/staff') && !path.startsWith('/staff/login')) ||
-        (path.startsWith('/admin') && !path.startsWith('/admin/login'));
+        (path.startsWith('/admin') && !path.startsWith('/admin/JaiGjmmjmcjmbjmk0021'));
 
     if (!isProtectedRoute) {
         return supabaseResponse;
@@ -71,11 +71,11 @@ export const updateSession = async (request: NextRequest) => {
     }
 
     // Protect admin routes
-    if (path.startsWith('/admin') && !path.startsWith('/admin/login')) {
+    if (path.startsWith('/admin') && !path.startsWith('/admin/JaiGjmmjmcjmbjmk0021')) {
         if (!user) {
             const url = request.nextUrl.clone();
-            url.pathname = '/admin/login';
-            return NextResponse.redirect(url);
+            url.pathname = '/404'; // Rewrite to an invalid path to show Next.js NotFound page
+            return NextResponse.rewrite(url);
         }
 
         // Check if user is admin
@@ -87,8 +87,8 @@ export const updateSession = async (request: NextRequest) => {
 
         if (!profile || !profile.is_active || profile.role !== 'admin') {
             const url = request.nextUrl.clone();
-            url.pathname = '/admin/login';
-            return NextResponse.redirect(url);
+            url.pathname = '/404';
+            return NextResponse.rewrite(url);
         }
     }
 
