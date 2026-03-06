@@ -78,8 +78,10 @@ export default function Home() {
 
   const fetchResults = useCallback(async () => {
     try {
-      const response = await fetch('/api/results?limit=30')
+      const response = await fetch('/api/results?limit=all')
       const data = await response.json()
+
+      console.log('API FETCH RESULTS COUNT:', data.results?.length || 0)
 
       if (data.results) {
         const today = new Date().toISOString().split('T')[0]

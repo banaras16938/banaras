@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server'
+import { createPublicClient } from '@/utils/supabase/public'
 import { NextRequest, NextResponse } from 'next/server'
 import { SessionType, BetTarget, sessionToResult, ALL_VALID_PATTIS } from '@/types/types'
 
@@ -8,12 +9,13 @@ import { SessionType, BetTarget, sessionToResult, ALL_VALID_PATTIS } from '@/typ
 
 // GET: Get game results (public)
 export async function GET(request: NextRequest) {
-    const supabase = await createClient()
+    const supabase = createPublicClient()
 
     const { searchParams } = new URL(request.url)
     const gameDate = searchParams.get('date')
     const sessionName = searchParams.get('session') as SessionType | null
-    const limit = parseInt(searchParams.get('limit') || '30')
+    const limitParam = searchParams.get('limit')
+    const limit = limitParam === 'all' ? 100000 : parseInt(limitParam || '30')
 
     let query = supabase
         .from('game_sessions')
@@ -24,16 +26,45 @@ export async function GET(request: NextRequest) {
     if (gameDate) query = query.eq('game_date', gameDate)
     if (sessionName) query = query.eq('session_name', sessionName)
 
-    const { data: sessions, error } = await query.limit(limit)
+    if (limit !== null) {
+        query = query.limit(limit)
+        const { data: sessions, error } = await query
 
-    if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        if (error) {
+            return NextResponse.json({ error: error.message }, { status: 500 })
+        }
+
+        const results = sessions?.map(sessionToResult) || []
+        return NextResponse.json({ results })
+    } else {
+        // Fetch all data using pagination to bypass 1000 row limit
+        let allSessions: any[] = []
+        let hasMore = true
+        let page = 0
+        const pageSize = 1000
+
+        while (hasMore) {
+            const { data, error } = await query.range(page * pageSize, (page + 1) * pageSize - 1)
+
+            if (error) {
+                return NextResponse.json({ error: error.message }, { status: 500 })
+            }
+
+            if (data && data.length > 0) {
+                allSessions = [...allSessions, ...data]
+                if (data.length < pageSize) {
+                    hasMore = false
+                } else {
+                    page++
+                }
+            } else {
+                hasMore = false
+            }
+        }
+
+        const results = allSessions.map(sessionToResult)
+        return NextResponse.json({ results })
     }
-
-    // Transform to GameResult format for UI compatibility
-    const results = sessions?.map(sessionToResult) || []
-
-    return NextResponse.json({ results })
 }
 
 // POST: Declare result (admin only)
