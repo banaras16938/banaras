@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server'
+import { createPublicClient } from '@/utils/supabase/public'
 import { NextRequest, NextResponse } from 'next/server'
 import { SessionType, BetTarget, sessionToResult, ALL_VALID_PATTIS } from '@/types/types'
 
@@ -8,12 +9,13 @@ import { SessionType, BetTarget, sessionToResult, ALL_VALID_PATTIS } from '@/typ
 
 // GET: Get game results (public)
 export async function GET(request: NextRequest) {
-    const supabase = await createClient()
+    const supabase = createPublicClient()
 
     const { searchParams } = new URL(request.url)
     const gameDate = searchParams.get('date')
     const sessionName = searchParams.get('session') as SessionType | null
-    const limit = parseInt(searchParams.get('limit') || '30')
+    const limitParam = searchParams.get('limit')
+    const limit = limitParam === 'all' ? null : parseInt(limitParam || '30')
 
     let query = supabase
         .from('game_sessions')
@@ -24,7 +26,9 @@ export async function GET(request: NextRequest) {
     if (gameDate) query = query.eq('game_date', gameDate)
     if (sessionName) query = query.eq('session_name', sessionName)
 
-    const { data: sessions, error } = await query.limit(limit)
+    if (limit !== null) query = query.limit(limit)
+
+    const { data: sessions, error } = await query
 
     if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 })
