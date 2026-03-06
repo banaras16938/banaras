@@ -128,7 +128,6 @@ export function PanelChart({ results, schedules, currentTime = new Date() }: Pan
 
         // Convert to array format with date ranges
         return Array.from(weeksMap.values())
-            .slice(0, 6)
             .map(week => {
                 const formatDate = (d: Date) =>
                     `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear().toString().slice(-2)}`
@@ -172,9 +171,9 @@ export function PanelChart({ results, schedules, currentTime = new Date() }: Pan
                     <p className="text-[var(--text-muted)]">No panel results available yet.</p>
                 </div>
             ) : (
-                <div>
-                    <table className="chart-table chart-table-fit">
-                        <thead>
+                <div className="overflow-x-auto max-h-[600px] overflow-y-auto w-full">
+                    <table className="chart-table chart-table-fit w-full">
+                        <thead className="sticky top-0 z-10 bg-[var(--card-bg)] shadow-[0_2px_4px_rgba(0,0,0,0.1)]">
                             <tr>
                                 {weekDays.map(day => (
                                     <th key={day}>{day}</th>
