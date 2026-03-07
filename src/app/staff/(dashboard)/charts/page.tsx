@@ -21,7 +21,7 @@ export default function ChartsPage() {
     const fetchResults = useCallback(async () => {
         setLoading(true)
         try {
-            const response = await fetch('/api/results?limit=30')
+            const response = await fetch('/api/results?limit=all')
             const data = await response.json()
 
             if (response.ok && data.results) {
@@ -67,8 +67,8 @@ export default function ChartsPage() {
                 <button
                     onClick={() => setActiveChart('jodi')}
                     className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium transition-all ${activeChart === 'jodi'
-                            ? 'bg-indigo-500 text-white'
-                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                        ? 'bg-indigo-500 text-white'
+                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
                         }`}
                 >
                     <Grid3X3 size={16} />
@@ -77,8 +77,8 @@ export default function ChartsPage() {
                 <button
                     onClick={() => setActiveChart('panel')}
                     className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium transition-all ${activeChart === 'panel'
-                            ? 'bg-indigo-500 text-white'
-                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                        ? 'bg-indigo-500 text-white'
+                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
                         }`}
                 >
                     <BarChart3 size={16} />

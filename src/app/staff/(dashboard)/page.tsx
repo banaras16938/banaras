@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { CurrentResult } from '@/components/results/CurrentResult'
-import { Ticket, RefreshCw, IndianRupee } from 'lucide-react'
+import { Ticket, RefreshCw, IndianRupee, Clock, Sun, Moon } from 'lucide-react'
 import Link from 'next/link'
 import { GameResult } from '@/types/types'
 import { useStaffName } from './layout'
@@ -180,6 +180,84 @@ export default function StaffDashboard() {
                         <div className="mt-1 text-white text-2xl font-extrabold">×800</div>
                         <div className="mt-1 text-rose-300 text-sm font-semibold">₹10 ka ₹8,000</div>
                         <div className="mt-2 text-gray-400 text-xs">10 numbers • Open / Close</div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Game Timings Section */}
+            <div className="space-y-4">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Clock size={20} className="text-blue-400" />
+                    Game Timings
+                </h2>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                    {/* Morning Game */}
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 bg-yellow-500/20 rounded-lg">
+                                <Sun className="text-yellow-400" size={20} />
+                            </div>
+                            <h3 className="text-lg font-bold text-white">Morning Game</h3>
+                        </div>
+                        <div className="space-y-3">
+                            <div className="flex justify-between items-center pb-3 border-b border-white/10">
+                                <div>
+                                    <div className="text-sm font-bold text-gray-200">Open & Jodi</div>
+                                    <div className="text-xs text-emerald-400 font-medium mt-1">Starts: 09:00 AM</div>
+                                    <div className="text-xs text-red-400 font-medium mt-0.5">Closes: 12:30 PM</div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-xs text-gray-400">Result Time</div>
+                                    <div className="text-sm font-bold text-emerald-400">01:00 PM</div>
+                                </div>
+                            </div>
+                            <div className="flex justify-between items-center pt-1">
+                                <div>
+                                    <div className="text-sm font-bold text-gray-200">Close</div>
+                                    <div className="text-xs text-emerald-400 font-medium mt-1">Starts: 09:00 AM</div>
+                                    <div className="text-xs text-red-400 font-medium mt-0.5">Closes: 02:30 PM</div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-xs text-gray-400">Result Time</div>
+                                    <div className="text-sm font-bold text-emerald-400">03:00 PM</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Night Game */}
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 bg-blue-500/20 rounded-lg">
+                                <Moon className="text-blue-400" size={20} />
+                            </div>
+                            <h3 className="text-lg font-bold text-white">Night Game</h3>
+                        </div>
+                        <div className="space-y-3">
+                            <div className="flex justify-between items-center pb-3 border-b border-white/10">
+                                <div>
+                                    <div className="text-sm font-bold text-gray-200">Open & Jodi</div>
+                                    <div className="text-xs text-emerald-400 font-medium mt-1">Starts: 09:00 AM</div>
+                                    <div className="text-xs text-red-400 font-medium mt-0.5">Closes: 05:30 PM</div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-xs text-gray-400">Result Time</div>
+                                    <div className="text-sm font-bold text-emerald-400">06:00 PM</div>
+                                </div>
+                            </div>
+                            <div className="flex justify-between items-center pt-1">
+                                <div>
+                                    <div className="text-sm font-bold text-gray-200">Close</div>
+                                    <div className="text-xs text-emerald-400 font-medium mt-1">Starts: 09:00 AM</div>
+                                    <div className="text-xs text-red-400 font-medium mt-0.5">Closes: 07:30 PM</div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-xs text-gray-400">Result Time</div>
+                                    <div className="text-sm font-bold text-emerald-400">08:00 PM</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
