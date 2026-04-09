@@ -751,20 +751,24 @@ export default function AdminDashboard() {
                         </div>
                     )}
 
+                    {/* Soft warning for Low tab when not all singles/jodis booked */}
+                    {activeTab === 'low' && !recommendations.allSinglesAndJodiBooked && getActiveList().length > 0 && (
+                        <div className="px-4 py-3 border-b border-yellow-500/20 bg-yellow-500/5">
+                            <div className="flex items-center gap-2">
+                                <AlertTriangle size={14} className="text-yellow-400 shrink-0" />
+                                <p className="text-xs text-yellow-400">Not all Single/Jodi numbers are booked — showing results sorted by lowest liability</p>
+                            </div>
+                        </div>
+                    )}
+
                     {getActiveList().length === 0 ? (
                         <div className="py-12 text-center text-gray-500">
                             {loadingRecommendations && activeTab !== 'manual' ? 'Loading...' : (
                                 activeTab === 'target'
                                     ? `No exact match for ${payoutSlider}% payout. Try the Leverage tab for ±10% range.`
-                                    : activeTab === 'low' && !recommendations.allSinglesAndJodiBooked
-                                        ? <div className="flex flex-col items-center gap-3">
-                                            <AlertTriangle size={32} className="text-yellow-400" />
-                                            <p className="text-yellow-400 font-medium">All Jodi and Single numbers are not booked</p>
-                                            <p className="text-xs text-gray-500">Low section will be available once all Single (0-9) and Jodi numbers have bets placed on them.</p>
-                                        </div>
-                                        : activeTab === 'manual'
-                                            ? (manualTriple.length === 3 && !loadingManual ? 'Could not compute liability for this triple.' : 'Enter a 3-digit triple number above.')
-                                            : 'No results in this category'
+                                    : activeTab === 'manual'
+                                        ? (manualTriple.length === 3 && !loadingManual ? 'Could not compute liability for this triple.' : 'Enter a 3-digit triple number above.')
+                                        : 'No results in this category'
                             )}
                         </div>
                     ) : (
