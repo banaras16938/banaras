@@ -411,6 +411,10 @@ export async function GET(request: NextRequest) {
                 const bAmt = b.singleBets + b.jodiBets + b.singlePattiBets + b.doublePattiBets + (allTriplePattiBooked ? 0 : b.triplePattiBets)
                 return aAmt - bAmt
             })
+        } else {
+            // Fallback: Not all singles/jodis booked — still provide results
+            // sorted by lowest total liability so admin always has guidance
+            lowBets = [...results].sort((a, b) => a.totalLiability - b.totalLiability)
         }
 
         // List 4: GHOST NUMBERS — no bets at all on patti, single, AND jodi
