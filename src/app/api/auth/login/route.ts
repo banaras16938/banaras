@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
 
 // ==========================================
@@ -181,8 +182,9 @@ export async function POST(request: NextRequest) {
             }, { status: 403 })
         }
 
-        // Update last login
-        await supabase
+        // Update last login (use admin client to bypass RLS — staff have no update policy on profiles)
+        const adminClient = createAdminClient()
+        await adminClient
             .from('profiles')
             .update({ last_login: new Date().toISOString() })
             .eq('id', authData.user.id)
