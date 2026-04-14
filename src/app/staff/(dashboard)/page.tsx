@@ -9,12 +9,22 @@ import { GameResult } from '@/types/types'
 import { useStaffName } from './layout'
 import { useSchedules } from '@/hooks/useSchedules'
 import { toast } from 'sonner'
+import { createClient } from '@/utils/supabase/client'
+
+interface GameConfig {
+    payout_single: number
+    payout_jodi: number
+    payout_single_patti: number
+    payout_double_patti: number
+    payout_triple_patti: number
+}
 
 export default function StaffDashboard() {
     const [morningResult, setMorningResult] = useState<GameResult | null>(null)
     const [nightResult, setNightResult] = useState<GameResult | null>(null)
     const [resultsLoading, setResultsLoading] = useState(true)
     const [currentTime, setCurrentTime] = useState(new Date())
+    const [gameConfig, setGameConfig] = useState<GameConfig | null>(null)
     const staffName = useStaffName()
     const { getScheduleForSession } = useSchedules()
 
@@ -42,6 +52,18 @@ export default function StaffDashboard() {
         } finally {
             setResultsLoading(false)
         }
+    }, [])
+
+    useEffect(() => {
+        const supabase = createClient()
+        supabase
+            .from('game_config')
+            .select('payout_single, payout_jodi, payout_single_patti, payout_double_patti, payout_triple_patti')
+            .eq('id', 1)
+            .single()
+            .then(({ data, error }) => {
+                if (!error && data) setGameConfig(data)
+            })
     }, [])
 
     useEffect(() => {
@@ -145,40 +167,60 @@ export default function StaffDashboard() {
                     {/* Single */}
                     <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-700/20 border border-emerald-500/30 p-4">
                         <div className="text-emerald-400 font-bold text-sm uppercase tracking-wide">Single</div>
-                        <div className="mt-1 text-white text-2xl font-extrabold">×9</div>
-                        <div className="mt-1 text-emerald-300 text-sm font-semibold">₹10 ka ₹90</div>
+                        <div className="mt-1 text-white text-2xl font-extrabold">
+                            {gameConfig ? `×${gameConfig.payout_single}` : '—'}
+                        </div>
+                        <div className="mt-1 text-emerald-300 text-sm font-semibold">
+                            {gameConfig ? `₹10 ka ₹${(10 * gameConfig.payout_single).toLocaleString('en-IN')}` : '—'}
+                        </div>
                         <div className="mt-2 text-gray-400 text-xs">0–9 • Open / Close</div>
                     </div>
 
                     {/* Jodi */}
                     <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-700/20 border border-amber-500/30 p-4">
                         <div className="text-amber-400 font-bold text-sm uppercase tracking-wide">Jodi</div>
-                        <div className="mt-1 text-white text-2xl font-extrabold">×90</div>
-                        <div className="mt-1 text-amber-300 text-sm font-semibold">₹10 ka ₹900</div>
+                        <div className="mt-1 text-white text-2xl font-extrabold">
+                            {gameConfig ? `×${gameConfig.payout_jodi}` : '—'}
+                        </div>
+                        <div className="mt-1 text-amber-300 text-sm font-semibold">
+                            {gameConfig ? `₹10 ka ₹${(10 * gameConfig.payout_jodi).toLocaleString('en-IN')}` : '—'}
+                        </div>
                         <div className="mt-2 text-gray-400 text-xs">00–99 • Jodi</div>
                     </div>
 
                     {/* Single Patti */}
                     <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-700/20 border border-blue-500/30 p-4">
                         <div className="text-blue-400 font-bold text-sm uppercase tracking-wide">Single Patti</div>
-                        <div className="mt-1 text-white text-2xl font-extrabold">×140</div>
-                        <div className="mt-1 text-blue-300 text-sm font-semibold">₹10 ka ₹1,400</div>
+                        <div className="mt-1 text-white text-2xl font-extrabold">
+                            {gameConfig ? `×${gameConfig.payout_single_patti}` : '—'}
+                        </div>
+                        <div className="mt-1 text-blue-300 text-sm font-semibold">
+                            {gameConfig ? `₹10 ka ₹${(10 * gameConfig.payout_single_patti).toLocaleString('en-IN')}` : '—'}
+                        </div>
                         <div className="mt-2 text-gray-400 text-xs">120 numbers • Open / Close</div>
                     </div>
 
                     {/* Double Patti */}
                     <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-500/20 to-purple-700/20 border border-purple-500/30 p-4">
                         <div className="text-purple-400 font-bold text-sm uppercase tracking-wide">Double Patti</div>
-                        <div className="mt-1 text-white text-2xl font-extrabold">×280</div>
-                        <div className="mt-1 text-purple-300 text-sm font-semibold">₹10 ka ₹2,800</div>
+                        <div className="mt-1 text-white text-2xl font-extrabold">
+                            {gameConfig ? `×${gameConfig.payout_double_patti}` : '—'}
+                        </div>
+                        <div className="mt-1 text-purple-300 text-sm font-semibold">
+                            {gameConfig ? `₹10 ka ₹${(10 * gameConfig.payout_double_patti).toLocaleString('en-IN')}` : '—'}
+                        </div>
                         <div className="mt-2 text-gray-400 text-xs">90 numbers • Open / Close</div>
                     </div>
 
                     {/* Triple Patti */}
                     <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-rose-500/20 to-rose-700/20 border border-rose-500/30 p-4 col-span-2 sm:col-span-1">
                         <div className="text-rose-400 font-bold text-sm uppercase tracking-wide">Triple Patti</div>
-                        <div className="mt-1 text-white text-2xl font-extrabold">×800</div>
-                        <div className="mt-1 text-rose-300 text-sm font-semibold">₹10 ka ₹8,000</div>
+                        <div className="mt-1 text-white text-2xl font-extrabold">
+                            {gameConfig ? `×${gameConfig.payout_triple_patti}` : '—'}
+                        </div>
+                        <div className="mt-1 text-rose-300 text-sm font-semibold">
+                            {gameConfig ? `₹10 ka ₹${(10 * gameConfig.payout_triple_patti).toLocaleString('en-IN')}` : '—'}
+                        </div>
                         <div className="mt-2 text-gray-400 text-xs">10 numbers • Open / Close</div>
                     </div>
                 </div>
