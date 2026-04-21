@@ -17,7 +17,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         // Fire signOut in background — don't block UI
         supabase.auth.signOut()
         toast.success('Logged out successfully')
-        router.push('/admin/login')
+        router.push('/')
     }
 
     const getPageTitle = () => {
