@@ -5,12 +5,28 @@ import { Card } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { BetCategory, BetTarget, SessionType, PAYOUT_MULTIPLIERS, PATTI_NUMBERS, PATTI_CATEGORIES, PATTI_LABELS, PATTI_FULL_LABELS, PattiCategory } from '@/types/types'
+import { BetCategory, BetTarget, SessionType, PATTI_NUMBERS, PATTI_CATEGORIES, PATTI_LABELS, PATTI_FULL_LABELS, PattiCategory } from '@/types/types'
 import { Check, Search, Plus, User, Clock, AlertTriangle, CalendarX, UserCheck, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSchedules, formatScheduleTime } from '@/hooks/useSchedules'
 import { createClient } from '@/utils/supabase/client'
 import { useStaffInfo } from '../layout'
+
+interface GameConfig {
+    payout_single: number
+    payout_jodi: number
+    payout_single_patti: number
+    payout_double_patti: number
+    payout_triple_patti: number
+}
+
+const GAME_CONFIG_MULTIPLIER_KEYS: Record<string, keyof GameConfig> = {
+    single: 'payout_single',
+    jodi: 'payout_jodi',
+    single_patti: 'payout_single_patti',
+    double_patti: 'payout_double_patti',
+    triple_patti: 'payout_triple_patti',
+}
 
 interface Player {
     id: string
@@ -54,6 +70,7 @@ export default function PlaceBetPage() {
     const [loadingPlayers, setLoadingPlayers] = useState(false)
 
     const staffInfo = useStaffInfo()
+    const [gameConfig, setGameConfig] = useState<GameConfig | null>(null)
     const [sessionName, setSessionName] = useState<SessionType>('morning')
     const [activeTab, setActiveTab] = useState<BetCategory>('single')
     const [target, setTarget] = useState<BetTarget>('open')
@@ -87,6 +104,18 @@ export default function PlaceBetPage() {
     const [isHoliday, setIsHoliday] = useState(false)
     const [holidayDesc, setHolidayDesc] = useState('')
     const [holidayLoading, setHolidayLoading] = useState(true)
+
+    useEffect(() => {
+        const supabase = createClient()
+        supabase
+            .from('game_config')
+            .select('payout_single, payout_jodi, payout_single_patti, payout_double_patti, payout_triple_patti')
+            .eq('id', 1)
+            .single()
+            .then(({ data, error }) => {
+                if (!error && data) setGameConfig(data)
+            })
+    }, [])
 
     useEffect(() => {
         async function checkHoliday() {
@@ -566,7 +595,8 @@ export default function PlaceBetPage() {
                 {(['single', 'jodi', 'single_patti', 'double_patti', 'triple_patti'] as BetCategory[]).map((cat) => {
                     const isDisabled = cat === 'jodi' ? !bettingStatus.jodiBetting : (!bettingStatus.openBetting && !bettingStatus.closeBetting)
                     const label = cat === 'single' ? 'Single' : cat === 'jodi' ? 'Jodi' : PATTI_LABELS[cat as PattiCategory]
-                    const mult = PAYOUT_MULTIPLIERS[cat]
+                    const configKey = GAME_CONFIG_MULTIPLIER_KEYS[cat]
+                    const mult = gameConfig && configKey ? gameConfig[configKey] : '—'
                     return (
                         <button
                             key={cat}
