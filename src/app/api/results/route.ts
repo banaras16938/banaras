@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { createPublicClient } from '@/utils/supabase/public'
 import { NextRequest, NextResponse } from 'next/server'
 import { SessionType, BetTarget, sessionToResult, ALL_VALID_PATTIS } from '@/types/types'
+import { PUBLIC_SITE_ENABLED } from '@/config/public-site'
 
 // ==========================================
 // RESULTS (GAME SESSIONS) API ROUTE
@@ -9,6 +10,27 @@ import { SessionType, BetTarget, sessionToResult, ALL_VALID_PATTIS } from '@/typ
 
 // GET: Get game results (public)
 export async function GET(request: NextRequest) {
+    // Public site is shut down: results are only served to signed-in, active
+    // staff/admin accounts. See src/config/public-site.ts
+    if (!PUBLIC_SITE_ENABLED) {
+        const authClient = await createClient()
+
+        const { data: { user } } = await authClient.auth.getUser()
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        const { data: profile } = await authClient
+            .from('profiles')
+            .select('is_active')
+            .eq('id', user.id)
+            .single()
+
+        if (!profile || !profile.is_active) {
+            return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+        }
+    }
+
     const supabase = createPublicClient()
 
     const { searchParams } = new URL(request.url)
