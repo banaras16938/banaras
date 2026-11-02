@@ -4,10 +4,10 @@
 |---|---|
 | **Date** | 2 Nov 2026 |
 | **Branch** | `claude/peaceful-gates-ndrvhl` |
-| **Change type** | Routing, access control and search-engine visibility. No code was removed. |
+| **Change type** | Routing, access control, search-engine visibility and site icon. No code was removed. |
 | **Affected audience** | Public visitors and search engines |
 | **Staff / Admin impact** | None. All features work as before. |
-| **Reversible** | Yes. Change two constants (see [§9](#9-how-to-re-enable)). |
+| **Reversible** | Yes. Change two constants and restore one image file (see [§9](#9-how-to-re-enable)). |
 
 ---
 
@@ -17,9 +17,11 @@ The client-facing results website (live Morning/Night results, Jodi Chart, Panel
 
 The **whole website is also being removed from search engines.** Every page sends `<meta name="robots" content="noindex, nofollow">`, and every response (pages, images, static files, API) sends the `X-Robots-Tag: noindex, nofollow` header.
 
+The **default Vercel/Next.js site icon (favicon) has been removed**, and the site now declares an empty icon, so no icon is shown in the browser tab.
+
 The **Staff portal** (`/staff/...`) and the **Admin portal** (`/admin/...`) are unchanged and remain fully operational for internal use.
 
-**No existing line of code was deleted or modified.** The public site's code is still in the repository. It is no longer routed. Every change to an existing file only adds lines (`git diff` against `main` shows **53 insertions, 0 deletions** across existing files).
+**No existing line of code was deleted or modified.** The public site's code is still in the repository. It is no longer routed. Every change to an existing code file only adds lines (`git diff 8726496`, the last commit before this change, shows **58 insertions, 0 deletions** across existing code files). The only file removed is the default favicon image (`src/app/favicon.ico`), which was removed on request. It is an image, not code.
 
 ---
 
@@ -45,6 +47,16 @@ The **Staff portal** (`/staff/...`) and the **Admin portal** (`/admin/...`) are 
 - Follows the visitor's light/dark system preference and works on mobile.
 - No logo, no navigation and no links to the staff/admin login pages, so the internal portals are not advertised.
 
+### 3.1 Site icon (favicon)
+
+The default Vercel/Next.js favicon that came with the project template (`src/app/favicon.ico`) has been **removed**. No icon is shown anywhere on the website, including the public notice, staff, admin and 404 pages.
+
+- Every page now declares an **empty icon** (`<link rel="icon" href="data:,">`, set in the root layout metadata). This has two effects:
+  - browsers do not fall back to requesting `/favicon.ico`, so there is no extra request and no 404;
+  - returning visitors who still have the old Vercel icon in their browser cache get it replaced by the empty icon.
+- `/favicon.ico` now returns **404**.
+- The browser tab shows its built-in blank page icon, so the site has no branding at all.
+
 ---
 
 ## 4. Search-engine removal
@@ -54,7 +66,7 @@ The **Staff portal** (`/staff/...`) and the **Admin portal** (`/admin/...`) are 
 | Layer | Where | What it does | Covers |
 |---|---|---|---|
 | Robots meta tag | `src/app/layout.tsx` (root metadata) | Renders `<meta name="robots" content="noindex, nofollow">` in the `<head>` | **Every HTML page**: notice, staff login and dashboards, admin login and dashboards, 404 page |
-| `X-Robots-Tag` HTTP header | `next.config.ts` (`headers()`, source `/:path*`) | Sends `X-Robots-Tag: noindex, nofollow` | **Every response**, including those that cannot hold a meta tag: images (`/logo-1.png`, `/background-*.webp`), `favicon.ico`, JS/CSS, API JSON, redirects |
+| `X-Robots-Tag` HTTP header | `next.config.ts` (`headers()`, source `/:path*`) | Sends `X-Robots-Tag: noindex, nofollow` | **Every response**, including those that cannot hold a meta tag: images (`/logo-1.png`, `/background-*.webp`), JS/CSS, API JSON, redirects |
 
 Both layers are controlled by `SEARCH_ENGINE_INDEXING_ENABLED = false` in `src/config/public-site.ts`.
 
@@ -95,6 +107,8 @@ This was left out on purpose. A search engine only learns about `noindex` when i
 | `/staff/...` and `/admin/...` (signed in) | Dashboards | Dashboards (unchanged) |
 | All other `/api/...` endpoints | Auth-protected | Unchanged |
 | **Search-engine indexing (any URL)** | Allowed (no robots directives) | **`noindex, nofollow`** (meta tag + header) |
+| **Browser tab icon (all pages)** | Default Vercel/Next.js favicon | **None** (empty icon) |
+| `GET /favicon.ico` | Vercel/Next.js favicon | **404** |
 
 ---
 
@@ -110,13 +124,19 @@ This was left out on purpose. A search engine only learns about `noindex` when i
 | `docs/PUBLIC_SITE_SHUTDOWN.md` | This document. |
 | `docs/assets/site-unavailable.png` | Screenshot of the notice used in this document. |
 
+### 6.1a Removed file (on request)
+
+| File | Reason |
+|---|---|
+| `src/app/favicon.ico` | The default Vercel/Next.js site icon from the project template (25,931-byte binary image, not code). It was removed so the site shows no icon. It can be restored from git history (see [§9](#9-how-to-re-enable)). |
+
 ### 6.2 Existing files (lines added only, none removed)
 
 | File | Lines | Change |
 |---|---|---|
 | `src/middleware.ts` | +8 | Runs the public-site check before the existing Supabase session handling |
 | `src/app/api/results/route.ts` | +22 | Auth guard at the top of `GET` |
-| `src/app/layout.tsx` | +7 | `robots` entry in the root metadata (site-wide meta tag) |
+| `src/app/layout.tsx` | +12 | `robots` entry (site-wide `noindex, nofollow` meta tag) and an empty `icons` entry (no site icon) in the root metadata |
 | `next.config.ts` | +16 | `headers()` sending `X-Robots-Tag` on every response |
 
 **`src/middleware.ts`**
@@ -165,6 +185,11 @@ export const metadata: Metadata = {
   robots: {
     index: SEARCH_ENGINE_INDEXING_ENABLED,
     follow: SEARCH_ENGINE_INDEXING_ENABLED,
+  },
+  // No site icon. The default Vercel/Next.js favicon was removed; this empty icon
+  // stops browsers from requesting /favicon.ico and replaces any cached copy of it.
+  icons: {
+    icon: "data:,",
   },
 };
 ```
@@ -234,8 +259,9 @@ Both switches are in `src/config/public-site.ts`. They are independent: bringing
 |---|---|---|
 | Bring back the public results site | `PUBLIC_SITE_ENABLED = true` | Build and deploy |
 | Allow search engines to index the site again | `SEARCH_ENGINE_INDEXING_ENABLED = true` | Build and deploy. Cancel any active Search Console removal request. |
+| Show a site icon again | Restore the old icon with `git checkout 8726496 -- src/app/favicon.ico` (or add a new `src/app/favicon.ico`), and point `icons.icon` in `src/app/layout.tsx` to `/favicon.ico` | Build and deploy |
 
-With both flags set to `true`, the website behaves exactly as it did before this change. Reverting the commits also restores the original state completely.
+With both flags set to `true` and the favicon restored, the website behaves exactly as it did before this change. Reverting the commits also restores the original state completely.
 
 ---
 
@@ -276,7 +302,15 @@ All checks ran against a **production build** (`next build` + `next start`). A l
 | `/some/random/page` | 404 | `noindex, nofollow` | `noindex, nofollow` (plus the Next.js default `noindex`) |
 | `/staff` (visitor redirect) | 307 | `noindex, nofollow` | n/a (redirect) |
 | `/api/results` | 401 | `noindex, nofollow` | n/a (JSON) |
-| `/logo-1.png`, `/background-1.webp`, `/favicon.ico` | 200 | `noindex, nofollow` | n/a (image) |
+| `/logo-1.png`, `/background-1.webp` | 200 | `noindex, nofollow` | n/a (image) |
+
+### 10.2a Site icon
+
+| Check | Result |
+|---|---|
+| Icon tags in `<head>` on `/`, `/staff/login`, `/admin/JaiGjmmjmcjmbjmk0021` and a 404 page | Exactly one: `<link rel="icon" href="data:,"/>`. No reference to `/favicon.ico`. |
+| `GET /favicon.ico` | 404 |
+| Real browser (Chromium) visiting `/`, `/staff/login` and the admin login | **0** requests for a favicon |
 
 ### 10.3 Build quality
 
@@ -285,7 +319,7 @@ All checks ran against a **production build** (`next build` + `next start`). A l
 | `tsc --noEmit` | Passes |
 | `eslint src next.config.ts` | 67 problems before and 67 after. No new issues; all reported issues are pre-existing. |
 | `next build` | Succeeds. `/site-unavailable` is prerendered as static. |
-| `git diff origin/main` on pre-existing files | **53 insertions, 0 deletions** |
+| `git diff 8726496` (pre-change baseline) on pre-existing code files | **58 insertions, 0 deletions** (plus removal of the `favicon.ico` image) |
 
 **Recommended before go-live:** a short smoke test on staging with a real staff login and a real admin login (dashboard results, charts, declare result, cross-checking).
 
@@ -310,5 +344,5 @@ All checks ran against a **production build** (`next build` + `next start`). A l
 
 Either of these restores the original website exactly:
 
-- set `PUBLIC_SITE_ENABLED = true` **and** `SEARCH_ENGINE_INDEXING_ENABLED = true` in `src/config/public-site.ts`, then redeploy, **or**
+- set `PUBLIC_SITE_ENABLED = true` **and** `SEARCH_ENGINE_INDEXING_ENABLED = true` in `src/config/public-site.ts`, restore the favicon as described in [§9](#9-how-to-re-enable), then redeploy, **or**
 - revert the commits that introduced this change.

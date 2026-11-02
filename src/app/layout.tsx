@@ -19,6 +19,11 @@ export const metadata: Metadata = {
     index: SEARCH_ENGINE_INDEXING_ENABLED,
     follow: SEARCH_ENGINE_INDEXING_ENABLED,
   },
+  // No site icon. The default Vercel/Next.js favicon was removed; this empty icon
+  // stops browsers from requesting /favicon.ico and replaces any cached copy of it.
+  icons: {
+    icon: "data:,",
+  },
 };
 
 export default function RootLayout({
