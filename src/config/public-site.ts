@@ -26,3 +26,18 @@ export const PUBLIC_SITE_UNAVAILABLE_ROUTE = '/site-unavailable'
  * Disclaimer views) is rendered from the root page, so `/` covers all of it.
  */
 export const PUBLIC_SITE_PATHS: readonly string[] = ['/']
+
+/**
+ * Search-engine visibility for the WHOLE website (public notice, staff, admin,
+ * 404 page, images, static files and API responses).
+ *
+ * While `false`:
+ *   - every page renders `<meta name="robots" content="noindex, nofollow">`
+ *     (root layout metadata, `src/app/layout.tsx`)
+ *   - every response carries the `X-Robots-Tag: noindex, nofollow` header
+ *     (`next.config.ts`), which also covers images and other non-HTML files
+ *
+ * This is independent of PUBLIC_SITE_ENABLED: re-enabling the public site does
+ * not make the website indexable again unless this is also set to `true`.
+ */
+export const SEARCH_ENGINE_INDEXING_ENABLED = false
